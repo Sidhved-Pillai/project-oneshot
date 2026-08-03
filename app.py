@@ -25,13 +25,19 @@ def configured_database_url():
         return None
 
 
+STORE_INTERFACE_VERSION = 2
+
+
 @st.cache_resource
-def get_store(url):
+def get_store(url, interface_version):
+    # interface_version is intentionally part of the cache key. Streamlit Cloud
+    # can retain resource objects across a hot deploy even after their class
+    # methods change; bumping it prevents stale database-store instances.
     return RequestStore(url)
 
 
 try:
-    store = get_store(configured_database_url())
+    store = get_store(configured_database_url(), STORE_INTERFACE_VERSION)
 except Exception as exc:
     st.error(f"Database connection failed: {exc}")
     st.stop()

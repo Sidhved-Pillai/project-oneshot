@@ -289,3 +289,8 @@ def test_both_scope_appears_in_both_reports(tmp_path):
                   "vehicle_number": "MH01AA0001", "rtgs_data": {"Remark": "Trip advance"}})
     assert len(store.list(report_kind="DTR")) == 1
     assert len(store.list(report_kind="RTGS")) == 1
+
+
+def test_store_list_accepts_report_kind_after_interface_upgrade(tmp_path):
+    store = RequestStore(f"sqlite:///{tmp_path / 'interface.db'}")
+    assert store.list(report_kind="DTR") == []
