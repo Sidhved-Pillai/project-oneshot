@@ -170,7 +170,15 @@ if uploaded:
         historical_suggester = HistoricalSuggester.from_json(suggestion_path)
         state_key = f"pipeline_{signature}"
         if state_key not in st.session_state:
-            confirmed, potential, non_trip = generate_dtr(source, vehicles, beneficiaries, historical_suggester)
+            try:
+                confirmed, potential, non_trip = generate_dtr(source, vehicles, beneficiaries, historical_suggester)
+            except TypeError as exc:
+                # Community Cloud can briefly retain an older imported module
+                # while hot-reloading app.py. Keep uploads working until its
+                # automatic full process restart completes.
+                if "positional argument" not in str(exc) or "4" not in str(exc):
+                    raise
+                confirmed, potential, non_trip = generate_dtr(source, vehicles, beneficiaries)
             st.session_state[state_key] = {"confirmed": confirmed, "potential": potential, "non_trip": non_trip}
         state = st.session_state[state_key]
         confirmed, potential, non_trip = state["confirmed"], state["potential"], state["non_trip"]
