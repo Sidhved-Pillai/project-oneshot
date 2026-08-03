@@ -14,14 +14,17 @@ POTENTIAL_CONTROL_COLUMNS = ["Include in DTR", "Original Remark", "Original Bene
 INTERNAL_COLUMNS = ["_row_id", "_vehicle_identifiers", "_vehicle_choices", "_type_conflict", "_needs_review"]
 
 
-def _draft(raw, mapping, parsed, vehicles, beneficiaries, row_id):
+def _draft(raw, mapping, parsed, vehicles, beneficiaries, row_id, historical_suggester=None):
     vehicle_no, vehicle, choices = resolve_vehicle(parsed["vehicle_identifiers"], vehicles)
     vehicle_type, type_conflict = choose_vehicle_type(parsed["vehicle_type"], vehicle.get("Vehicle Type", ""))
     account = raw.get(mapping.get("Beneficiary Account No", ""), "")
     bene_matches = find_beneficiary(account, beneficiaries) if not beneficiaries.empty else []
     bene = bene_matches[0] if len(bene_matches) == 1 else {}
     row = {c: "" for c in DTR_COLUMNS}
-    row.update({"Date": parsed["date"], "Vehicle No.": vehicle_no, "Vehicle Type": vehicle_type,
+    company, branch = (historical_suggester.suggest(parsed["from_location"], parsed["to_location"], parsed.get("company_name", ""))
+                       if historical_suggester else (parsed.get("company_name", ""), ""))
+    row.update({"Branch": branch, "Compnay Name": company,
+                "Date": parsed["date"], "Vehicle No.": vehicle_no, "Vehicle Type": vehicle_type,
                 "Own/Outside Vehicle": vehicle.get("Ownership Type", ""), "From": parsed["from_location"],
                 "Invoice No.": parsed["invoice_number"], "To": parsed["to_location"],
                 "Benificiary Name": raw.get(mapping["Beneficiary Name"], ""),
@@ -32,7 +35,7 @@ def _draft(raw, mapping, parsed, vehicles, beneficiaries, row_id):
     return row
 
 
-def generate_dtr(source, vehicles, beneficiaries):
+def generate_dtr(source, vehicles, beneficiaries, historical_suggester=None):
     mapping = resolve_columns(source.columns, CONSOLIDATED_ALIASES)
     missing = [c for c in ("Remark", "Beneficiary Name") if c not in mapping]
     if missing: raise ValueError("Missing required consolidated column(s): " + ", ".join(missing))
@@ -45,7 +48,7 @@ def generate_dtr(source, vehicles, beneficiaries):
                       "Reason": cls.reason, "_row_id": int(source_index)}
         if cls.classification == "Confirmed Non-trip":
             non_trip.append(base_audit); continue
-        draft = _draft(raw, mapping, parse_remark(remark), vehicles, beneficiaries, int(source_index))
+        draft = _draft(raw, mapping, parse_remark(remark), vehicles, beneficiaries, int(source_index), historical_suggester)
         if cls.classification == "Confirmed Trip": confirmed.append(draft)
         else:
             draft.update({"Include in DTR": False, "Original Remark": remark,

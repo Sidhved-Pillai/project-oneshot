@@ -29,11 +29,11 @@ def classify_remark(remark, known_suffixes=()):
     route = bool(re.search(r"\b[A-Za-z][A-Za-z .'-]*\s+to\s+[A-Za-z][A-Za-z .'-]*", raw, re.I))
     vehicle_type = bool(re.search(r"\b0?\d{1,2}\s*[- ]?mt\b", raw, re.I))
     trip_marker = bool(re.search(r"\b(?:TA|TP|TRP|TRIP|\d+TRP)\b", raw, re.I))
-    date = bool(re.search(r"\b\d{1,2}[\s./-]+\d{1,2}[\s./-]+20\d{2}\b", raw))
+    date = bool(re.search(r"\b\d{1,2}[\s./-]+\d{1,2}[\s./-]+(?:\d{2}|\d{4})\b", raw))
     leading_ids = re.findall(r"^\s*(\d{4})(?:\s+(\d{4}))?\b", raw)
     has_id = bool(leading_ids) or bool(re.search(r"\b[A-Z]{2}\s*\d{1,2}\s*[A-Z]{1,3}\s*\d{4}\b", raw, re.I))
     balance = bool(re.search(r"\bbalance payment\b", raw, re.I))
-    date_range_trip = bool(re.search(r"\b\d{1,2}[\s./-]+\d{1,2}[\s./-]+20\d{2}\s+to\s+\d{1,2}", raw, re.I) and trip_marker)
+    date_range_trip = bool(re.search(r"\b\d{1,2}[\s./-]+\d{1,2}[\s./-]+(?:\d{2}|\d{4})\s+to\s+\d{1,2}", raw, re.I) and trip_marker)
     if date_range_trip and has_id:
         return Classification("Potential Trip", "Grouped trip/date range needs review")
     if route and has_id and balance:
@@ -45,4 +45,3 @@ def classify_remark(remark, known_suffixes=()):
     if route and (vehicle_type or (date and trip_marker) or trip_marker):
         return Classification("Potential Trip", "Route evidence needs review")
     return Classification("Potential Trip", "No decisive non-trip rule; user decision required")
-

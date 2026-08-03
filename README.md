@@ -4,6 +4,16 @@ Project Oneshot is a local, browser-based Phase 1 draft DTR generator for Billte
 
 Phase 1 deliberately leaves every financial field—including Payment—blank. Missing business fields remain blank for manual review; the app never invents a company from a route. Always review the generated file once before operational use.
 
+Beneficiary Name always comes directly from the uploaded consolidated report; there is no fixed beneficiary dependency in the web app. DTR Date always comes from the remark and never falls back to `Pymt_Date`. Supported date forms include `30 07 2026`, `30/07/2026`, and `30.07.26`; date ranges use the ending date.
+
+For best results, use this remark format:
+
+```text
+9818 | SG | Talegaon to Bhiwandi | 10MT | 30 07 2026 | INV 12345 | TA
+```
+
+The application uses a non-sensitive, derived historical lookup to suggest company and branch only for repeated patterns with at least 90% agreement. Suggestions remain editable; inconsistent or unseen routes stay blank.
+
 ## Quick start on macOS
 
 ```bash
@@ -37,7 +47,8 @@ Resolve reported conflicts manually in the local master workbooks; duplicate fou
 - `scripts/` contains the master builder.
 - `tests/` uses synthetic, non-private examples.
 - `docs/` contains the masked reference inspection report.
-- `data/masters/` and `data/validation/` contain private generated workbooks.
+- `data/lookups/` contains non-sensitive historical suggestion statistics.
+- `data/masters/` and `data/validation/` contain private generated workbooks used by offline preparation tools.
 - `data/uploads/` and `data/exports/` are local working folders.
 - `reference_files/` contains the original private reports and is never modified.
 

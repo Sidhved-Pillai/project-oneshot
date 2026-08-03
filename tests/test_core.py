@@ -12,6 +12,7 @@ from src.master_builder import build_vehicle_master, build_company_master, build
 from src.dtr_generator import generate_dtr, final_review_rows, DTR_COLUMNS, FINANCIAL_COLUMNS
 from src.excel_exporter import export_dtr
 from src.gemini_parser import parse_with_gemini
+from src.historical_suggester import HistoricalSuggester
 
 
 def vehicle_master():
@@ -142,6 +143,19 @@ def test_unusual_adjacent_days_best_effort():
     assert parsed["vehicle_type"] == "12MT" and parsed["date"].strftime("%d-%m-%Y") == "30-07-2026"
 
 
+@pytest.mark.parametrize("value", ["30 07 2026", "30/07/2026", "30.07.26"])
+def test_all_supported_remark_date_formats(value):
+    assert parse_remark(f"9818 Pune to Mumbai 10MT {value} TA")["date"].strftime("%d-%m-%Y") == "30-07-2026"
+
+
+def test_pipe_format_extracts_company_and_fields():
+    parsed = parse_remark("9818 | SG | Talegaon to Bhiwandi | 10MT | 30 07 2026 | INV 0012345 | TA")
+    assert parsed["vehicle_identifiers"] == ["9818"]
+    assert parsed["company_name"] == "SG" and parsed["from_location"] == "Talegaon" and parsed["to_location"] == "Bhiwandi"
+    assert parsed["vehicle_type"] == "10MT" and parsed["date"].strftime("%d-%m-%Y") == "30-07-2026"
+    assert parsed["invoice_number"] == "0012345"
+
+
 @pytest.mark.parametrize("remark,date", [
     ("9818 29 07 2026 to 31 07 2026 3Trp TA", "31-07-2026"),
     ("4094 25 07 2026 to 28 07 2026 2Trp TA", "28-07-2026"),
@@ -163,6 +177,29 @@ def test_generator_account_priority_and_remark_type_conflict():
     row = confirmed.iloc[0]
     assert row["Vehicle No."] == "MH04AA8172" and row["Vehicle Type"] == "25MT" and bool(row["_needs_review"]) and bool(row["_type_conflict"])
     assert row["Transporter Name"] == "Account Carrier"
+
+
+def test_beneficiary_always_comes_from_uploaded_report_without_master():
+    empty_beneficiaries = pd.DataFrame(columns=["Beneficiary Account No.", "Beneficiary Name", "Transporter Name"])
+    confirmed, _, _ = generate_dtr(source(["7348 Wagholi to Kamshet 10MT 07 08 2026 TA"]), vehicle_master(), empty_beneficiaries)
+    assert confirmed.iloc[0]["Benificiary Name"] == "Demo" and confirmed.iloc[0]["Transporter Name"] == ""
+
+
+def test_payment_date_never_fills_missing_remark_date():
+    frame = source(["7348 Wagholi to Kamshet 10MT TA"])
+    frame["Pymt_Date"] = ["30-07-2026"]
+    confirmed, _, _ = generate_dtr(frame, vehicle_master(), beneficiary_master())
+    assert pd.isna(confirmed.iloc[0]["Date"])
+
+
+def test_historical_suggestions_are_conservative_and_explicit_company_wins():
+    suggester = HistoricalSuggester({
+        "routes": {"jhagadia|indore": {"company": "SG", "branch": "Vadodara"}},
+        "route_companies": {"talegaon|bhiwandi|sg": {"branch": "Pune"}},
+    })
+    assert suggester.suggest("Jhagadia", "Indore") == ("SG", "Vadodara")
+    assert suggester.suggest("Talegaon", "Bhiwandi", "SG") == ("SG", "Pune")
+    assert suggester.suggest("New", "Route") == ("", "")
 
 
 def test_every_input_is_accounted_for_and_potential_not_auto_included():
