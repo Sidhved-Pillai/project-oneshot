@@ -29,7 +29,7 @@ source .venv/bin/activate
 python scripts/build_initial_masters.py
 ```
 
-You can also use **Rebuild masters** in the app sidebar. Resolve reported conflicts manually in local master workbooks; duplicate four-digit vehicle suffixes require manual selection/correction in review.
+Resolve reported conflicts manually in the local master workbooks; duplicate four-digit vehicle suffixes require manual selection during review.
 
 ## Project folders
 
@@ -58,12 +58,12 @@ Do not make this repository public: the application processes operational and ba
 
 For Streamlit Community Cloud, connect only the private repository and configure `GEMINI_API_KEY` in the deployment's encrypted secrets/settings if Gemini is required—never commit the value. Confirm the deployment's current viewer-access controls are suitable for the authorized office team before uploading any operational report.
 
-Private master workbooks are intentionally ignored by Git, so they will not exist in a fresh cloud checkout. The **Master Data Management** page therefore supports loading each master workbook into the current private app session. Download backups locally, upload the three masters after a fresh deployment/session, and do not place beneficiary bank details in Git. Community Cloud storage may be temporary, so session uploads are not a durable database. For routine sensitive office use, the recommended Phase 1 setup remains the local app on an office-controlled computer (or a separately secured private hosting environment with durable encrypted storage and authenticated access).
+Private master workbooks are intentionally ignored by Git, so they will not exist in a fresh cloud checkout. The app operates without them and leaves unresolved master-dependent fields editable. Once the verified masters are ready, add them through a secure deployment data-storage design rather than committing beneficiary bank details to Git. For routine sensitive office use, the recommended Phase 1 setup remains the local app on an office-controlled computer or a separately secured private hosting environment.
 
 Before any deployment:
 
 1. Run all tests and test the local review/export workflow.
 2. Confirm the GitHub repository is private and ignored files are absent.
 3. Confirm only authorized viewers can open the deployed app.
-4. Load masters through Master Data Management and use non-sensitive test data first.
+4. Use non-sensitive test data first and confirm missing master-dependent fields remain editable.
 5. Verify exported files and uploaded reports are handled under the company's retention policy.

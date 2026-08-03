@@ -1,14 +1,11 @@
 import hashlib
-import os
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
-from src.config import MASTERS, VALIDATION, ROOT
+from src.config import MASTERS, ROOT
 from src.excel_reader import read_table
 from src.dtr_generator import generate_dtr, final_review_rows, DTR_COLUMNS, FINANCIAL_COLUMNS
 from src.excel_exporter import export_dtr
-from src.master_builder import build_all
-from src.master_store import workbook_bytes, save_master_safely
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", layout="wide")
@@ -20,8 +17,7 @@ st.markdown(
         background: #faf9fc;
         color: #17151c;
     }
-    [data-testid="stSidebar"] { background: #f2eef8; }
-    [data-testid="stSidebar"] * { color: #231f2b; }
+    [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"] { display: none; }
     .oneshot-brand {
         margin: 0 0 .15rem 0;
         font-size: clamp(2.25rem, 5vw, 4rem);
@@ -66,31 +62,16 @@ master_paths = {"Vehicle Master": MASTERS / "vehicle_master.xlsx",
                 "Company/Branch Master": MASTERS / "company_branch_master.xlsx",
                 "Beneficiary/Transporter Master": MASTERS / "beneficiary_transporter_master.xlsx"}
 
-with st.sidebar:
-    page = st.radio("Page", ["Generate DTR", "Master Data Management"])
-    st.header("Status")
-    for name, path in master_paths.items(): st.write(f"{'✅' if path.exists() else '❌'} {name}")
-    if os.getenv("GEMINI_API_KEY"): st.write("✅ Gemini configured")
-    else:
-        st.write("ℹ️ Gemini not configured (optional)")
-        st.caption("Copy `.env.example` to `.env`, add GEMINI_API_KEY, then restart the app.")
-    if st.button("Rebuild masters"):
-        try:
-            files = list(ROOT.rglob("*.xlsx")); dtrs = [p for p in files if "DTR - ALL BRANCH" in p.name.upper()]
-            consolidated = next(p for p in files if "CONSOLIDATEDREPORT" in p.name.upper())
-            st.success(f"Masters rebuilt: {build_all(dtrs, consolidated, MASTERS, VALIDATION)}")
-        except Exception as exc: st.error(str(exc))
-    for report in sorted(VALIDATION.glob("*.xlsx")):
-        st.download_button(f"Download {report.stem}", report.read_bytes(), report.name)
-
-
 def load_masters():
-    vehicles = st.session_state.get("session_master_Vehicle Master")
-    companies = st.session_state.get("session_master_Company/Branch Master")
-    beneficiaries = st.session_state.get("session_master_Beneficiary/Transporter Master")
-    if vehicles is None: vehicles = pd.read_excel(master_paths["Vehicle Master"], dtype=str).fillna("")
-    if companies is None: companies = pd.read_excel(master_paths["Company/Branch Master"], dtype=str).fillna("")
-    if beneficiaries is None: beneficiaries = pd.read_excel(master_paths["Beneficiary/Transporter Master"], dtype=str).fillna("")
+    vehicle_columns = ["Vehicle No.", "Last 4 Digits", "Vehicle Type", "Ownership Type", "Transporter Name", "Vehicle Status"]
+    company_columns = ["Company Code", "Company Name", "Branch"]
+    beneficiary_columns = ["Beneficiary Account No.", "Beneficiary Name", "Beneficiary Type", "Transporter Name"]
+    vehicles = (pd.read_excel(master_paths["Vehicle Master"], dtype=str).fillna("")
+                if master_paths["Vehicle Master"].exists() else pd.DataFrame(columns=vehicle_columns))
+    companies = (pd.read_excel(master_paths["Company/Branch Master"], dtype=str).fillna("")
+                 if master_paths["Company/Branch Master"].exists() else pd.DataFrame(columns=company_columns))
+    beneficiaries = (pd.read_excel(master_paths["Beneficiary/Transporter Master"], dtype=str).fillna("")
+                     if master_paths["Beneficiary/Transporter Master"].exists() else pd.DataFrame(columns=beneficiary_columns))
     return vehicles, companies, beneficiaries
 
 
@@ -116,31 +97,7 @@ def resolve_vehicle_controls(df, vehicles, prefix):
     return result
 
 
-if page == "Master Data Management":
-    st.subheader("Master Data Management")
-    st.warning("These files may contain sensitive operational data. Download a backup before saving and keep access local/authorized.")
-    tabs = st.tabs(list(master_paths))
-    for tab, (name, path) in zip(tabs, master_paths.items()):
-        with tab:
-            session_upload = st.file_uploader(f"Load {name} for this private session", type=["xlsx"], key=f"upload_{name}",
-                                              help="Useful for cloud/temporary environments. The upload stays in this app session and is not added to Git.")
-            if session_upload is not None:
-                st.session_state[f"session_master_{name}"] = pd.read_excel(session_upload, dtype=str).fillna("")
-                st.success(f"Session copy of {name} loaded.")
-            data = st.session_state.get(f"session_master_{name}")
-            if data is None and not path.exists(): st.error("Master is missing. Upload a session copy or rebuild masters first."); continue
-            if data is None: data = pd.read_excel(path, dtype=str).fillna("")
-            st.download_button(f"Download {name} backup", workbook_bytes(data), f"backup_{path.name}", key=f"backup_{name}")
-            disabled = []
-            edited = st.data_editor(data, num_rows="dynamic", width="stretch", hide_index=True, key=f"master_editor_{name}", disabled=disabled)
-            if st.button(f"Save {name}", key=f"save_{name}"):
-                text_cols = ["Beneficiary Account No."] if "Beneficiary" in name else ["Vehicle No.", "Last 4 Digits"]
-                save_master_safely(edited, path, text_cols)
-                st.success(f"{name} saved safely.")
-    st.stop()
-
-st.subheader("Generate draft DTR")
-uploaded = st.file_uploader("Upload consolidated payment report", type=["xlsx"])
+uploaded = st.file_uploader("Upload consolidated report", type=["xlsx"])
 if uploaded:
     try:
         payload = uploaded.getvalue(); signature = hashlib.sha256(payload).hexdigest()[:16]
