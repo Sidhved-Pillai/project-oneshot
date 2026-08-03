@@ -139,28 +139,6 @@ def load_masters():
     return vehicles, beneficiaries
 
 
-def resolve_vehicle_controls(df, vehicles, prefix):
-    if df.empty: return df
-    result = df.copy()
-    for idx, row in result.iterrows():
-        choices = row.get("_vehicle_choices", [])
-        identifiers = row.get("_vehicle_identifiers", [])
-        if len(choices) > 1 or len(identifiers) > 1:
-            label = f"Vehicle for: {row.get('Original Remark', '') or 'confirmed trip'}"
-            options = [""] + list(dict.fromkeys(list(choices) + list(identifiers)))
-            selected = st.selectbox(label, options, key=f"{prefix}_vehicle_{row.get('_row_id')}",
-                                    help="Multiple identifiers or master matches were found. Select the verified full registration.")
-            if selected:
-                result.at[idx, "Vehicle No."] = selected
-                matched = vehicles[vehicles["Vehicle No."].eq(selected)]
-                if not matched.empty:
-                    master = matched.iloc[0]
-                    if not result.at[idx, "Vehicle Type"]: result.at[idx, "Vehicle Type"] = master.get("Vehicle Type", "")
-                    result.at[idx, "Own/Outside Vehicle"] = master.get("Ownership Type", "")
-                    if not result.at[idx, "Transporter Name"]: result.at[idx, "Transporter Name"] = master.get("Transporter Name", "")
-    return result
-
-
 uploaded = st.file_uploader("Upload consolidated report", type=["xlsx"])
 if uploaded:
     try:
@@ -183,24 +161,17 @@ if uploaded:
         state = st.session_state[state_key]
         confirmed, potential, non_trip = state["confirmed"], state["potential"], state["non_trip"]
         st.caption(f"Detected sheet: {info['sheet']} · header row: {info['header_row']}")
-        c1,c2,c3,c4 = st.columns(4)
-        c1.metric("Total rows", len(source)); c2.metric("Confirmed trips", len(confirmed)); c3.metric("Potential trips", len(potential)); c4.metric("Confirmed non-trips", len(non_trip))
-
-        st.subheader("Potential Trip / Needs Review")
-        st.info("No potential row is silently discarded. Tick Include in DTR only after reviewing the original remark.")
-        potential = resolve_vehicle_controls(potential, vehicles, f"potential_{signature}")
-        potential_visible = ["Include in DTR", "Original Remark", "Original Beneficiary Name"] + DTR_COLUMNS[:10] + DTR_COLUMNS[20:]
-        potential_edit = st.data_editor(potential[potential_visible], num_rows="fixed", width="stretch", hide_index=True,
-                                        key=f"potential_editor_{signature}",
-                                        column_config={"Include in DTR": st.column_config.CheckboxColumn(),
-                                                       "Date": st.column_config.DateColumn(format="DD-MM-YYYY")})
-        for col in potential_visible: potential[col] = potential_edit[col]
-        state["potential"] = potential
-
-        confirmed = resolve_vehicle_controls(confirmed, vehicles, f"confirmed_{signature}")
+        # Potential trips belong in the same manual-review spreadsheet. Internal
+        # classification metadata never appears in the visible table or export.
+        if not potential.empty:
+            potential = potential.copy()
+            potential["Include in DTR"] = True
         review = final_review_rows(confirmed, potential)
-        st.subheader("Final DTR review")
-        st.caption("Add/delete rows and edit all operational fields. Phase 1 financial fields are locked blank.")
+        c1,c2,c3,c4 = st.columns(4)
+        c1.metric("Source rows", len(source)); c2.metric("Generated DTR rows", len(review))
+        c3.metric("Excluded non-trip", len(non_trip)); c4.metric("Rows missing date", int(review["Date"].isna().sum()))
+        st.subheader("Review and download DTR")
+        st.caption("Review the generated rows, make corrections if needed, then download the Excel file. Phase 1 financial fields are locked blank.")
         config = {"Date": st.column_config.DateColumn(format="DD-MM-YYYY"),
                   "Compnay Name": st.column_config.TextColumn(),
                   "Branch": st.column_config.TextColumn(),
@@ -210,6 +181,4 @@ if uploaded:
         for col in FINANCIAL_COLUMNS: edited[col] = ""
         st.download_button("Download reviewed DTR", export_dtr(edited), "Project_Oneshot_DTR.xlsx",
                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary")
-        with st.expander(f"Confirmed Non-trip ({len(non_trip)})"):
-            st.dataframe(non_trip[["Original Remark", "Original Beneficiary Name", "Reason"]], width="stretch", hide_index=True)
     except Exception as exc: st.error(f"Could not process this workbook: {exc}")
