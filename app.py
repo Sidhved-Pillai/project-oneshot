@@ -30,7 +30,52 @@ st.markdown(
     .oneshot-subtitle {
         color: #5f5968;
         font-size: 1.05rem;
-        margin-bottom: 1.75rem;
+        margin-bottom: 1.25rem;
+    }
+    .oneshot-steps {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .85rem;
+        margin: 0 0 1.75rem 0;
+    }
+    .oneshot-step {
+        display: flex;
+        align-items: center;
+        min-height: 82px;
+        padding: 1rem 1.1rem;
+        background: #ffffff;
+        border: 1px solid #e5ddf0;
+        border-radius: 14px;
+        box-shadow: 0 5px 18px rgba(77, 46, 122, .06);
+    }
+    .oneshot-step-number {
+        display: grid;
+        place-items: center;
+        flex: 0 0 38px;
+        width: 38px;
+        height: 38px;
+        margin-right: .85rem;
+        border-radius: 50%;
+        background: #7c3aed;
+        color: #ffffff;
+        font-weight: 800;
+    }
+    .oneshot-step-copy strong {
+        display: block;
+        color: #201a29;
+        font-size: .98rem;
+        line-height: 1.25;
+    }
+    .oneshot-step-copy span {
+        display: block;
+        margin-top: .25rem;
+        color: #6b6474;
+        font-size: .82rem;
+        line-height: 1.3;
+    }
+    @media (max-width: 760px) {
+        .oneshot-steps { grid-template-columns: 1fr; }
+        .oneshot-step { min-height: 70px; }
     }
     h1, h2, h3, p, label, [data-testid="stMarkdownContainer"] { color: #17151c; }
     div[data-testid="stMetric"] {
@@ -54,6 +99,29 @@ st.markdown(
       <span class="oneshot-name">Oneshot</span>
     </div>
     <div class="oneshot-subtitle">Draft DTR Generator for Billtee</div>
+    <div class="oneshot-steps" aria-label="How to generate a DTR">
+      <div class="oneshot-step">
+        <div class="oneshot-step-number">1</div>
+        <div class="oneshot-step-copy">
+          <strong>Upload Consolidated Report</strong>
+          <span>Select the approved Excel report.</span>
+        </div>
+      </div>
+      <div class="oneshot-step">
+        <div class="oneshot-step-number">2</div>
+        <div class="oneshot-step-copy">
+          <strong>Review in Real Time</strong>
+          <span>Check and correct details if needed.</span>
+        </div>
+      </div>
+      <div class="oneshot-step">
+        <div class="oneshot-step-number">3</div>
+        <div class="oneshot-step-copy">
+          <strong>Download Excel File</strong>
+          <span>Export the reviewed DTR workbook.</span>
+        </div>
+      </div>
+    </div>
     """,
     unsafe_allow_html=True,
 )
