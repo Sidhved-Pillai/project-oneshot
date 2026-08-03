@@ -1,8 +1,8 @@
 # Project Oneshot
 
-Project Oneshot is a local, browser-based Phase 1 draft DTR generator for Billtee. It reads a consolidated `.xlsx` payment report, excludes clear non-trip rows, parses trip remarks, matches local master data, provides an editable review table, and exports a professionally formatted DTR workbook.
+Project Oneshot is a transaction-entry and DTR reporting app for Billtee. An operator reads each WhatsApp proof, enters the trip and payment details, attaches the source image, and saves it under a unique Request Number. Saved requests can be searched, verified, and exported in the existing 22-column DTR workbook format for any date range.
 
-Phase 1 deliberately leaves every financial field—including Payment—blank. Missing business fields remain blank for manual review; the app never invents a company from a route. Always review the generated file once before operational use.
+Financial entries are mapped into the appropriate DTR field from Expense Type and Payment Mode. Always preview the generated table before operational use.
 
 Beneficiary Name always comes directly from the uploaded consolidated report; there is no fixed beneficiary dependency in the web app. DTR Date always comes from the remark and never falls back to `Pymt_Date`. Supported date forms include `30 07 2026`, `30/07/2026`, and `30.07.26`; date ranges use the ending date.
 
@@ -29,6 +29,18 @@ python -m streamlit run app.py
 Open `http://localhost:8501` if the browser does not open automatically. Stop the app by pressing `Control-C` in Terminal.
 
 Gemini is optional. To enable its safe fallback, edit the local `.env` and set `GEMINI_API_KEY=...`. The app sends only remark text, never complete payment rows or bank details. It continues to work when the key is absent or the service fails.
+
+## Persistent storage
+
+Local development uses `data/project_oneshot.db` (SQLite), which survives local app restarts. Streamlit Community Cloud's filesystem is temporary, so production must use hosted PostgreSQL. Create a PostgreSQL database (for example Neon or Supabase) and add this in the app's Streamlit Secrets:
+
+```toml
+DATABASE_URL = "postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require"
+```
+
+Do not put the database URL in Git. On startup the app creates its table automatically. Images are stored in the database along with each request, with an 8 MB per-file limit. For larger long-term volumes, move attachments to private object storage and retain only their object keys in PostgreSQL.
+
+The screens default to the current month, giving the appearance of a fresh monthly register without deleting history. Data Management can archive older entries; archiving is reversible at the database level and does not delete records.
 
 ## Updating master files
 
@@ -67,7 +79,7 @@ Never commit `.env`, `reference_files/`, generated masters (especially beneficia
 
 Do not make this repository public: the application processes operational and banking-related data. Create a **private** GitHub repository, review `git status`, then add and push only the source files that are not ignored. Never force-add `.env`, `reference_files/`, `data/masters/`, uploads, exports, or validation reports.
 
-For Streamlit Community Cloud, connect only the private repository and configure `GEMINI_API_KEY` in the deployment's encrypted secrets/settings if Gemini is required—never commit the value. Confirm the deployment's current viewer-access controls are suitable for the authorized office team before uploading any operational report.
+For Streamlit Community Cloud, connect only the private repository and configure `DATABASE_URL` in encrypted Secrets. Confirm the deployment's current viewer-access controls are suitable for the authorized office team before entering operational or banking information.
 
 Private master workbooks are intentionally ignored by Git, so they will not exist in a fresh cloud checkout. The app operates without them and leaves unresolved master-dependent fields editable. Once the verified masters are ready, add them through a secure deployment data-storage design rather than committing beneficiary bank details to Git. For routine sensitive office use, the recommended Phase 1 setup remains the local app on an office-controlled computer or a separately secured private hosting environment.
 

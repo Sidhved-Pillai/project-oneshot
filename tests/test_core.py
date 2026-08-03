@@ -13,6 +13,8 @@ from src.dtr_generator import generate_dtr, final_review_rows, DTR_COLUMNS, FINA
 from src.excel_exporter import export_dtr
 from src.gemini_parser import parse_with_gemini
 from src.historical_suggester import HistoricalSuggester
+from src.entry_finance import financial_values
+from src.request_store import RequestStore, rows_to_dtr
 
 
 def vehicle_master():
@@ -232,3 +234,29 @@ def test_missing_required_column():
 def test_gemini_unavailable(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     assert parse_with_gemini("ambiguous") is None
+
+
+def test_financial_mapping_and_persistent_request_roundtrip(tmp_path):
+    finance = financial_values("Trip Advance", "UPI", 1250, 12.5)
+    assert finance["upi"] == 1250 and finance["total_advance"] == 1250
+    store = RequestStore(f"sqlite:///{tmp_path / 'requests.db'}")
+    number = store.create({
+        "trip_date": dt.date(2026, 8, 3), "vehicle_number": "MH14JL9818",
+        "invoice_number": "INV-7", "company_name": "Demo Co", "expense_type": "Trip Advance",
+        "amount": 1250, "payment_mode": "UPI", **finance, "status": "Submitted",
+        "source_filename": "proof.jpg", "source_mime_type": "image/jpeg", "source_image": b"proof",
+    })
+    assert number.startswith("REQ-202608-")
+    reopened = RequestStore(f"sqlite:///{tmp_path / 'requests.db'}")
+    rows = reopened.list(dt.date(2026, 8, 1), dt.date(2026, 8, 31))
+    assert len(rows) == 1 and rows[0]["source_image"] == b"proof"
+    dtr = rows_to_dtr(rows)
+    assert dtr.iloc[0]["UPI"] == 1250 and dtr.iloc[0]["Invoice No."] == "INV-7"
+
+
+def test_archive_hides_without_deleting(tmp_path):
+    store = RequestStore(f"sqlite:///{tmp_path / 'archive.db'}")
+    store.create({"trip_date": dt.date(2026, 7, 1), "vehicle_number": "MH01AA0001"})
+    assert store.archive_before(dt.date(2026, 8, 1)) == 1
+    assert store.list() == []
+    assert len(store.list(include_archived=True)) == 1

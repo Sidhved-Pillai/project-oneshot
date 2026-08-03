@@ -1,0 +1,152 @@
+import datetime as dt
+import os
+from pathlib import Path
+
+import pandas as pd
+from sqlalchemy import (
+    Boolean, Column, Date, DateTime, Integer, LargeBinary, MetaData, Numeric,
+    String, Table, Text, create_engine, false, func, insert, select, update,
+)
+
+from .config import DATA
+from .dtr_generator import DTR_COLUMNS
+
+
+metadata = MetaData()
+requests = Table(
+    "dtr_requests",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("request_number", String(40), unique=True, index=True),
+    Column("trip_date", Date, nullable=False, index=True),
+    Column("vehicle_number", String(40), nullable=False),
+    Column("vehicle_type", String(80), default=""),
+    Column("ownership_type", String(40), default=""),
+    Column("from_location", String(160), default=""),
+    Column("to_location", String(160), default=""),
+    Column("company_name", String(200), default=""),
+    Column("branch", String(160), default=""),
+    Column("invoice_number", String(120), default=""),
+    Column("beneficiary_name", String(200), default=""),
+    Column("transporter_name", String(200), default=""),
+    Column("expense_type", String(80), default=""),
+    Column("amount", Numeric(14, 2), default=0),
+    Column("payment_mode", String(80), default=""),
+    Column("diesel_quantity", Numeric(14, 2), nullable=True),
+    Column("revenue", Numeric(14, 2), default=0),
+    Column("transporter_freight", Numeric(14, 2), default=0),
+    Column("rtgs_advance", Numeric(14, 2), default=0),
+    Column("cash_advance", Numeric(14, 2), default=0),
+    Column("upi", Numeric(14, 2), default=0),
+    Column("diesel_advance", Numeric(14, 2), default=0),
+    Column("total_advance", Numeric(14, 2), default=0),
+    Column("balance_amount", Numeric(14, 2), default=0),
+    Column("payment", Numeric(14, 2), default=0),
+    Column("status", String(30), default="Submitted", index=True),
+    Column("notes", Text, default=""),
+    Column("source_filename", String(255), default=""),
+    Column("source_mime_type", String(100), default=""),
+    Column("source_image", LargeBinary, nullable=True),
+    Column("created_by", String(120), default=""),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+    Column("updated_at", DateTime, nullable=False, server_default=func.now()),
+    Column("is_archived", Boolean, nullable=False, default=False, server_default=false()),
+)
+
+
+def database_url():
+    """Use a durable hosted database when configured; SQLite is local-only."""
+    return os.getenv("DATABASE_URL") or f"sqlite:///{Path(DATA) / 'project_oneshot.db'}"
+
+
+class RequestStore:
+    def __init__(self, url=None):
+        url = url or database_url()
+        if url.startswith("postgres://"):
+            url = "postgresql+psycopg://" + url.removeprefix("postgres://")
+        elif url.startswith("postgresql://"):
+            url = "postgresql+psycopg://" + url.removeprefix("postgresql://")
+        kwargs = {"pool_pre_ping": True}
+        if url.startswith("sqlite"):
+            kwargs["connect_args"] = {"check_same_thread": False}
+        self.url = url
+        self.engine = create_engine(url, **kwargs)
+        metadata.create_all(self.engine)
+
+    @property
+    def is_durable_cloud(self):
+        return not self.url.startswith("sqlite")
+
+    def create(self, values):
+        clean = {key: value for key, value in values.items() if key in requests.c and key not in {"id", "request_number"}}
+        with self.engine.begin() as conn:
+            result = conn.execute(insert(requests).values(**clean))
+            row_id = result.inserted_primary_key[0]
+            number = f"REQ-{values['trip_date']:%Y%m}-{row_id:06d}"
+            conn.execute(update(requests).where(requests.c.id == row_id).values(request_number=number))
+        return number
+
+    def update(self, request_number, values):
+        clean = {key: value for key, value in values.items() if key in requests.c and key not in {"id", "request_number", "created_at"}}
+        clean["updated_at"] = dt.datetime.now()
+        with self.engine.begin() as conn:
+            conn.execute(update(requests).where(requests.c.request_number == request_number).values(**clean))
+
+    def get(self, request_number):
+        with self.engine.connect() as conn:
+            row = conn.execute(select(requests).where(requests.c.request_number == request_number)).mappings().first()
+        return dict(row) if row else None
+
+    def find_duplicate(self, trip_date, vehicle_number, invoice_number, amount):
+        conditions = [requests.c.trip_date == trip_date, requests.c.vehicle_number == vehicle_number]
+        if invoice_number:
+            conditions.append(requests.c.invoice_number == invoice_number)
+        else:
+            conditions.append(requests.c.amount == amount)
+        with self.engine.connect() as conn:
+            return conn.execute(select(requests.c.request_number).where(*conditions).limit(1)).scalar()
+
+    def list(self, start_date=None, end_date=None, status=None, include_archived=False):
+        query = select(requests)
+        if start_date:
+            query = query.where(requests.c.trip_date >= start_date)
+        if end_date:
+            query = query.where(requests.c.trip_date <= end_date)
+        if status == "All active":
+            query = query.where(requests.c.status != "Cancelled")
+        elif status and status != "All":
+            query = query.where(requests.c.status == status)
+        if not include_archived:
+            query = query.where(requests.c.is_archived.is_(False))
+        query = query.order_by(requests.c.trip_date.desc(), requests.c.id.desc())
+        with self.engine.connect() as conn:
+            return [dict(row) for row in conn.execute(query).mappings()]
+
+    def archive_before(self, cutoff):
+        with self.engine.begin() as conn:
+            result = conn.execute(
+                update(requests)
+                .where(requests.c.trip_date < cutoff, requests.c.is_archived.is_(False))
+                .values(is_archived=True, updated_at=dt.datetime.now())
+            )
+        return result.rowcount
+
+
+def rows_to_dtr(rows):
+    records = []
+    for i, row in enumerate(rows, 1):
+        record = {column: "" for column in DTR_COLUMNS}
+        record.update({
+            "Sr No.": i, "Branch": row["branch"], "Compnay Name": row["company_name"],
+            "Date": row["trip_date"], "Vehicle No.": row["vehicle_number"],
+            "Vehicle Type": row["vehicle_type"], "Own/Outside Vehicle": row["ownership_type"],
+            "From": row["from_location"], "Invoice No.": row["invoice_number"], "To": row["to_location"],
+            "Revenue": row["revenue"], "Transporter Freight": row["transporter_freight"],
+            "RTGS ADVANCE": row["rtgs_advance"], "Cash Adv.": row["cash_advance"], "UPI": row["upi"],
+            "Diesel Qty": row["diesel_quantity"], "Diesel Adv.": row["diesel_advance"],
+            "Total Adv.": row["total_advance"], "Balance Amt.": row["balance_amount"],
+            "Payment": row["payment"], "Benificiary Name": row["beneficiary_name"],
+            "Transporter Name": row["transporter_name"],
+        })
+        records.append(record)
+    return pd.DataFrame(records, columns=DTR_COLUMNS)

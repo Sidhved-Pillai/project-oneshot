@@ -12,10 +12,11 @@ def _display_length(value):
     return len(str(value))
 
 
-def export_dtr(df):
+def export_dtr(df, preserve_financials=False):
     output = BytesIO()
     safe = df.reindex(columns=DTR_COLUMNS).copy()
-    for col in FINANCIAL_COLUMNS: safe[col] = None
+    if not preserve_financials:
+        for col in FINANCIAL_COLUMNS: safe[col] = None
     safe["Date"] = pd.to_datetime(safe["Date"], errors="coerce").dt.date
     with pd.ExcelWriter(output, engine="openpyxl", date_format="DD-MM-YYYY") as writer:
         safe.to_excel(writer, index=False, sheet_name="DTR")
@@ -35,4 +36,3 @@ def export_dtr(df):
                 if name == "Date" and cell.value is not None: cell.number_format = "dd-mm-yyyy"
                 elif name in ("Vehicle No.", "Invoice No."): cell.number_format = "@"
     return output.getvalue()
-
