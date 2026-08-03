@@ -1,11 +1,12 @@
 import datetime as dt
+import json
 import os
 from pathlib import Path
 
 import pandas as pd
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Integer, LargeBinary, MetaData, Numeric,
-    String, Table, Text, create_engine, false, func, insert, select, update,
+    String, Table, Text, create_engine, false, func, insert, inspect, select, text, update,
 )
 
 from .config import DATA
@@ -18,6 +19,8 @@ requests = Table(
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("request_number", String(40), unique=True, index=True),
+    Column("report_scope", String(20), nullable=False, default="DTR", server_default="DTR", index=True),
+    Column("rtgs_data", Text, nullable=False, default="{}", server_default="{}"),
     Column("trip_date", Date, nullable=False, index=True),
     Column("vehicle_number", String(40), nullable=False),
     Column("vehicle_type", String(80), default=""),
@@ -72,6 +75,19 @@ class RequestStore:
         self.url = url
         self.engine = create_engine(url, **kwargs)
         metadata.create_all(self.engine)
+        self._migrate_existing_database()
+
+    def _migrate_existing_database(self):
+        """Keep databases created by the first release compatible in place."""
+        columns = {column["name"] for column in inspect(self.engine).get_columns("dtr_requests")}
+        additions = {
+            "report_scope": "VARCHAR(20) NOT NULL DEFAULT 'DTR'",
+            "rtgs_data": "TEXT NOT NULL DEFAULT '{}'",
+        }
+        with self.engine.begin() as conn:
+            for name, definition in additions.items():
+                if name not in columns:
+                    conn.execute(text(f"ALTER TABLE dtr_requests ADD COLUMN {name} {definition}"))
 
     @property
     def is_durable_cloud(self):
@@ -79,6 +95,8 @@ class RequestStore:
 
     def create(self, values):
         clean = {key: value for key, value in values.items() if key in requests.c and key not in {"id", "request_number"}}
+        if isinstance(clean.get("rtgs_data"), dict):
+            clean["rtgs_data"] = json.dumps(clean["rtgs_data"], default=str)
         with self.engine.begin() as conn:
             result = conn.execute(insert(requests).values(**clean))
             row_id = result.inserted_primary_key[0]
@@ -88,6 +106,8 @@ class RequestStore:
 
     def update(self, request_number, values):
         clean = {key: value for key, value in values.items() if key in requests.c and key not in {"id", "request_number", "created_at"}}
+        if isinstance(clean.get("rtgs_data"), dict):
+            clean["rtgs_data"] = json.dumps(clean["rtgs_data"], default=str)
         clean["updated_at"] = dt.datetime.now()
         with self.engine.begin() as conn:
             conn.execute(update(requests).where(requests.c.request_number == request_number).values(**clean))
@@ -106,7 +126,7 @@ class RequestStore:
         with self.engine.connect() as conn:
             return conn.execute(select(requests.c.request_number).where(*conditions).limit(1)).scalar()
 
-    def list(self, start_date=None, end_date=None, status=None, include_archived=False):
+    def list(self, start_date=None, end_date=None, status=None, include_archived=False, report_kind=None):
         query = select(requests)
         if start_date:
             query = query.where(requests.c.trip_date >= start_date)
@@ -118,6 +138,8 @@ class RequestStore:
             query = query.where(requests.c.status == status)
         if not include_archived:
             query = query.where(requests.c.is_archived.is_(False))
+        if report_kind:
+            query = query.where(requests.c.report_scope.in_([report_kind, "Both"]))
         query = query.order_by(requests.c.trip_date.desc(), requests.c.id.desc())
         with self.engine.connect() as conn:
             return [dict(row) for row in conn.execute(query).mappings()]

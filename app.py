@@ -9,6 +9,7 @@ from src.config import ROOT
 from src.entry_finance import financial_values
 from src.excel_exporter import export_dtr
 from src.request_store import RequestStore, rows_to_dtr
+from src.rtgs_report import export_rtgs, rows_to_rtgs
 
 
 load_dotenv(ROOT / ".env")
@@ -47,7 +48,7 @@ st.markdown(
     .stButton>button, .stDownloadButton>button {border-radius:10px}
     </style>
     <div class="brand">Project <span>Oneshot</span></div>
-    <div class="subtitle">Enter once. Store securely. Generate the DTR for any date range.</div>
+    <div class="subtitle">Enter once. Store securely. Generate DTR and RTGS reports for any date range.</div>
     """,
     unsafe_allow_html=True,
 )
@@ -60,36 +61,77 @@ else:
 new_tab, requests_tab, reports_tab, admin_tab = st.tabs(["➕ New entry", "📋 Requests", "📊 Reports", "⚙️ Data management"])
 
 with new_tab:
-    st.subheader("New DTR request")
+    st.subheader("New request")
     st.caption("Fields marked * are required. Attach the original WhatsApp image for verification and audit.")
+    report_scope = st.radio("This entry belongs to", ["DTR", "RTGS", "Both"], horizontal=True)
     with st.form("new_request", clear_on_submit=True):
         source_image = st.file_uploader("Source image", type=["jpg", "jpeg", "png", "webp", "pdf"])
         c1, c2, c3 = st.columns(3)
-        trip_date = c1.date_input("Trip date *", value=dt.date.today(), format="DD/MM/YYYY")
-        vehicle_number = c2.text_input("Full vehicle number *", placeholder="MH14JL9818")
-        vehicle_type = c3.text_input("Vehicle type", placeholder="10MT")
-        c1, c2, c3 = st.columns(3)
-        ownership_type = c1.selectbox("Vehicle ownership", ["", "Own Vehicle", "Outside Vehicle"])
-        from_location = c2.text_input("From")
-        to_location = c3.text_input("To")
-        c1, c2, c3 = st.columns(3)
-        company_name = c1.text_input("Company name")
-        branch = c2.text_input("Branch")
-        invoice_number = c3.text_input("Invoice number")
-        c1, c2 = st.columns(2)
-        beneficiary_name = c1.text_input("Beneficiary name")
-        transporter_name = c2.text_input("Transporter name")
+        trip_date = c1.date_input("Transaction date *", value=dt.date.today(), format="DD/MM/YYYY")
+        beneficiary_name = c2.text_input("Beneficiary name")
+        amount = c3.number_input("Amount", min_value=0.0, step=100.0, format="%.2f")
 
-        st.markdown("##### Financial details")
-        c1, c2, c3, c4 = st.columns(4)
-        expense_type = c1.selectbox("Expense type", ["Trip Advance", "Balance Payment", "Transporter Freight", "Revenue", "Other"])
-        amount = c2.number_input("Amount", min_value=0.0, step=100.0, format="%.2f")
-        payment_mode = c3.selectbox("Payment mode", ["RTGS/Bank Transfer", "Cash", "UPI", "Diesel", "Other"])
-        diesel_quantity = c4.number_input("Diesel quantity (litres)", min_value=0.0, step=1.0, format="%.2f")
+        vehicle_number = vehicle_type = ownership_type = from_location = to_location = ""
+        company_name = branch = invoice_number = transporter_name = ""
+        expense_type, payment_mode, diesel_quantity = "Other", "Other", 0.0
+        if report_scope in ("DTR", "Both"):
+            st.markdown("##### DTR details")
+            c1, c2, c3 = st.columns(3)
+            vehicle_number = c1.text_input("Full vehicle number *", placeholder="MH14JL9818")
+            vehicle_type = c2.text_input("Vehicle type", placeholder="10MT")
+            ownership_type = c3.selectbox("Vehicle ownership", ["", "Own Vehicle", "Outside Vehicle"])
+            c1, c2, c3 = st.columns(3)
+            from_location = c1.text_input("From")
+            to_location = c2.text_input("To")
+            invoice_number = c3.text_input("Invoice number")
+            c1, c2, c3 = st.columns(3)
+            company_name = c1.text_input("Company name")
+            branch = c2.text_input("Branch")
+            transporter_name = c3.text_input("Transporter name")
+            c1, c2, c3 = st.columns(3)
+            expense_type = c1.selectbox("Expense type", ["Trip Advance", "Balance Payment", "Transporter Freight", "Revenue", "Other"])
+            payment_mode = c2.selectbox("Payment mode", ["RTGS/Bank Transfer", "Cash", "UPI", "Diesel", "Other"])
+            diesel_quantity = c3.number_input("Diesel quantity (litres)", min_value=0.0, step=1.0, format="%.2f")
+
+        rtgs_data = {}
+        if report_scope in ("RTGS", "Both"):
+            st.markdown("##### RTGS payment details")
+            c1, c2, c3, c4 = st.columns(4)
+            rtgs_data["File_Sequence_Num"] = c1.text_input("File sequence number")
+            rtgs_data["Pymt_Prod_Type_Code"] = c2.text_input("Payment product type", value="PAB_VENDOR")
+            rtgs_data["Pymt_Mode"] = c3.selectbox("RTGS payment mode", ["NEFT", "RTGS", "IMPS", "UPI", "Other"])
+            rtgs_data["Debit_Acct_no"] = c4.text_input("Debit account number")
+            c1, c2, c3 = st.columns(3)
+            rtgs_data["Beneficiary Account No"] = c1.text_input("Beneficiary account number")
+            rtgs_data["Bene_IFSC_Code"] = c2.text_input("Beneficiary IFSC code")
+            rtgs_data["Mobile Numder"] = c3.text_input("Mobile number")
+            c1, c2 = st.columns(2)
+            rtgs_data["Email id"] = c1.text_input("Email ID")
+            rtgs_data["Remark"] = c2.text_input("RTGS remark")
+            c1, c2 = st.columns(2)
+            rtgs_data["Debit narration"] = c1.text_input("Debit narration")
+            rtgs_data["Credit narration"] = c2.text_input("Credit narration")
+            with st.expander("RTGS processing and optional fields"):
+                c1, c2, c3 = st.columns(3)
+                rtgs_data["Reference_no"] = c1.text_input("Reference number")
+                rtgs_data["STATUS"] = c2.selectbox("Bank status", ["", "Pending", "Success", "Rejected"])
+                rtgs_data["Current Step"] = c3.text_input("Current step")
+                c1, c2, c3 = st.columns(3)
+                rtgs_data["File name"] = c1.text_input("File name")
+                rtgs_data["Rejected by"] = c2.text_input("Rejected by")
+                rtgs_data["Rejection Reason"] = c3.text_input("Rejection reason")
+                c1, c2, c3 = st.columns(3)
+                rtgs_data["Acct_Debit_date"] = c1.date_input("Account debit date", value=None, format="DD/MM/YYYY")
+                rtgs_data["Customer Ref No"] = c2.text_input("Customer reference number")
+                rtgs_data["UTR NO"] = c3.text_input("UTR number")
+                extra = st.columns(5)
+                for index in range(1, 6):
+                    rtgs_data[f"Addl_Info{index}"] = extra[index - 1].text_input(f"Additional info {index}")
+
         c1, c2, c3 = st.columns(3)
-        status = c1.selectbox("Status", ["Submitted", "Draft", "Verified", "Paid"])
+        status = c1.selectbox("Workflow status", ["Submitted", "Draft", "Verified", "Paid"])
         created_by = c2.text_input("Entered by")
-        notes = c3.text_input("Notes")
+        notes = c3.text_input("Internal notes")
         allow_duplicate = st.checkbox("Allow saving if this matches an existing request")
         save = st.form_submit_button("Save", type="primary")
         save_another = st.form_submit_button("Save & add another")
@@ -97,8 +139,8 @@ with new_tab:
     if save or save_another:
         normalized_vehicle = "".join(vehicle_number.upper().split())
         errors = []
-        if not normalized_vehicle:
-            errors.append("Full vehicle number is required.")
+        if report_scope in ("DTR", "Both") and not normalized_vehicle:
+            errors.append("Full vehicle number is required for a DTR entry.")
         image_bytes = source_image.getvalue() if source_image else None
         if image_bytes and len(image_bytes) > 8 * 1024 * 1024:
             errors.append("Source file must be 8 MB or smaller.")
@@ -110,7 +152,10 @@ with new_tab:
                 st.error(error)
         else:
             finance = financial_values(expense_type, payment_mode, amount, diesel_quantity or None)
+            if report_scope in ("RTGS", "Both"):
+                rtgs_data.update({"Beneficiary Name": beneficiary_name.strip(), "Amount": amount, "Pymt_Date": trip_date})
             number = store.create({
+                "report_scope": report_scope, "rtgs_data": rtgs_data,
                 "trip_date": trip_date, "vehicle_number": normalized_vehicle, "vehicle_type": vehicle_type.strip(),
                 "ownership_type": ownership_type, "from_location": from_location.strip(), "to_location": to_location.strip(),
                 "company_name": company_name.strip(), "branch": branch.strip(), "invoice_number": invoice_number.strip(),
@@ -134,7 +179,7 @@ with requests_tab:
     saved_rows = store.list(request_start, request_end, request_status)
     st.metric("Requests found", len(saved_rows))
     if saved_rows:
-        display_columns = ["request_number", "trip_date", "vehicle_number", "company_name", "invoice_number", "expense_type", "amount", "payment_mode", "status", "created_by"]
+        display_columns = ["request_number", "report_scope", "trip_date", "vehicle_number", "company_name", "invoice_number", "beneficiary_name", "amount", "status", "created_by"]
         st.dataframe(pd.DataFrame(saved_rows)[display_columns], hide_index=True, width="stretch")
         selected_number = st.selectbox("Open request", [row["request_number"] for row in saved_rows])
         selected = store.get(selected_number)
@@ -171,21 +216,28 @@ with requests_tab:
         st.info("No requests found for these filters.")
 
 with reports_tab:
-    st.subheader("Generate DTR")
+    st.subheader("Generate report")
+    report_type = st.radio("Report type", ["DTR", "RTGS Report"], horizontal=True)
     c1, c2, c3 = st.columns(3)
     report_start = c1.date_input("Report from", value=dt.date.today().replace(day=1), key="report_start")
     report_end = c2.date_input("Report to", value=dt.date.today(), key="report_end")
     report_status = c3.selectbox("Include status", ["Verified", "All active", "Paid", "Submitted", "Draft"])
-    report_rows = store.list(report_start, report_end, report_status)
-    dtr = rows_to_dtr(report_rows)
+    report_kind = "DTR" if report_type == "DTR" else "RTGS"
+    report_rows = store.list(report_start, report_end, report_status, report_kind=report_kind)
+    report_frame = rows_to_dtr(report_rows) if report_kind == "DTR" else rows_to_rtgs(report_rows)
     c1, c2, c3 = st.columns(3)
-    c1.metric("DTR rows", len(dtr))
+    c1.metric(f"{report_kind} rows", len(report_frame))
     c2.metric("Total amount", f"₹{sum(float(row['amount'] or 0) for row in report_rows):,.2f}")
     c3.metric("Date range", f"{report_start:%d %b} – {report_end:%d %b %Y}")
-    st.dataframe(dtr, hide_index=True, width="stretch")
-    if not dtr.empty:
-        filename = f"Project_Oneshot_DTR_{report_start:%Y%m%d}_{report_end:%Y%m%d}.xlsx"
-        st.download_button("Download DTR Excel", export_dtr(dtr, preserve_financials=True), filename,
+    st.dataframe(report_frame, hide_index=True, width="stretch")
+    if not report_frame.empty:
+        if report_kind == "DTR":
+            filename = f"Project_Oneshot_DTR_{report_start:%Y%m%d}_{report_end:%Y%m%d}.xlsx"
+            payload = export_dtr(report_frame, preserve_financials=True)
+        else:
+            filename = f"Project_Oneshot_RTGS_{report_start:%Y%m%d}_{report_end:%Y%m%d}.xlsx"
+            payload = export_rtgs(report_frame)
+        st.download_button(f"Download {report_type} Excel", payload, filename,
                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary")
 
 with admin_tab:

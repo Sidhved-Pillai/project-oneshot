@@ -15,6 +15,7 @@ from src.gemini_parser import parse_with_gemini
 from src.historical_suggester import HistoricalSuggester
 from src.entry_finance import financial_values
 from src.request_store import RequestStore, rows_to_dtr
+from src.rtgs_report import RTGS_COLUMNS, export_rtgs, rows_to_rtgs
 
 
 def vehicle_master():
@@ -260,3 +261,31 @@ def test_archive_hides_without_deleting(tmp_path):
     assert store.archive_before(dt.date(2026, 8, 1)) == 1
     assert store.list() == []
     assert len(store.list(include_archived=True)) == 1
+
+
+def test_rtgs_roundtrip_filter_and_exact_export_columns(tmp_path):
+    store = RequestStore(f"sqlite:///{tmp_path / 'rtgs.db'}")
+    store.create({
+        "report_scope": "RTGS", "trip_date": dt.date(2026, 8, 4), "vehicle_number": "",
+        "beneficiary_name": "Demo Beneficiary", "amount": 4500, "status": "Verified",
+        "rtgs_data": {"Pymt_Mode": "NEFT", "Beneficiary Account No": "001234",
+                      "Bene_IFSC_Code": "DEMO0001234", "Remark": "Office expense",
+                      "Pymt_Date": dt.date(2026, 8, 4)},
+    })
+    assert store.list(report_kind="DTR") == []
+    rows = store.list(report_kind="RTGS")
+    frame = rows_to_rtgs(rows)
+    assert list(frame.columns) == RTGS_COLUMNS
+    assert frame.iloc[0]["Beneficiary Name"] == "Demo Beneficiary"
+    assert frame.iloc[0]["Beneficiary Account No"] == "001234"
+    ws = load_workbook(BytesIO(export_rtgs(frame)))["Sheet0"]
+    assert [cell.value for cell in ws[1]] == RTGS_COLUMNS
+    assert ws["F2"].value == "001234" and ws["F2"].number_format == "@"
+
+
+def test_both_scope_appears_in_both_reports(tmp_path):
+    store = RequestStore(f"sqlite:///{tmp_path / 'both.db'}")
+    store.create({"report_scope": "Both", "trip_date": dt.date(2026, 8, 4),
+                  "vehicle_number": "MH01AA0001", "rtgs_data": {"Remark": "Trip advance"}})
+    assert len(store.list(report_kind="DTR")) == 1
+    assert len(store.list(report_kind="RTGS")) == 1

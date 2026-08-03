@@ -2,6 +2,8 @@
 
 Project Oneshot is a transaction-entry and DTR reporting app for Billtee. An operator reads each WhatsApp proof, enters the trip and payment details, attaches the source image, and saves it under a unique Request Number. Saved requests can be searched, verified, and exported in the existing 22-column DTR workbook format for any date range.
 
+Each request can be marked `DTR`, `RTGS`, or `Both`. The Reports tab generates either the existing 22-column DTR or the exact 28-column RTGS/consolidated workbook for the selected date range. Existing records created before RTGS support are retained as DTR records automatically.
+
 Financial entries are mapped into the appropriate DTR field from Expense Type and Payment Mode. Always preview the generated table before operational use.
 
 Beneficiary Name always comes directly from the uploaded consolidated report; there is no fixed beneficiary dependency in the web app. DTR Date always comes from the remark and never falls back to `Pymt_Date`. Supported date forms include `30 07 2026`, `30/07/2026`, and `30.07.26`; date ranges use the ending date.
