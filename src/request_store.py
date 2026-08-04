@@ -1,6 +1,7 @@
 import datetime as dt
 import json
 import os
+import uuid
 from pathlib import Path
 
 import pandas as pd
@@ -21,6 +22,8 @@ requests = Table(
     Column("request_number", String(40), unique=True, index=True),
     Column("report_scope", String(20), nullable=False, default="DTR", server_default="DTR", index=True),
     Column("rtgs_data", Text, nullable=False, default="{}", server_default="{}"),
+    Column("dtr_data", Text, nullable=False, default="{}", server_default="{}"),
+    Column("batch_id", String(40), nullable=True, index=True),
     Column("trip_date", Date, nullable=False, index=True),
     Column("vehicle_number", String(40), nullable=False),
     Column("vehicle_type", String(80), default=""),
@@ -56,6 +59,27 @@ requests = Table(
     Column("is_archived", Boolean, nullable=False, default=False, server_default=false()),
 )
 
+intake_batches = Table(
+    "intake_batches", metadata,
+    Column("batch_id", String(40), primary_key=True),
+    Column("mode", String(20), nullable=False),
+    Column("operator_name", String(120), default=""),
+    Column("operator_prompt", Text, default=""),
+    Column("ai_draft", Text, nullable=False, default="[]", server_default="[]"),
+    Column("ai_summary", Text, default=""),
+    Column("model_name", String(80), default=""),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+)
+
+request_attachments = Table(
+    "request_attachments", metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("batch_id", String(40), nullable=False, index=True),
+    Column("filename", String(255), nullable=False),
+    Column("mime_type", String(100), default=""),
+    Column("payload", LargeBinary, nullable=False),
+)
+
 
 def database_url():
     """Use a durable hosted database when configured; SQLite is local-only."""
@@ -83,20 +107,38 @@ class RequestStore:
         additions = {
             "report_scope": "VARCHAR(20) NOT NULL DEFAULT 'DTR'",
             "rtgs_data": "TEXT NOT NULL DEFAULT '{}'",
+            "dtr_data": "TEXT NOT NULL DEFAULT '{}'",
+            "batch_id": "VARCHAR(40)",
         }
         with self.engine.begin() as conn:
             for name, definition in additions.items():
                 if name not in columns:
                     conn.execute(text(f"ALTER TABLE dtr_requests ADD COLUMN {name} {definition}"))
+        batch_columns = {column["name"] for column in inspect(self.engine).get_columns("intake_batches")}
+        batch_additions = {
+            "ai_draft": "TEXT NOT NULL DEFAULT '[]'",
+            "ai_summary": "TEXT",
+            "model_name": "VARCHAR(80)",
+        }
+        with self.engine.begin() as conn:
+            for name, definition in batch_additions.items():
+                if name not in batch_columns:
+                    conn.execute(text(f"ALTER TABLE intake_batches ADD COLUMN {name} {definition}"))
 
     @property
     def is_durable_cloud(self):
         return not self.url.startswith("sqlite")
 
-    def create(self, values):
+    @staticmethod
+    def _clean_values(values):
         clean = {key: value for key, value in values.items() if key in requests.c and key not in {"id", "request_number"}}
-        if isinstance(clean.get("rtgs_data"), dict):
-            clean["rtgs_data"] = json.dumps(clean["rtgs_data"], default=str)
+        for field in ("rtgs_data", "dtr_data"):
+            if isinstance(clean.get(field), dict):
+                clean[field] = json.dumps(clean[field], default=str)
+        return clean
+
+    def create(self, values):
+        clean = self._clean_values(values)
         with self.engine.begin() as conn:
             result = conn.execute(insert(requests).values(**clean))
             row_id = result.inserted_primary_key[0]
@@ -104,10 +146,22 @@ class RequestStore:
             conn.execute(update(requests).where(requests.c.id == row_id).values(request_number=number))
         return number
 
+    def create_many(self, values_list):
+        numbers = []
+        with self.engine.begin() as conn:
+            for values in values_list:
+                result = conn.execute(insert(requests).values(**self._clean_values(values)))
+                row_id = result.inserted_primary_key[0]
+                number = f"REQ-{values['trip_date']:%Y%m}-{row_id:06d}"
+                conn.execute(update(requests).where(requests.c.id == row_id).values(request_number=number))
+                numbers.append(number)
+        return numbers
+
     def update(self, request_number, values):
         clean = {key: value for key, value in values.items() if key in requests.c and key not in {"id", "request_number", "created_at"}}
-        if isinstance(clean.get("rtgs_data"), dict):
-            clean["rtgs_data"] = json.dumps(clean["rtgs_data"], default=str)
+        for field in ("rtgs_data", "dtr_data"):
+            if isinstance(clean.get(field), dict):
+                clean[field] = json.dumps(clean[field], default=str)
         clean["updated_at"] = dt.datetime.now()
         with self.engine.begin() as conn:
             conn.execute(update(requests).where(requests.c.request_number == request_number).values(**clean))
@@ -116,6 +170,31 @@ class RequestStore:
         with self.engine.connect() as conn:
             row = conn.execute(select(requests).where(requests.c.request_number == request_number)).mappings().first()
         return dict(row) if row else None
+
+    def create_batch(self, mode, operator_name, operator_prompt, attachments, ai_draft=None, ai_summary="", model_name="gemini-2.5-flash"):
+        batch_id = f"BATCH-{uuid.uuid4().hex[:16].upper()}"
+        with self.engine.begin() as conn:
+            conn.execute(insert(intake_batches).values(
+                batch_id=batch_id, mode=mode, operator_name=operator_name,
+                operator_prompt=operator_prompt, ai_draft=json.dumps(ai_draft or [], default=str),
+                ai_summary=ai_summary, model_name=model_name,
+            ))
+            for attachment in attachments:
+                conn.execute(insert(request_attachments).values(
+                    batch_id=batch_id, filename=attachment["filename"],
+                    mime_type=attachment["mime_type"], payload=attachment["data"],
+                ))
+        return batch_id
+
+    def get_attachments(self, batch_id):
+        if not batch_id:
+            return []
+        with self.engine.connect() as conn:
+            rows = conn.execute(
+                select(request_attachments).where(request_attachments.c.batch_id == batch_id)
+                .order_by(request_attachments.c.id)
+            ).mappings()
+            return [dict(row) for row in rows]
 
     def find_duplicate(self, trip_date, vehicle_number, invoice_number, amount):
         conditions = [requests.c.trip_date == trip_date, requests.c.vehicle_number == vehicle_number]

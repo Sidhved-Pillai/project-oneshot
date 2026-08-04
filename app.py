@@ -1,257 +1,262 @@
 import datetime as dt
+import json
 import os
 
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
+from src.ai_intake import DTR_REVIEW_COLUMNS, extract_intake, result_to_records
 from src.config import ROOT
-from src.entry_finance import financial_values
-from src.excel_exporter import export_dtr
-from src.request_store import RequestStore, rows_to_dtr
-from src.rtgs_report import export_rtgs, rows_to_rtgs
+from src.request_store import RequestStore
+from src.rtgs_report import RTGS_COLUMNS
 
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
+STORE_INTERFACE_VERSION = 3
 
 
-def configured_database_url():
-    if os.getenv("DATABASE_URL"):
-        return os.environ["DATABASE_URL"]
+def secret(name):
+    if os.getenv(name):
+        return os.environ[name]
     try:
-        return st.secrets.get("DATABASE_URL")
+        return st.secrets.get(name)
     except (FileNotFoundError, KeyError):
         return None
 
 
-STORE_INTERFACE_VERSION = 2
-
-
 @st.cache_resource
 def get_store(url, interface_version):
-    # interface_version is intentionally part of the cache key. Streamlit Cloud
-    # can retain resource objects across a hot deploy even after their class
-    # methods change; bumping it prevents stale database-store instances.
     return RequestStore(url)
 
 
+def clean_number(value):
+    if value is None or (isinstance(value, str) and not value.strip()) or (not isinstance(value, str) and pd.isna(value)):
+        return 0
+
+
+def optional_number(value):
+    if value is None or (isinstance(value, str) and not value.strip()) or (not isinstance(value, str) and pd.isna(value)):
+        return ""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return ""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def clean_text(value):
+    if value is None or (not isinstance(value, str) and pd.isna(value)):
+        return ""
+    return str(value).strip()
+
+
+def record_date(value):
+    parsed = pd.to_datetime(value, errors="coerce")
+    return parsed.date() if not pd.isna(parsed) else dt.date.today()
+
+
+def request_values(mode, record, batch_id, operator):
+    if mode == "DTR":
+        payload = {column: clean_text(value) if column not in {
+            "Company Freight", "Revenue", "Transporter Freight", "Loading & Unloading",
+            "RTGS ADVANCE", "Cash Adv.", "UPI", "Diesel Qty", "Diesel Adv.", "Billtee",
+            "Total Adv.", "Balance Amt.", "Payment", "SG & Bisleri Damages", "Debit Amt.",
+        } else optional_number(value) for column, value in record.items() if column != "Sr No."}
+        return {
+            "report_scope": "DTR", "batch_id": batch_id, "dtr_data": payload,
+            "trip_date": record_date(record.get("Date")),
+            "vehicle_number": clean_text(record.get("Vehicle No.")).upper().replace(" ", ""),
+            "vehicle_type": clean_text(record.get("Vehicle Type")),
+            "ownership_type": clean_text(record.get("Own/Outside Veh.")),
+            "from_location": clean_text(record.get("From")), "to_location": clean_text(record.get("To")),
+            "company_name": clean_text(record.get("Compnay Name")), "branch": clean_text(record.get("Branch")),
+            "invoice_number": clean_text(record.get("Invoice No.")),
+            "beneficiary_name": clean_text(record.get("Benificiary Name")),
+            "transporter_name": clean_text(record.get("Transporter Name")),
+            "amount": clean_number(record.get("Debit Amt.")) or clean_number(record.get("Payment")),
+            "revenue": clean_number(record.get("Revenue")),
+            "transporter_freight": clean_number(record.get("Transporter Freight")),
+            "rtgs_advance": clean_number(record.get("RTGS ADVANCE")),
+            "cash_advance": clean_number(record.get("Cash Adv.")), "upi": clean_number(record.get("UPI")),
+            "diesel_quantity": clean_number(record.get("Diesel Qty")) or None,
+            "diesel_advance": clean_number(record.get("Diesel Adv.")),
+            "total_advance": clean_number(record.get("Total Adv.")),
+            "balance_amount": clean_number(record.get("Balance Amt.")),
+            "payment": clean_number(record.get("Payment")), "status": "Draft",
+            "notes": clean_text(record.get("Review Notes")), "created_by": operator,
+        }
+    payload = {column: clean_text(value) for column, value in record.items() if column != "Amount"}
+    payload["Amount"] = optional_number(record.get("Amount"))
+    return {
+        "report_scope": "RTGS", "batch_id": batch_id, "rtgs_data": payload,
+        "trip_date": record_date(record.get("Pymt_Date")), "vehicle_number": "",
+        "beneficiary_name": clean_text(record.get("Beneficiary Name")),
+        "amount": clean_number(record.get("Amount")), "payment_mode": clean_text(record.get("Pymt_Mode")),
+        "status": "Draft", "notes": clean_text(record.get("Review Notes")), "created_by": operator,
+    }
+
+
+def dtr_payload(row):
+    raw = json.loads(row.get("dtr_data") or "{}")
+    fallbacks = {
+        "Branch": row.get("branch"), "Compnay Name": row.get("company_name"), "Date": row.get("trip_date"),
+        "Vehicle No.": row.get("vehicle_number"), "Vehicle Type": row.get("vehicle_type"),
+        "Own/Outside Veh.": row.get("ownership_type"), "From": row.get("from_location"),
+        "Invoice No.": row.get("invoice_number"), "To": row.get("to_location"),
+        "Revenue": row.get("revenue"), "Transporter Freight": row.get("transporter_freight"),
+        "RTGS ADVANCE": row.get("rtgs_advance"), "Cash Adv.": row.get("cash_advance"),
+        "UPI": row.get("upi"), "Diesel Qty": row.get("diesel_quantity"),
+        "Diesel Adv.": row.get("diesel_advance"), "Total Adv.": row.get("total_advance"),
+        "Balance Amt.": row.get("balance_amount"), "Payment": row.get("payment"),
+        "Benificiary Name": row.get("beneficiary_name"), "Transporter Name": row.get("transporter_name"),
+        "Review Notes": row.get("notes"),
+    }
+    return {column: raw.get(column, fallbacks.get(column, "")) for column in DTR_REVIEW_COLUMNS if column != "Sr No."}
+
+
 try:
-    store = get_store(configured_database_url(), STORE_INTERFACE_VERSION)
+    store = get_store(secret("DATABASE_URL"), STORE_INTERFACE_VERSION)
 except Exception as exc:
     st.error(f"Database connection failed: {exc}")
     st.stop()
 
-st.markdown(
-    """
-    <style>
-    :root { color-scheme: light; }
-    .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] { background:#faf9fc; color:#17151c; }
-    [data-testid="stSidebar"] { background:#f4f0f8; }
-    .brand {font-size:clamp(2.2rem,5vw,3.7rem);font-weight:800;letter-spacing:-.045em;line-height:1.05}
-    .brand span {color:#7c3aed}.subtitle {color:#625a6b;margin:.25rem 0 1.2rem}
-    div[data-testid="stMetric"] {background:white;border:1px solid #e8e2f0;border-radius:14px;padding:.8rem 1rem}
-    .stButton>button, .stDownloadButton>button {border-radius:10px}
-    </style>
-    <div class="brand">Project <span>Oneshot</span></div>
-    <div class="subtitle">Enter once. Store securely. Generate DTR and RTGS reports for any date range.</div>
-    """,
-    unsafe_allow_html=True,
-)
+st.markdown("""
+<style>
+:root {color-scheme:light}.stApp,[data-testid="stAppViewContainer"],[data-testid="stHeader"]{background:#faf9fc;color:#17151c}
+.brand{font-size:clamp(2.2rem,5vw,3.7rem);font-weight:800;letter-spacing:-.045em;line-height:1.05}.brand span{color:#7c3aed}
+.subtitle{color:#625a6b;margin:.25rem 0 1.2rem}div[data-testid="stMetric"]{background:white;border:1px solid #e8e2f0;border-radius:14px;padding:.8rem 1rem}
+.stButton>button,.stDownloadButton>button{border-radius:10px}
+</style>
+<div class="brand">Project <span>Oneshot</span></div>
+<div class="subtitle">Upload the evidence, explain the job, review the draft, and save.</div>
+""", unsafe_allow_html=True)
+st.caption("🟢 Persistent database connected" if store.is_durable_cloud else "🟠 Local database mode")
 
-if store.is_durable_cloud:
-    st.caption("🟢 Persistent database connected")
-else:
-    st.warning("Local SQLite mode: data survives local restarts, but will not survive a Streamlit Community Cloud redeploy. Add DATABASE_URL in Streamlit Secrets before production use.")
-
-new_tab, requests_tab, reports_tab, admin_tab = st.tabs(["➕ New entry", "📋 Requests", "📊 Reports", "⚙️ Data management"])
+new_tab, requests_tab = st.tabs(["✨ New AI intake", "📋 Requests"])
 
 with new_tab:
-    st.subheader("New request")
-    st.caption("Fields marked * are required. Attach the original WhatsApp image for verification and audit.")
-    report_scope = st.radio("This entry belongs to", ["DTR", "RTGS", "Both"], horizontal=True)
-    with st.form("new_request", clear_on_submit=True):
-        source_image = st.file_uploader("Source image", type=["jpg", "jpeg", "png", "webp", "pdf"])
-        c1, c2, c3 = st.columns(3)
-        trip_date = c1.date_input("Transaction date *", value=dt.date.today(), format="DD/MM/YYYY")
-        beneficiary_name = c2.text_input("Beneficiary name")
-        amount = c3.number_input("Amount", min_value=0.0, step=100.0, format="%.2f")
-
-        vehicle_number = vehicle_type = ownership_type = from_location = to_location = ""
-        company_name = branch = invoice_number = transporter_name = ""
-        expense_type, payment_mode, diesel_quantity = "Other", "Other", 0.0
-        if report_scope in ("DTR", "Both"):
-            st.markdown("##### DTR details")
-            c1, c2, c3 = st.columns(3)
-            vehicle_number = c1.text_input("Full vehicle number *", placeholder="MH14JL9818")
-            vehicle_type = c2.text_input("Vehicle type", placeholder="10MT")
-            ownership_type = c3.selectbox("Vehicle ownership", ["", "Own Vehicle", "Outside Vehicle"])
-            c1, c2, c3 = st.columns(3)
-            from_location = c1.text_input("From")
-            to_location = c2.text_input("To")
-            invoice_number = c3.text_input("Invoice number")
-            c1, c2, c3 = st.columns(3)
-            company_name = c1.text_input("Company name")
-            branch = c2.text_input("Branch")
-            transporter_name = c3.text_input("Transporter name")
-            c1, c2, c3 = st.columns(3)
-            expense_type = c1.selectbox("Expense type", ["Trip Advance", "Balance Payment", "Transporter Freight", "Revenue", "Other"])
-            payment_mode = c2.selectbox("Payment mode", ["RTGS/Bank Transfer", "Cash", "UPI", "Diesel", "Other"])
-            diesel_quantity = c3.number_input("Diesel quantity (litres)", min_value=0.0, step=1.0, format="%.2f")
-
-        rtgs_data = {}
-        if report_scope in ("RTGS", "Both"):
-            st.markdown("##### RTGS payment details")
-            c1, c2, c3, c4 = st.columns(4)
-            rtgs_data["File_Sequence_Num"] = c1.text_input("File sequence number")
-            rtgs_data["Pymt_Prod_Type_Code"] = c2.text_input("Payment product type", value="PAB_VENDOR")
-            rtgs_data["Pymt_Mode"] = c3.selectbox("RTGS payment mode", ["NEFT", "RTGS", "IMPS", "UPI", "Other"])
-            rtgs_data["Debit_Acct_no"] = c4.text_input("Debit account number")
-            c1, c2, c3 = st.columns(3)
-            rtgs_data["Beneficiary Account No"] = c1.text_input("Beneficiary account number")
-            rtgs_data["Bene_IFSC_Code"] = c2.text_input("Beneficiary IFSC code")
-            rtgs_data["Mobile Numder"] = c3.text_input("Mobile number")
-            c1, c2 = st.columns(2)
-            rtgs_data["Email id"] = c1.text_input("Email ID")
-            rtgs_data["Remark"] = c2.text_input("RTGS remark")
-            c1, c2 = st.columns(2)
-            rtgs_data["Debit narration"] = c1.text_input("Debit narration")
-            rtgs_data["Credit narration"] = c2.text_input("Credit narration")
-            with st.expander("RTGS processing and optional fields"):
-                c1, c2, c3 = st.columns(3)
-                rtgs_data["Reference_no"] = c1.text_input("Reference number")
-                rtgs_data["STATUS"] = c2.selectbox("Bank status", ["", "Pending", "Success", "Rejected"])
-                rtgs_data["Current Step"] = c3.text_input("Current step")
-                c1, c2, c3 = st.columns(3)
-                rtgs_data["File name"] = c1.text_input("File name")
-                rtgs_data["Rejected by"] = c2.text_input("Rejected by")
-                rtgs_data["Rejection Reason"] = c3.text_input("Rejection reason")
-                c1, c2, c3 = st.columns(3)
-                rtgs_data["Acct_Debit_date"] = c1.date_input("Account debit date", value=None, format="DD/MM/YYYY")
-                rtgs_data["Customer Ref No"] = c2.text_input("Customer reference number")
-                rtgs_data["UTR NO"] = c3.text_input("UTR number")
-                extra = st.columns(5)
-                for index in range(1, 6):
-                    rtgs_data[f"Addl_Info{index}"] = extra[index - 1].text_input(f"Additional info {index}")
-
-        c1, c2, c3 = st.columns(3)
-        status = c1.selectbox("Workflow status", ["Submitted", "Draft", "Verified", "Paid"])
-        created_by = c2.text_input("Entered by")
-        notes = c3.text_input("Internal notes")
-        allow_duplicate = st.checkbox("Allow saving if this matches an existing request")
-        save = st.form_submit_button("Save", type="primary")
-        save_another = st.form_submit_button("Save & add another")
-
-    if save or save_another:
-        normalized_vehicle = "".join(vehicle_number.upper().split())
-        errors = []
-        if report_scope in ("DTR", "Both") and not normalized_vehicle:
-            errors.append("Full vehicle number is required for a DTR entry.")
-        image_bytes = source_image.getvalue() if source_image else None
-        if image_bytes and len(image_bytes) > 8 * 1024 * 1024:
-            errors.append("Source file must be 8 MB or smaller.")
-        duplicate = store.find_duplicate(trip_date, normalized_vehicle, invoice_number.strip(), amount) if not errors else None
-        if duplicate and not allow_duplicate:
-            errors.append(f"Possible duplicate of {duplicate}. Review the existing request before saving.")
-        if errors:
-            for error in errors:
-                st.error(error)
+    st.subheader("Start an intake session")
+    mode = st.segmented_control("Request mode", ["DTR", "RTGS"], default="DTR", selection_mode="single")
+    operator_default = "Shyam" if mode == "DTR" else "Nikhat"
+    c1, c2 = st.columns([1, 3])
+    operator = c1.text_input("Operator", value=operator_default, key=f"operator_{mode}")
+    uploads = c2.file_uploader(
+        "WhatsApp images, diesel slips or PDFs", type=["jpg", "jpeg", "png", "webp", "pdf"],
+        accept_multiple_files=True, key=f"uploads_{mode}",
+    )
+    prompt = st.text_area(
+        "Tell Oneshot what these files contain",
+        placeholder=("Example: These are today’s Pune trips. The second photo is a diesel slip for MH14JL9818. "
+                     "Leave freight and invoice blank for Shyam to add later."
+                     if mode == "DTR" else
+                     "Example: Prepare separate RTGS rows for each payment shown. Use NEFT unless the image explicitly says otherwise."),
+        height=110, key=f"prompt_{mode}",
+    )
+    st.caption("The uploaded files and your instructions are sent to the configured Google Gemini model for extraction. Review every draft before saving.")
+    if uploads:
+        st.caption("Attached: " + ", ".join(file.name for file in uploads))
+    if st.button("Generate live review", type="primary", disabled=not uploads and not prompt.strip()):
+        files = [{"filename": item.name, "mime_type": item.type or "application/octet-stream", "data": item.getvalue()} for item in uploads]
+        too_large = [item["filename"] for item in files if len(item["data"]) > 8 * 1024 * 1024]
+        if too_large:
+            st.error("Each file must be 8 MB or smaller: " + ", ".join(too_large))
         else:
-            finance = financial_values(expense_type, payment_mode, amount, diesel_quantity or None)
-            if report_scope in ("RTGS", "Both"):
-                rtgs_data.update({"Beneficiary Name": beneficiary_name.strip(), "Amount": amount, "Pymt_Date": trip_date})
-            number = store.create({
-                "report_scope": report_scope, "rtgs_data": rtgs_data,
-                "trip_date": trip_date, "vehicle_number": normalized_vehicle, "vehicle_type": vehicle_type.strip(),
-                "ownership_type": ownership_type, "from_location": from_location.strip(), "to_location": to_location.strip(),
-                "company_name": company_name.strip(), "branch": branch.strip(), "invoice_number": invoice_number.strip(),
-                "beneficiary_name": beneficiary_name.strip(), "transporter_name": transporter_name.strip(),
-                "expense_type": expense_type, "amount": amount, "payment_mode": payment_mode,
-                **finance, "status": status, "notes": notes.strip(), "created_by": created_by.strip(),
-                "source_filename": source_image.name if source_image else "",
-                "source_mime_type": source_image.type if source_image else "",
-                "source_image": image_bytes,
-            })
-            st.success(f"Saved successfully as {number}.")
-            if save_another:
-                st.info("The form is ready for the next entry.")
+            try:
+                with st.spinner(f"Reading the {mode} evidence and building draft rows…"):
+                    result = extract_intake(secret("GEMINI_API_KEY"), mode, prompt, files)
+                original_records = result_to_records(mode, result)
+                st.session_state["ai_draft"] = pd.DataFrame(original_records)
+                st.session_state["ai_original_records"] = original_records
+                st.session_state["ai_draft_mode"] = mode
+                st.session_state["ai_draft_summary"] = result.summary
+                st.session_state["ai_draft_files"] = files
+                st.session_state["ai_draft_prompt"] = prompt
+                st.session_state["ai_draft_operator"] = operator
+            except Exception as exc:
+                st.error(f"Could not generate the draft: {exc}")
+
+    if st.session_state.get("ai_draft_mode") == mode:
+        st.divider()
+        st.subheader("Live review table")
+        st.caption("AI output is a draft. Correct it here, add or remove rows, and leave uncertain values blank.")
+        if st.session_state.get("ai_draft_summary"):
+            with st.chat_message("assistant"):
+                st.write(st.session_state["ai_draft_summary"])
+        draft = st.session_state["ai_draft"]
+        if draft.empty:
+            st.warning("No distinct records were found. Add more context or clearer images and generate again.")
+        else:
+            edited = st.data_editor(draft, num_rows="dynamic", hide_index=True, width="stretch", key=f"draft_editor_{mode}")
+            if st.button(f"Save {len(edited)} reviewed {mode} row(s)", type="primary"):
+                active_columns = [column for column in edited.columns if column not in ("Sr No.", "Review Notes")]
+                records = [record for record in edited.to_dict("records") if any(clean_text(record.get(c)) for c in active_columns)]
+                if not records:
+                    st.error("There are no non-empty rows to save.")
+                else:
+                    batch_id = store.create_batch(
+                        mode, st.session_state["ai_draft_operator"], st.session_state["ai_draft_prompt"],
+                        st.session_state["ai_draft_files"], st.session_state["ai_original_records"],
+                        st.session_state.get("ai_draft_summary", ""),
+                    )
+                    values = [request_values(mode, record, batch_id, st.session_state["ai_draft_operator"]) for record in records]
+                    numbers = store.create_many(values)
+                    st.success(f"Saved {len(numbers)} draft request(s): {numbers[0]}" + (f" to {numbers[-1]}" if len(numbers) > 1 else ""))
+                    for key in ["ai_draft", "ai_original_records", "ai_draft_mode", "ai_draft_summary", "ai_draft_files", "ai_draft_prompt", "ai_draft_operator"]:
+                        st.session_state.pop(key, None)
 
 with requests_tab:
     st.subheader("Saved requests")
-    c1, c2, c3 = st.columns(3)
-    request_start = c1.date_input("From date", value=dt.date.today().replace(day=1), key="request_start")
-    request_end = c2.date_input("To date", value=dt.date.today(), key="request_end")
-    request_status = c3.selectbox("Status", ["All", "Draft", "Submitted", "Verified", "Paid", "Cancelled"])
-    saved_rows = store.list(request_start, request_end, request_status)
-    st.metric("Requests found", len(saved_rows))
-    if saved_rows:
-        display_columns = ["request_number", "report_scope", "trip_date", "vehicle_number", "company_name", "invoice_number", "beneficiary_name", "amount", "status", "created_by"]
-        st.dataframe(pd.DataFrame(saved_rows)[display_columns], hide_index=True, width="stretch")
-        selected_number = st.selectbox("Open request", [row["request_number"] for row in saved_rows])
-        selected = store.get(selected_number)
-        with st.expander(f"Details · {selected_number}", expanded=True):
-            left, right = st.columns([2, 1])
-            left.json({key: str(value) if value is not None else "" for key, value in selected.items() if key not in {"source_image"}})
-            if selected.get("source_image"):
-                if selected.get("source_mime_type", "").startswith("image/"):
-                    right.image(selected["source_image"], caption=selected.get("source_filename"))
-                right.download_button("Download source", selected["source_image"], selected.get("source_filename") or "source-file", selected.get("source_mime_type") or None)
-        with st.expander("Edit or update status"):
-            with st.form(f"edit_{selected_number}"):
-                e1, e2, e3 = st.columns(3)
-                edit_date = e1.date_input("Trip date", selected["trip_date"], key=f"date_{selected_number}")
-                edit_vehicle = e2.text_input("Vehicle number", selected["vehicle_number"])
-                statuses = ["Draft", "Submitted", "Verified", "Paid", "Cancelled"]
-                current_status = selected["status"] if selected["status"] in statuses else "Submitted"
-                edit_status = e3.selectbox("Status", statuses, index=statuses.index(current_status))
-                e1, e2, e3 = st.columns(3)
-                edit_company = e1.text_input("Company", selected["company_name"])
-                edit_branch = e2.text_input("Branch", selected["branch"])
-                edit_invoice = e3.text_input("Invoice number", selected["invoice_number"])
-                edit_notes = st.text_area("Notes", selected["notes"] or "")
-                update_request = st.form_submit_button("Save changes", type="primary")
-            if update_request:
-                store.update(selected_number, {
-                    "trip_date": edit_date, "vehicle_number": "".join(edit_vehicle.upper().split()),
-                    "company_name": edit_company.strip(), "branch": edit_branch.strip(),
-                    "invoice_number": edit_invoice.strip(), "status": edit_status, "notes": edit_notes.strip(),
-                })
-                st.success(f"Updated {selected_number}.")
-                st.rerun()
+    c1, c2, c3, c4 = st.columns(4)
+    start = c1.date_input("From", dt.date.today().replace(day=1), key="request_start")
+    end = c2.date_input("To", dt.date.today(), key="request_end")
+    request_mode = c3.selectbox("Mode", ["All", "DTR", "RTGS"])
+    request_status = c4.selectbox("Status", ["All", "Draft", "Submitted", "Verified", "Paid", "Cancelled"])
+    rows = store.list(start, end, request_status, report_kind=None if request_mode == "All" else request_mode)
+    st.metric("Requests found", len(rows))
+    if not rows:
+        st.info("No saved requests match these filters.")
     else:
-        st.info("No requests found for these filters.")
-
-with reports_tab:
-    st.subheader("Generate report")
-    report_type = st.radio("Report type", ["DTR", "RTGS Report"], horizontal=True)
-    c1, c2, c3 = st.columns(3)
-    report_start = c1.date_input("Report from", value=dt.date.today().replace(day=1), key="report_start")
-    report_end = c2.date_input("Report to", value=dt.date.today(), key="report_end")
-    report_status = c3.selectbox("Include status", ["Verified", "All active", "Paid", "Submitted", "Draft"])
-    report_kind = "DTR" if report_type == "DTR" else "RTGS"
-    report_rows = store.list(report_start, report_end, report_status, report_kind=report_kind)
-    report_frame = rows_to_dtr(report_rows) if report_kind == "DTR" else rows_to_rtgs(report_rows)
-    c1, c2, c3 = st.columns(3)
-    c1.metric(f"{report_kind} rows", len(report_frame))
-    c2.metric("Total amount", f"₹{sum(float(row['amount'] or 0) for row in report_rows):,.2f}")
-    c3.metric("Date range", f"{report_start:%d %b} – {report_end:%d %b %Y}")
-    st.dataframe(report_frame, hide_index=True, width="stretch")
-    if not report_frame.empty:
-        if report_kind == "DTR":
-            filename = f"Project_Oneshot_DTR_{report_start:%Y%m%d}_{report_end:%Y%m%d}.xlsx"
-            payload = export_dtr(report_frame, preserve_financials=True)
-        else:
-            filename = f"Project_Oneshot_RTGS_{report_start:%Y%m%d}_{report_end:%Y%m%d}.xlsx"
-            payload = export_rtgs(report_frame)
-        st.download_button(f"Download {report_type} Excel", payload, filename,
-                           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary")
-
-with admin_tab:
-    st.subheader("Data retention")
-    st.write("A new month does not delete old data. The report and request screens start with the current month, so the visible count naturally resets while history remains available.")
-    st.info("Archiving hides older records from normal views without deleting them or their source images.")
-    archive_cutoff = st.date_input("Archive entries before", value=dt.date.today().replace(day=1))
-    confirm_archive = st.checkbox("I understand these entries will be hidden from normal views")
-    if st.button("Archive older entries", disabled=not confirm_archive):
-        count = store.archive_before(archive_cutoff)
-        st.success(f"Archived {count} request(s). No records were deleted.")
+        overview = pd.DataFrame(rows)
+        columns = ["request_number", "report_scope", "trip_date", "vehicle_number", "beneficiary_name", "amount", "status", "created_by", "batch_id"]
+        st.dataframe(overview[columns], hide_index=True, width="stretch")
+        selected_number = st.selectbox("Open request", [row["request_number"] for row in rows])
+        selected = store.get(selected_number)
+        st.caption(f"{selected['report_scope']} · {selected_number} · entered by {selected.get('created_by') or '—'}")
+        payload = dtr_payload(selected) if selected["report_scope"] == "DTR" else {
+            column: json.loads(selected.get("rtgs_data") or "{}").get(column, "") for column in RTGS_COLUMNS
+        }
+        payload["Review Notes"] = selected.get("notes", "")
+        edit_frame = pd.DataFrame([payload])
+        edited_request = st.data_editor(edit_frame, hide_index=True, width="stretch", key=f"request_editor_{selected_number}")
+        c1, c2 = st.columns([1, 3])
+        statuses = ["Draft", "Submitted", "Verified", "Paid", "Cancelled"]
+        selected_status = selected["status"] if selected["status"] in statuses else "Draft"
+        edit_status = c1.selectbox("Workflow status", statuses, index=statuses.index(selected_status), key=f"status_{selected_number}")
+        if c2.button("Save request changes", type="primary"):
+            record = edited_request.iloc[0].to_dict()
+            values = request_values(selected["report_scope"], record, selected.get("batch_id"), selected.get("created_by", ""))
+            values["status"] = edit_status
+            store.update(selected_number, values)
+            st.success(f"Updated {selected_number}.")
+            st.rerun()
+        attachments = store.get_attachments(selected.get("batch_id"))
+        if not attachments and selected.get("source_image"):
+            attachments = [{
+                "id": f"legacy_{selected['id']}", "filename": selected.get("source_filename") or "source-file",
+                "mime_type": selected.get("source_mime_type") or "application/octet-stream",
+                "payload": selected["source_image"],
+            }]
+        if attachments:
+            with st.expander(f"Source files ({len(attachments)})"):
+                for attachment in attachments:
+                    if attachment["mime_type"].startswith("image/"):
+                        st.image(attachment["payload"], caption=attachment["filename"], width=500)
+                    st.download_button(
+                        f"Download {attachment['filename']}", attachment["payload"], attachment["filename"],
+                        attachment["mime_type"], key=f"download_{attachment['id']}",
+                    )

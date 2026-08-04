@@ -16,6 +16,7 @@ from src.historical_suggester import HistoricalSuggester
 from src.entry_finance import financial_values
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, rows_to_rtgs
+from src.ai_intake import DTRIntakeResult, DTRIntakeRow, result_to_records
 
 
 def vehicle_master():
@@ -294,3 +295,36 @@ def test_both_scope_appears_in_both_reports(tmp_path):
 def test_store_list_accepts_report_kind_after_interface_upgrade(tmp_path):
     store = RequestStore(f"sqlite:///{tmp_path / 'interface.db'}")
     assert store.list(report_kind="DTR") == []
+
+
+def test_ai_dtr_result_maps_to_review_columns_without_inventing_values():
+    result = DTRIntakeResult(rows=[DTRIntakeRow(
+        date="2026-08-04", vehicle_number="MH14JL9818", lr_number="00127",
+        diesel_quantity=None, review_notes="Freight is not visible",
+    )])
+    record = result_to_records("DTR", result)[0]
+    assert record["Vehicle No."] == "MH14JL9818"
+    assert record["LR No."] == "00127"
+    assert record["Diesel Qty"] is None
+    assert record["Review Notes"] == "Freight is not visible"
+
+
+def test_intake_batch_keeps_multiple_source_files(tmp_path):
+    store = RequestStore(f"sqlite:///{tmp_path / 'batch.db'}")
+    batch_id = store.create_batch("DTR", "Shyam", "Two trips", [
+        {"filename": "one.jpg", "mime_type": "image/jpeg", "data": b"one"},
+        {"filename": "two.pdf", "mime_type": "application/pdf", "data": b"two"},
+    ])
+    attachments = store.get_attachments(batch_id)
+    assert [item["filename"] for item in attachments] == ["one.jpg", "two.pdf"]
+    assert [item["payload"] for item in attachments] == [b"one", b"two"]
+
+
+def test_batch_rows_are_created_together(tmp_path):
+    store = RequestStore(f"sqlite:///{tmp_path / 'many.db'}")
+    numbers = store.create_many([
+        {"trip_date": dt.date(2026, 8, 4), "vehicle_number": "MH01AA0001"},
+        {"trip_date": dt.date(2026, 8, 4), "vehicle_number": "MH01AA0002"},
+    ])
+    assert len(numbers) == 2 and len(set(numbers)) == 2
+    assert len(store.list()) == 2

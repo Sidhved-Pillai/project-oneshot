@@ -1,20 +1,10 @@
 # Project Oneshot
 
-Project Oneshot is a transaction-entry and DTR reporting app for Billtee. An operator reads each WhatsApp proof, enters the trip and payment details, attaches the source image, and saves it under a unique Request Number. Saved requests can be searched, verified, and exported in the existing 22-column DTR workbook format for any date range.
+Project Oneshot is an AI-assisted logistics intake app for Billtee. Shyam selects DTR or Nikhat selects RTGS, uploads multiple WhatsApp images/PDFs, adds conversational instructions, reviews the extracted live table, and saves the corrected rows as a batch under unique Request Numbers.
 
-Each request can be marked `DTR`, `RTGS`, or `Both`. The Reports tab generates either the existing 22-column DTR or the exact 28-column RTGS/consolidated workbook for the selected date range. Existing records created before RTGS support are retained as DTR records automatically.
+Missing or uncertain values remain blank and flagged for later completion in Requests. DTR requests retain the full operational field set, including LR, invoice, freight, UPI, diesel, revenue, damages and remarks. RTGS requests retain the exact 28-column consolidated-report field set. Uploaded evidence and instructions are sent to the configured Google Gemini model during extraction, so every generated row must be reviewed before saving.
 
-Financial entries are mapped into the appropriate DTR field from Expense Type and Payment Mode. Always preview the generated table before operational use.
-
-Beneficiary Name always comes directly from the uploaded consolidated report; there is no fixed beneficiary dependency in the web app. DTR Date always comes from the remark and never falls back to `Pymt_Date`. Supported date forms include `30 07 2026`, `30/07/2026`, and `30.07.26`; date ranges use the ending date.
-
-For best results, use this remark format:
-
-```text
-9818 | SG | Talegaon to Bhiwandi | 10MT | 30 07 2026 | INV 12345 | TA
-```
-
-The application uses a non-sensitive, derived historical lookup to suggest company and branch only for repeated patterns with at least 90% agreement. Suggestions remain editable; inconsistent or unseen routes stay blank.
+The current interface intentionally focuses on `New AI intake` and `Requests`. Report generation, data management and monthly profit-and-loss workflows are reserved for the next phase.
 
 ## Quick start on macOS
 
@@ -30,7 +20,7 @@ python -m streamlit run app.py
 
 Open `http://localhost:8501` if the browser does not open automatically. Stop the app by pressing `Control-C` in Terminal.
 
-Gemini is optional. To enable its safe fallback, edit the local `.env` and set `GEMINI_API_KEY=...`. The app sends only remark text, never complete payment rows or bank details. It continues to work when the key is absent or the service fails.
+Gemini is required for AI extraction. For local use, set `GEMINI_API_KEY` in `.env`; for Streamlit Cloud, set it in encrypted Secrets. Uploaded evidence may contain complete payment or banking details and is sent to the configured Gemini model, so access and retention must follow company policy.
 
 ## Persistent storage
 
@@ -42,7 +32,7 @@ DATABASE_URL = "postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require"
 
 Do not put the database URL in Git. On startup the app creates its table automatically. Images are stored in the database along with each request, with an 8 MB per-file limit. For larger long-term volumes, move attachments to private object storage and retain only their object keys in PostgreSQL.
 
-The screens default to the current month, giving the appearance of a fresh monthly register without deleting history. Data Management can archive older entries; archiving is reversible at the database level and does not delete records.
+The Requests screen defaults to the current month without deleting older history.
 
 ## Updating master files
 
