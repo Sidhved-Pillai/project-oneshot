@@ -16,7 +16,7 @@ from src.historical_suggester import HistoricalSuggester
 from src.entry_finance import financial_values
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, rows_to_rtgs
-from src.ai_intake import DTRIntakeResult, DTRIntakeRow, result_to_records
+from src.ai_intake import DTRIntakeResult, DTRIntakeRow, _prompt, result_to_records
 
 
 def vehicle_master():
@@ -328,3 +328,12 @@ def test_batch_rows_are_created_together(tmp_path):
     ])
     assert len(numbers) == 2 and len(set(numbers)) == 2
     assert len(store.list()) == 2
+
+
+def test_specialized_prompts_encode_real_whatsapp_workflow():
+    dtr_prompt = _prompt("DTR", "two trips")
+    rtgs_prompt = _prompt("RTGS", "one combined transfer")
+    assert "separate DTR rows" in dtr_prompt
+    assert "batch-total check" in dtr_prompt
+    assert "one combined transfer" in rtgs_prompt
+    assert "MICR" in dtr_prompt and "UPI QR requires verification" in rtgs_prompt

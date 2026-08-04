@@ -137,7 +137,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 st.caption("🟢 Persistent database connected" if store.is_durable_cloud else "🟠 Local database mode")
 
-new_tab, requests_tab = st.tabs(["✨ New AI intake", "📋 Requests"])
+new_tab, requests_tab = st.tabs(["New Entry", "Requests"])
 
 with new_tab:
     st.subheader("Start an intake session")
@@ -151,10 +151,11 @@ with new_tab:
     )
     prompt = st.text_area(
         "Tell Oneshot what these files contain",
-        placeholder=("Example: These are today’s Pune trips. The second photo is a diesel slip for MH14JL9818. "
-                     "Leave freight and invoice blank for Shyam to add later."
+        placeholder=("Paste the WhatsApp message here. Example: 28-07-2026, MH 14JL 2654, "
+                     "Talegaon (SG) to Sangali (10 MT), Rs 1,000. Explain which image belongs to it."
                      if mode == "DTR" else
-                     "Example: Prepare separate RTGS rows for each payment shown. Use NEFT unless the image explicitly says otherwise."),
+                     "Paste the payment message here and explain which bank image belongs to which payment. "
+                     "Mention whether multiple trips should be one combined transfer."),
         height=110, key=f"prompt_{mode}",
     )
     st.caption("The uploaded files and your instructions are sent to the configured Google Gemini model for extraction. Review every draft before saving.")

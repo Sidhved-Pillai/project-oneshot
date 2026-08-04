@@ -133,13 +133,33 @@ Rules:
 - Dates must be YYYY-MM-DD when unambiguous. Otherwise leave blank.
 - Create one row per distinct transaction. Merge evidence only when identifiers clearly show it is the same transaction.
 - If handwriting or image quality is unclear, flag the field in review_notes.
+- Images may be sideways or upside down. Inspect their printed text in the correct orientation.
+- A cancelled cheque/account proof usually supplies beneficiary name, account number, bank/branch and IFSC. Use the labelled A/c No and IFSC fields. Never mistake the MICR line along the cheque bottom for an account number or IFSC.
+- A visible UPI ID may be extracted exactly. If an attachment contains only a QR code and no readable UPI ID, say "UPI QR requires verification" in review_notes and do not invent an ID.
+- Use attachment order and the operator explanation to associate bank proof with payment/trip messages. If the relationship is not clear, keep the banking fields blank and explain the ambiguity.
+- If the typed WhatsApp text conflicts with an image, do not choose silently; preserve the clearest explicit value and describe the conflict in review_notes.
+- An Indian IFSC normally has four letters, then 0, then six alphanumeric characters. Use this only to flag a suspicious reading, never to repair or invent the code.
 """
     if mode == "DTR":
         return common + """
 This is a DTR intake for Shyam. Extract trip, LR/invoice, freight, advance, UPI, diesel, revenue, damage and remark details that are explicitly present. Diesel slips may be separate evidence and must not be attached to a trip unless the vehicle/date or explanation clearly connects them. Calculate total_advance only when its components are explicit; otherwise leave it blank. Do not calculate profit or balance from assumptions.
+
+WhatsApp trip-message conventions:
+- A block such as "28-07-2026 / MH 14JL 2654 / TALEGAON (SG) To Sangali (10 mt) / Rs 1000" is one trip row: date 2026-07-28, vehicle MH14JL2654, from Talegaon, company SG, to Sangali, type 10MT and the explicitly stated advance 1000.
+- Several dated trip blocks in one message are separate DTR rows.
+- When each block states Rs 1000 and the message ends with a standalone "Rs 2,000", the final amount is normally a batch-total check, not a third trip or another advance. Flag a mismatch between the row amounts and total.
+- Put a bank-paid trip advance in rtgs_advance only when the message/context establishes bank transfer. Otherwise keep the payment channel blank and mention the amount in review_notes rather than guessing Cash/UPI/RTGS.
+- Text inside parentheses after the origin, such as "Vadape (SG)", normally identifies company SG; it is not part of the origin name.
 """
     return common + """
 This is an RTGS intake for Nikhat. Extract payment/banking fields exactly as shown. Never guess an account number, IFSC, amount, beneficiary, UTR or status. Default payment_product_type_code only if the operator explicitly supplies it; otherwise leave blank. A single image may contain several payment instructions, which must become separate rows.
+
+WhatsApp payment conventions:
+- Trip text supplies the payment remark/context; a cheque or account image supplies the beneficiary banking fields.
+- If multiple trip blocks show individual amounts and a final standalone amount equals their sum, treat the standalone amount as a batch total, not an extra payment.
+- When the operator says those trips are one combined transfer to one beneficiary, create one RTGS row for the combined amount and put all trip identifiers concisely in Remark.
+- Without that confirmation, do not silently decide whether there should be one combined bank transfer or separate transfers. Produce the most conservative draft and state the decision needed in review_notes.
+- For cancelled cheques, the printed account-holder/signatory name may be the beneficiary only when clearly labelled or supported by the operator message. Do not infer a beneficiary from an illegible signature.
 """
 
 
@@ -153,7 +173,8 @@ def extract_intake(api_key, mode, operator_context, files, model="gemini-2.5-fla
 
     schema = DTRIntakeResult if mode == "DTR" else RTGSIntakeResult
     parts = [types.Part.from_text(text=_prompt(mode, operator_context))]
-    for item in files:
+    for index, item in enumerate(files, 1):
+        parts.append(types.Part.from_text(text=f"Attachment {index}: {item.get('filename', 'unnamed file')}"))
         parts.append(types.Part.from_bytes(data=item["data"], mime_type=item["mime_type"]))
     client = genai.Client(api_key=api_key)
     response = client.models.generate_content(

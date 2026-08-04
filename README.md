@@ -4,7 +4,7 @@ Project Oneshot is an AI-assisted logistics intake app for Billtee. Shyam select
 
 Missing or uncertain values remain blank and flagged for later completion in Requests. DTR requests retain the full operational field set, including LR, invoice, freight, UPI, diesel, revenue, damages and remarks. RTGS requests retain the exact 28-column consolidated-report field set. Uploaded evidence and instructions are sent to the configured Google Gemini model during extraction, so every generated row must be reviewed before saving.
 
-The current interface intentionally focuses on `New AI intake` and `Requests`. Report generation, data management and monthly profit-and-loss workflows are reserved for the next phase.
+The current interface intentionally focuses on `New Entry` and `Requests`. Report generation, data management and monthly profit-and-loss workflows are reserved for the next phase.
 
 ## Quick start on macOS
 
