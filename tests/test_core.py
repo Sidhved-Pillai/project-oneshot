@@ -16,7 +16,7 @@ from src.historical_suggester import HistoricalSuggester
 from src.entry_finance import financial_values
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, rows_to_rtgs
-from src.ai_intake import DTRIntakeResult, DTRIntakeRow, _prompt, result_to_records
+from src.ai_intake import DTRIntakeResult, DTRIntakeRow, _model_unavailable, _prompt, extract_intake, result_to_records
 
 
 def vehicle_master():
@@ -339,3 +339,32 @@ def test_specialized_prompts_encode_real_whatsapp_workflow():
     assert "photo-then-message sequence" in rtgs_prompt
     assert "belongs in rtgs_advance" in dtr_prompt
     assert "MICR" in dtr_prompt and "UPI QR requires verification" in rtgs_prompt
+
+
+def test_only_model_availability_errors_trigger_fallback():
+    assert _model_unavailable(Exception("404 NOT_FOUND: model is no longer available"))
+    assert not _model_unavailable(Exception("429 RESOURCE_EXHAUSTED: quota exceeded"))
+    assert not _model_unavailable(Exception("401 UNAUTHENTICATED: invalid API key"))
+
+
+def test_ai_extraction_falls_back_from_retired_model(monkeypatch):
+    from google import genai
+
+    calls = []
+
+    class FakeModels:
+        def generate_content(self, model, contents, config):
+            calls.append(model)
+            if model == "retired-model":
+                raise Exception("404 NOT_FOUND: model is no longer available")
+            return type("Response", (), {"text": '{"rows": [], "summary": "No rows"}'})()
+
+    class FakeClient:
+        def __init__(self, api_key):
+            self.models = FakeModels()
+
+    monkeypatch.setattr(genai, "Client", FakeClient)
+    result, model = extract_intake("test-key", "RTGS", "test prompt", [], model="retired-model")
+    assert result.summary == "No rows"
+    assert model == "gemini-3.5-flash"
+    assert calls == ["retired-model", "gemini-3.5-flash"]

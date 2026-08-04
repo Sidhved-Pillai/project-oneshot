@@ -22,6 +22,8 @@ Open `http://localhost:8501` if the browser does not open automatically. Stop th
 
 Gemini is required for AI extraction. For local use, set `GEMINI_API_KEY` in `.env`; for Streamlit Cloud, set it in encrypted Secrets. Uploaded evidence may contain complete payment or banking details and is sent to the configured Gemini model, so access and retention must follow company policy.
 
+The default extraction model is `gemini-3.6-flash`. It can be changed without a code deployment by adding `GEMINI_MODEL = "model-name"` to Streamlit Secrets. If the configured/default model returns a model-unavailable error, the app tries supported Flash fallbacks; authentication, quota and content errors are surfaced without retrying other models.
+
 ## Persistent storage
 
 Local development uses `data/project_oneshot.db` (SQLite), which survives local app restarts. Streamlit Community Cloud's filesystem is temporary, so production must use hosted PostgreSQL. Create a PostgreSQL database (for example Neon or Supabase) and add this in the app's Streamlit Secrets:

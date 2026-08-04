@@ -171,7 +171,7 @@ class RequestStore:
             row = conn.execute(select(requests).where(requests.c.request_number == request_number)).mappings().first()
         return dict(row) if row else None
 
-    def create_batch(self, mode, operator_name, operator_prompt, attachments, ai_draft=None, ai_summary="", model_name="gemini-2.5-flash"):
+    def create_batch(self, mode, operator_name, operator_prompt, attachments, ai_draft=None, ai_summary="", model_name="gemini-3.6-flash"):
         batch_id = f"BATCH-{uuid.uuid4().hex[:16].upper()}"
         with self.engine.begin() as conn:
             conn.execute(insert(intake_batches).values(

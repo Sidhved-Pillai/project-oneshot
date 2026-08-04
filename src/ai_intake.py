@@ -163,7 +163,16 @@ WhatsApp payment conventions:
 """
 
 
-def extract_intake(api_key, mode, operator_context, files, model="gemini-2.5-flash"):
+DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
+FALLBACK_GEMINI_MODELS = ("gemini-3.5-flash", "gemini-flash-latest")
+
+
+def _model_unavailable(exc):
+    message = str(exc).lower()
+    return "404" in message or "not_found" in message or "no longer available" in message or "not found" in message
+
+
+def extract_intake(api_key, mode, operator_context, files, model=None):
     if not api_key:
         raise ValueError("GEMINI_API_KEY is not configured in Streamlit Secrets.")
     if not files and not str(operator_context).strip():
@@ -177,12 +186,24 @@ def extract_intake(api_key, mode, operator_context, files, model="gemini-2.5-fla
         parts.append(types.Part.from_text(text=f"Attachment {index}: {item.get('filename', 'unnamed file')}"))
         parts.append(types.Part.from_bytes(data=item["data"], mime_type=item["mime_type"]))
     client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model=model,
-        contents=[types.Content(role="user", parts=parts)],
-        config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=schema),
-    )
-    return schema.model_validate_json(response.text)
+    candidates = []
+    for candidate in (model or DEFAULT_GEMINI_MODEL, *FALLBACK_GEMINI_MODELS):
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
+    last_error = None
+    for candidate in candidates:
+        try:
+            response = client.models.generate_content(
+                model=candidate,
+                contents=[types.Content(role="user", parts=parts)],
+                config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=schema),
+            )
+            return schema.model_validate_json(response.text), candidate
+        except Exception as exc:
+            last_error = exc
+            if not _model_unavailable(exc):
+                raise
+    raise RuntimeError(f"None of the configured Gemini models are available: {last_error}")
 
 
 def result_to_records(mode, result):

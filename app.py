@@ -170,7 +170,9 @@ with new_tab:
         else:
             try:
                 with st.spinner(f"Reading the {mode} evidence and building draft rows…"):
-                    result = extract_intake(secret("GEMINI_API_KEY"), mode, prompt, files)
+                    result, model_used = extract_intake(
+                        secret("GEMINI_API_KEY"), mode, prompt, files, model=secret("GEMINI_MODEL")
+                    )
                 original_records = result_to_records(mode, result)
                 st.session_state["ai_draft"] = pd.DataFrame(original_records)
                 st.session_state["ai_original_records"] = original_records
@@ -179,6 +181,7 @@ with new_tab:
                 st.session_state["ai_draft_files"] = files
                 st.session_state["ai_draft_prompt"] = prompt
                 st.session_state["ai_draft_operator"] = operator
+                st.session_state["ai_model_used"] = model_used
             except Exception as exc:
                 st.error(f"Could not generate the draft: {exc}")
 
@@ -203,12 +206,12 @@ with new_tab:
                     batch_id = store.create_batch(
                         mode, st.session_state["ai_draft_operator"], st.session_state["ai_draft_prompt"],
                         st.session_state["ai_draft_files"], st.session_state["ai_original_records"],
-                        st.session_state.get("ai_draft_summary", ""),
+                        st.session_state.get("ai_draft_summary", ""), st.session_state.get("ai_model_used", ""),
                     )
                     values = [request_values(mode, record, batch_id, st.session_state["ai_draft_operator"]) for record in records]
                     numbers = store.create_many(values)
                     st.success(f"Saved {len(numbers)} draft request(s): {numbers[0]}" + (f" to {numbers[-1]}" if len(numbers) > 1 else ""))
-                    for key in ["ai_draft", "ai_original_records", "ai_draft_mode", "ai_draft_summary", "ai_draft_files", "ai_draft_prompt", "ai_draft_operator"]:
+                    for key in ["ai_draft", "ai_original_records", "ai_draft_mode", "ai_draft_summary", "ai_draft_files", "ai_draft_prompt", "ai_draft_operator", "ai_model_used"]:
                         st.session_state.pop(key, None)
 
 with requests_tab:
