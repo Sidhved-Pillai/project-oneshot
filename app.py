@@ -161,6 +161,7 @@ with new_tab:
     st.caption("The uploaded files and your instructions are sent to the configured Google Gemini model for extraction. Review every draft before saving.")
     if uploads:
         st.caption("Attached: " + ", ".join(file.name for file in uploads))
+        st.caption("Keep files in WhatsApp order. Oneshot treats each evidence photo and the trip text immediately following it as one pair.")
     if st.button("Generate live review", type="primary", disabled=not uploads and not prompt.strip()):
         files = [{"filename": item.name, "mime_type": item.type or "application/octet-stream", "data": item.getvalue()} for item in uploads]
         too_large = [item["filename"] for item in files if len(item["data"]) > 8 * 1024 * 1024]

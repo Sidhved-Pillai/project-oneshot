@@ -136,7 +136,7 @@ Rules:
 - Images may be sideways or upside down. Inspect their printed text in the correct orientation.
 - A cancelled cheque/account proof usually supplies beneficiary name, account number, bank/branch and IFSC. Use the labelled A/c No and IFSC fields. Never mistake the MICR line along the cheque bottom for an account number or IFSC.
 - A visible UPI ID may be extracted exactly. If an attachment contains only a QR code and no readable UPI ID, say "UPI QR requires verification" in review_notes and do not invent an ID.
-- Use attachment order and the operator explanation to associate bank proof with payment/trip messages. If the relationship is not clear, keep the banking fields blank and explain the ambiguity.
+- WhatsApp evidence normally arrives as a chronological pair: an evidence photo (LR/invoice, cheque, bank proof or slip) followed immediately by the trip/payment text that belongs to it. Use that photo-then-message sequence as the default pairing rule. A new evidence photo starts the next pair. If uploaded order/context does not preserve this sequence, keep uncertain associations blank and explain them.
 - If the typed WhatsApp text conflicts with an image, do not choose silently; preserve the clearest explicit value and describe the conflict in review_notes.
 - An Indian IFSC normally has four letters, then 0, then six alphanumeric characters. Use this only to flag a suspicious reading, never to repair or invent the code.
 """
@@ -147,8 +147,8 @@ This is a DTR intake for Shyam. Extract trip, LR/invoice, freight, advance, UPI,
 WhatsApp trip-message conventions:
 - A block such as "28-07-2026 / MH 14JL 2654 / TALEGAON (SG) To Sangali (10 mt) / Rs 1000" is one trip row: date 2026-07-28, vehicle MH14JL2654, from Talegaon, company SG, to Sangali, type 10MT and the explicitly stated advance 1000.
 - Several dated trip blocks in one message are separate DTR rows.
-- When each block states Rs 1000 and the message ends with a standalone "Rs 2,000", the final amount is normally a batch-total check, not a third trip or another advance. Flag a mismatch between the row amounts and total.
-- Put a bank-paid trip advance in rtgs_advance only when the message/context establishes bank transfer. Otherwise keep the payment channel blank and mention the amount in review_notes rather than guessing Cash/UPI/RTGS.
+- When each block states Rs 1000 and the message ends with a standalone "Rs 2,000", the final amount is a batch-total check, not a third trip or another advance. Flag a mismatch between the row amounts and total.
+- In this company's workflow, the Rs amount stated in the trip-payment WhatsApp message belongs in rtgs_advance. Preserve one DTR row and one stated advance per trip.
 - Text inside parentheses after the origin, such as "Vadape (SG)", normally identifies company SG; it is not part of the origin name.
 """
     return common + """
@@ -157,8 +157,8 @@ This is an RTGS intake for Nikhat. Extract payment/banking fields exactly as sho
 WhatsApp payment conventions:
 - Trip text supplies the payment remark/context; a cheque or account image supplies the beneficiary banking fields.
 - If multiple trip blocks show individual amounts and a final standalone amount equals their sum, treat the standalone amount as a batch total, not an extra payment.
-- When the operator says those trips are one combined transfer to one beneficiary, create one RTGS row for the combined amount and put all trip identifiers concisely in Remark.
-- Without that confirmation, do not silently decide whether there should be one combined bank transfer or separate transfers. Produce the most conservative draft and state the decision needed in review_notes.
+- Always create a separate RTGS row for every distinct trip block, even when several trips use the same beneficiary and a trailing message shows their combined total. Each row uses its own stated trip amount and trip description in Remark.
+- A final standalone total such as Rs 2,000 reconciles the preceding individual rows (for example two rows of Rs 1,000); it never becomes a separate RTGS row and never replaces the individual row amounts. Flag a total mismatch in review_notes.
 - For cancelled cheques, the printed account-holder/signatory name may be the beneficiary only when clearly labelled or supported by the operator message. Do not infer a beneficiary from an illegible signature.
 """
 

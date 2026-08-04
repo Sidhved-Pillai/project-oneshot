@@ -335,5 +335,7 @@ def test_specialized_prompts_encode_real_whatsapp_workflow():
     rtgs_prompt = _prompt("RTGS", "one combined transfer")
     assert "separate DTR rows" in dtr_prompt
     assert "batch-total check" in dtr_prompt
-    assert "one combined transfer" in rtgs_prompt
+    assert "separate RTGS row for every distinct trip" in rtgs_prompt
+    assert "photo-then-message sequence" in rtgs_prompt
+    assert "belongs in rtgs_advance" in dtr_prompt
     assert "MICR" in dtr_prompt and "UPI QR requires verification" in rtgs_prompt
