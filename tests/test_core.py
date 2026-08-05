@@ -17,6 +17,8 @@ from src.entry_finance import financial_values
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, rows_to_rtgs
 from src.operational_dtr_export import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
+from src.workflow_ai import convert_rtgs_to_dtr as workflow_convert_rtgs_to_dtr
+from src.workflow_store import RequestStore as WorkflowRequestStore
 from src.ai_intake import DTRIntakeResult, DTRIntakeRow, _model_unavailable, _prompt, extract_intake, result_to_records
 
 
@@ -408,3 +410,10 @@ def test_operational_dtr_export_uses_full_reference_shape():
     headers = [cell.value for cell in ws[1]]
     assert len(headers) == 35 and "LR No." in headers and "UPI " in headers
     assert ws["I2"].value == "00127" and ws["I2"].number_format == "@"
+
+
+def test_hot_deploy_modules_expose_current_workflow_contract():
+    assert callable(workflow_convert_rtgs_to_dtr)
+    assert hasattr(WorkflowRequestStore, "list_batches")
+    assert hasattr(WorkflowRequestStore, "sync_batch_records")
+    assert hasattr(WorkflowRequestStore, "delete_batch")

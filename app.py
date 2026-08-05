@@ -6,16 +6,17 @@ import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
-from src.ai_intake import DTR_REVIEW_COLUMNS, convert_rtgs_to_dtr, extract_intake, result_to_records, revise_intake
+from src.ai_intake import DTR_REVIEW_COLUMNS, extract_intake, result_to_records
 from src.config import ROOT
-from src.request_store import RequestStore
 from src.operational_dtr_export import export_operational_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs
+from src.workflow_ai import convert_rtgs_to_dtr, revise_intake
+from src.workflow_store import RequestStore
 
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
-STORE_INTERFACE_VERSION = 4
+STORE_INTERFACE_VERSION = 5
 
 
 def secret(name):
