@@ -16,6 +16,7 @@ from src.historical_suggester import HistoricalSuggester
 from src.entry_finance import financial_values
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, rows_to_rtgs
+from src.operational_dtr_export import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
 from src.ai_intake import DTRIntakeResult, DTRIntakeRow, _model_unavailable, _prompt, extract_intake, result_to_records
 
 
@@ -368,3 +369,42 @@ def test_ai_extraction_falls_back_from_retired_model(monkeypatch):
     assert result.summary == "No rows"
     assert model == "gemini-3.5-flash"
     assert calls == ["retired-model", "gemini-3.5-flash"]
+
+
+def test_batch_sync_retains_removed_rows_as_cancelled(tmp_path):
+    store = RequestStore(f"sqlite:///{tmp_path / 'sync.db'}")
+    batch_id = store.create_batch("RTGS", "Nikhat", "", [])
+    base = {"trip_date": dt.date(2026, 8, 5), "vehicle_number": "", "status": "Verified"}
+    store.sync_batch_records(batch_id, "RTGS", [
+        {**base, "amount": 1000, "rtgs_data": {"Amount": 1000}},
+        {**base, "amount": 2000, "rtgs_data": {"Amount": 2000}},
+    ], "Nikhat", "initial_review")
+    store.sync_batch_records(batch_id, "RTGS", [
+        {**base, "amount": 1500, "rtgs_data": {"Amount": 1500}},
+    ], "Nikhat", "manual_edit")
+    active = store.get_batch_requests(batch_id, "RTGS")
+    all_rows = store.get_batch_requests(batch_id, "RTGS", include_cancelled=True)
+    assert len(active) == 1 and float(active[0]["amount"]) == 1500
+    assert len(all_rows) == 2 and all_rows[1]["status"] == "Cancelled"
+
+
+def test_explicit_batch_delete_removes_rows_and_attachments(tmp_path):
+    store = RequestStore(f"sqlite:///{tmp_path / 'delete.db'}")
+    batch_id = store.create_batch("RTGS", "Nikhat", "", [
+        {"filename": "proof.jpg", "mime_type": "image/jpeg", "data": b"proof"},
+    ])
+    store.sync_batch_records(batch_id, "RTGS", [
+        {"trip_date": dt.date(2026, 8, 5), "vehicle_number": "", "status": "Verified"},
+    ])
+    result = store.delete_batch(batch_id)
+    assert result == {"requests": 1, "batches": 1}
+    assert store.get_batch(batch_id) is None and store.get_attachments(batch_id) == []
+
+
+def test_operational_dtr_export_uses_full_reference_shape():
+    frame = pd.DataFrame([{column: "" for column in OPERATIONAL_DTR_COLUMNS}])
+    frame.loc[0, "LR No."] = "00127"
+    ws = load_workbook(BytesIO(export_operational_dtr(frame)))["DTR"]
+    headers = [cell.value for cell in ws[1]]
+    assert len(headers) == 35 and "LR No." in headers and "UPI " in headers
+    assert ws["I2"].value == "00127" and ws["I2"].number_format == "@"

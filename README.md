@@ -1,10 +1,10 @@
 # Project Oneshot
 
-Project Oneshot is an AI-assisted logistics intake app for Billtee. Shyam selects DTR or Nikhat selects RTGS, uploads multiple WhatsApp images/PDFs, adds conversational instructions, reviews the extracted live table, and saves the corrected rows as a batch under unique Request Numbers.
+Project Oneshot is an AI-assisted logistics workflow app for Billtee. Nikhat uploads WhatsApp evidence, creates and finalizes RTGS rows, and saves a labelled request. That request enters Shyam's pending queue; he converts it into a full DTR, completes late-arriving details, and saves/downloads the operational workbook.
 
 Missing or uncertain values remain blank and flagged for later completion in Requests. DTR requests retain the full operational field set, including LR, invoice, freight, UPI, diesel, revenue, damages and remarks. RTGS requests retain the exact 28-column consolidated-report field set. Uploaded evidence and instructions are sent to the configured Google Gemini model during extraction, so every generated row must be reviewed before saving.
 
-The current interface intentionally focuses on `New Entry` and `Requests`. Report generation, data management and monthly profit-and-loss workflows are reserved for the next phase.
+The interface contains `New Entry`, `RTGS Records`, `Pending DTR updation`, `Edit DTR Report`, and `Delete Records From Memory`. RTGS and DTR records support both manual table edits and AI-assisted change instructions. Every change writes a revision snapshot.
 
 ## Quick start on macOS
 
@@ -34,7 +34,7 @@ DATABASE_URL = "postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require"
 
 Do not put the database URL in Git. On startup the app creates its table automatically. Images are stored in the database along with each request, with an 8 MB per-file limit. For larger long-term volumes, move attachments to private object storage and retain only their object keys in PostgreSQL.
 
-The Requests screen defaults to the current month without deleting older history.
+No record, request, attachment or revision is removed by refresh, reboot, redeployment or monthly rollover. Permanent deletion occurs only when an authorized user selects a request in `Delete Records From Memory`, types its exact label, acknowledges the warning and clicks the permanent-delete button.
 
 ## Updating master files
 

@@ -6,15 +6,16 @@ import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
-from src.ai_intake import DTR_REVIEW_COLUMNS, extract_intake, result_to_records
+from src.ai_intake import DTR_REVIEW_COLUMNS, convert_rtgs_to_dtr, extract_intake, result_to_records, revise_intake
 from src.config import ROOT
 from src.request_store import RequestStore
-from src.rtgs_report import RTGS_COLUMNS
+from src.operational_dtr_export import export_operational_dtr
+from src.rtgs_report import RTGS_COLUMNS, export_rtgs
 
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
-STORE_INTERFACE_VERSION = 3
+STORE_INTERFACE_VERSION = 4
 
 
 def secret(name):
@@ -34,6 +35,10 @@ def get_store(url, interface_version):
 def clean_number(value):
     if value is None or (isinstance(value, str) and not value.strip()) or (not isinstance(value, str) and pd.isna(value)):
         return 0
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0
 
 
 def optional_number(value):
@@ -43,10 +48,6 @@ def optional_number(value):
         return float(value)
     except (TypeError, ValueError):
         return ""
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return 0
 
 
 def clean_text(value):
@@ -137,131 +138,226 @@ st.markdown("""
 """, unsafe_allow_html=True)
 st.caption("🟢 Persistent database connected" if store.is_durable_cloud else "🟠 Local database mode")
 
-new_tab, requests_tab = st.tabs(["New Entry", "Requests"])
+def rtgs_records(batch_id):
+    rows = store.get_batch_requests(batch_id, "RTGS")
+    records = []
+    for row in rows:
+        data = json.loads(row.get("rtgs_data") or "{}")
+        data["Review Notes"] = row.get("notes", "")
+        records.append({column: data.get(column, "") for column in [*RTGS_COLUMNS, "Review Notes"]})
+    return records
+
+
+def dtr_records(batch_id):
+    rows = store.get_batch_requests(batch_id, "DTR")
+    records = []
+    for index, row in enumerate(rows, 1):
+        records.append({"Sr No.": index, **dtr_payload(row)})
+    return records
+
+
+def active_records(frame, mode):
+    ignored = {"Sr No.", "Review Notes"}
+    columns = [column for column in frame.columns if column not in ignored]
+    return [row for row in frame.to_dict("records") if any(clean_text(row.get(column)) for column in columns)]
+
+
+def sync_records(batch_id, mode, records, operator, source):
+    values = [request_values(mode, record, batch_id, operator) for record in records]
+    for value in values:
+        value["status"] = "Verified"
+    return store.sync_batch_records(batch_id, mode, values, operator, source)
+
+
+def batch_name(batch):
+    return batch.get("request_label") or batch["batch_id"]
+
+
+def source_files(batch_id):
+    return [{"filename": item["filename"], "mime_type": item["mime_type"], "data": item["payload"]}
+            for item in store.get_attachments(batch_id)]
+
+
+new_tab, rtgs_tab, pending_tab, dtr_tab, delete_tab = st.tabs([
+    "New Entry", "RTGS Records", "Pending DTR updation", "Edit DTR Report", "Delete Records From Memory",
+])
 
 with new_tab:
-    st.subheader("Start an intake session")
-    mode = st.segmented_control("Request mode", ["DTR", "RTGS"], default="DTR", selection_mode="single")
-    operator_default = "Shyam" if mode == "DTR" else "Nikhat"
-    c1, c2 = st.columns([1, 3])
-    operator = c1.text_input("Operator", value=operator_default, key=f"operator_{mode}")
-    uploads = c2.file_uploader(
-        "WhatsApp images, diesel slips or PDFs", type=["jpg", "jpeg", "png", "webp", "pdf"],
-        accept_multiple_files=True, key=f"uploads_{mode}",
+    st.subheader("Upload Trip Details Here")
+    uploads = st.file_uploader(
+        "WhatsApp images or PDFs", type=["jpg", "jpeg", "png", "webp", "pdf"],
+        accept_multiple_files=True, key="rtgs_uploads",
     )
     prompt = st.text_area(
-        "Tell Oneshot what these files contain",
-        placeholder=("Paste the WhatsApp message here. Example: 28-07-2026, MH 14JL 2654, "
-                     "Talegaon (SG) to Sangali (10 MT), Rs 1,000. Explain which image belongs to it."
-                     if mode == "DTR" else
-                     "Paste the payment message here and explain which bank image belongs to which payment. "
-                     "Mention whether multiple trips should be one combined transfer."),
-        height=110, key=f"prompt_{mode}",
+        "Trip and beneficiary details",
+        placeholder="Paste the WhatsApp trip message and beneficiary name here. Keep the image/message pairs in WhatsApp order.",
+        height=130, key="rtgs_prompt",
     )
-    st.caption("The uploaded files and your instructions are sent to the configured Google Gemini model for extraction. Review every draft before saving.")
-    if uploads:
-        st.caption("Attached: " + ", ".join(file.name for file in uploads))
-        st.caption("Keep files in WhatsApp order. Oneshot treats each evidence photo and the trip text immediately following it as one pair.")
-    if st.button("Generate live review", type="primary", disabled=not uploads and not prompt.strip()):
+    st.caption("Files and instructions are sent to Gemini. Review every beneficiary, account number, IFSC and amount before saving.")
+    if st.button("Generate live RTGS review", type="primary", disabled=not uploads and not prompt.strip()):
         files = [{"filename": item.name, "mime_type": item.type or "application/octet-stream", "data": item.getvalue()} for item in uploads]
-        too_large = [item["filename"] for item in files if len(item["data"]) > 8 * 1024 * 1024]
-        if too_large:
-            st.error("Each file must be 8 MB or smaller: " + ", ".join(too_large))
+        if any(len(item["data"]) > 8 * 1024 * 1024 for item in files):
+            st.error("Each uploaded file must be 8 MB or smaller.")
         else:
             try:
-                with st.spinner(f"Reading the {mode} evidence and building draft rows…"):
-                    result, model_used = extract_intake(
-                        secret("GEMINI_API_KEY"), mode, prompt, files, model=secret("GEMINI_MODEL")
-                    )
-                original_records = result_to_records(mode, result)
-                st.session_state["ai_draft"] = pd.DataFrame(original_records)
-                st.session_state["ai_original_records"] = original_records
-                st.session_state["ai_draft_mode"] = mode
-                st.session_state["ai_draft_summary"] = result.summary
-                st.session_state["ai_draft_files"] = files
-                st.session_state["ai_draft_prompt"] = prompt
-                st.session_state["ai_draft_operator"] = operator
-                st.session_state["ai_model_used"] = model_used
+                with st.spinner("Reading the payment evidence and creating RTGS rows…"):
+                    result, model_used = extract_intake(secret("GEMINI_API_KEY"), "RTGS", prompt, files, secret("GEMINI_MODEL"))
+                records = result_to_records("RTGS", result)
+                st.session_state.update({
+                    "new_rtgs_draft": pd.DataFrame(records), "new_rtgs_original": records,
+                    "new_rtgs_files": files, "new_rtgs_prompt_saved": prompt,
+                    "new_rtgs_summary": result.summary, "new_rtgs_model": model_used,
+                })
             except Exception as exc:
-                st.error(f"Could not generate the draft: {exc}")
+                st.error(f"Could not generate the RTGS draft: {exc}")
+    if "new_rtgs_draft" in st.session_state:
+        st.subheader("Live RTGS review")
+        st.caption("Correct the table before saving. You can add or remove rows.")
+        reviewed_rtgs = st.data_editor(st.session_state["new_rtgs_draft"], num_rows="dynamic", hide_index=True,
+                                       width="stretch", key="new_rtgs_editor")
+        if st.button("Save RTGS Record & Prepare Download", type="primary"):
+            records = active_records(reviewed_rtgs, "RTGS")
+            if not records:
+                st.error("There are no non-empty RTGS rows to save.")
+            else:
+                batch_id = store.create_batch(
+                    "RTGS", "Nikhat", st.session_state["new_rtgs_prompt_saved"], st.session_state["new_rtgs_files"],
+                    st.session_state["new_rtgs_original"], st.session_state.get("new_rtgs_summary", ""),
+                    st.session_state.get("new_rtgs_model", ""),
+                )
+                numbers = sync_records(batch_id, "RTGS", records, "Nikhat", "initial_review")
+                batch = store.get_batch(batch_id)
+                st.session_state["new_rtgs_download"] = {
+                    "label": batch_name(batch), "payload": export_rtgs(pd.DataFrame(records).reindex(columns=RTGS_COLUMNS)),
+                }
+                st.success(f"Saved {batch_name(batch)} with {len(numbers)} RTGS row(s). It is now pending for Shyam.")
+                for key in ["new_rtgs_draft", "new_rtgs_original", "new_rtgs_files", "new_rtgs_prompt_saved", "new_rtgs_summary", "new_rtgs_model"]:
+                    st.session_state.pop(key, None)
+    if st.session_state.get("new_rtgs_download"):
+        download = st.session_state["new_rtgs_download"]
+        st.download_button("Download RTGS Report", download["payload"], f"{download['label']}.xlsx",
+                           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary")
 
-    if st.session_state.get("ai_draft_mode") == mode:
-        st.divider()
-        st.subheader("Live review table")
-        st.caption("AI output is a draft. Correct it here, add or remove rows, and leave uncertain values blank.")
-        if st.session_state.get("ai_draft_summary"):
-            with st.chat_message("assistant"):
-                st.write(st.session_state["ai_draft_summary"])
-        draft = st.session_state["ai_draft"]
-        if draft.empty:
-            st.warning("No distinct records were found. Add more context or clearer images and generate again.")
-        else:
-            edited = st.data_editor(draft, num_rows="dynamic", hide_index=True, width="stretch", key=f"draft_editor_{mode}")
-            if st.button(f"Save {len(edited)} reviewed {mode} row(s)", type="primary"):
-                active_columns = [column for column in edited.columns if column not in ("Sr No.", "Review Notes")]
-                records = [record for record in edited.to_dict("records") if any(clean_text(record.get(c)) for c in active_columns)]
-                if not records:
-                    st.error("There are no non-empty rows to save.")
-                else:
-                    batch_id = store.create_batch(
-                        mode, st.session_state["ai_draft_operator"], st.session_state["ai_draft_prompt"],
-                        st.session_state["ai_draft_files"], st.session_state["ai_original_records"],
-                        st.session_state.get("ai_draft_summary", ""), st.session_state.get("ai_model_used", ""),
-                    )
-                    values = [request_values(mode, record, batch_id, st.session_state["ai_draft_operator"]) for record in records]
-                    numbers = store.create_many(values)
-                    st.success(f"Saved {len(numbers)} draft request(s): {numbers[0]}" + (f" to {numbers[-1]}" if len(numbers) > 1 else ""))
-                    for key in ["ai_draft", "ai_original_records", "ai_draft_mode", "ai_draft_summary", "ai_draft_files", "ai_draft_prompt", "ai_draft_operator", "ai_model_used"]:
-                        st.session_state.pop(key, None)
-
-with requests_tab:
-    st.subheader("Saved requests")
-    c1, c2, c3, c4 = st.columns(4)
-    start = c1.date_input("From", dt.date.today().replace(day=1), key="request_start")
-    end = c2.date_input("To", dt.date.today(), key="request_end")
-    request_mode = c3.selectbox("Mode", ["All", "DTR", "RTGS"])
-    request_status = c4.selectbox("Status", ["All", "Draft", "Submitted", "Verified", "Paid", "Cancelled"])
-    rows = store.list(start, end, request_status, report_kind=None if request_mode == "All" else request_mode)
-    st.metric("Requests found", len(rows))
-    if not rows:
-        st.info("No saved requests match these filters.")
+with rtgs_tab:
+    st.subheader("RTGS Records")
+    batches = store.list_batches()
+    if not batches:
+        st.info("No RTGS records have been saved yet.")
     else:
-        overview = pd.DataFrame(rows)
-        columns = ["request_number", "report_scope", "trip_date", "vehicle_number", "beneficiary_name", "amount", "status", "created_by", "batch_id"]
-        st.dataframe(overview[columns], hide_index=True, width="stretch")
-        selected_number = st.selectbox("Open request", [row["request_number"] for row in rows])
-        selected = store.get(selected_number)
-        st.caption(f"{selected['report_scope']} · {selected_number} · entered by {selected.get('created_by') or '—'}")
-        payload = dtr_payload(selected) if selected["report_scope"] == "DTR" else {
-            column: json.loads(selected.get("rtgs_data") or "{}").get(column, "") for column in RTGS_COLUMNS
-        }
-        payload["Review Notes"] = selected.get("notes", "")
-        edit_frame = pd.DataFrame([payload])
-        edited_request = st.data_editor(edit_frame, hide_index=True, width="stretch", key=f"request_editor_{selected_number}")
-        c1, c2 = st.columns([1, 3])
-        statuses = ["Draft", "Submitted", "Verified", "Paid", "Cancelled"]
-        selected_status = selected["status"] if selected["status"] in statuses else "Draft"
-        edit_status = c1.selectbox("Workflow status", statuses, index=statuses.index(selected_status), key=f"status_{selected_number}")
-        if c2.button("Save request changes", type="primary"):
-            record = edited_request.iloc[0].to_dict()
-            values = request_values(selected["report_scope"], record, selected.get("batch_id"), selected.get("created_by", ""))
-            values["status"] = edit_status
-            store.update(selected_number, values)
-            st.success(f"Updated {selected_number}.")
+        labels = {batch_name(batch): batch for batch in batches if batch.get("row_counts", {}).get("RTGS", 0)}
+        if not labels:
+            st.info("No RTGS records have been saved yet.")
+        else:
+            label = st.selectbox("Select request", list(labels), key="rtgs_batch_select")
+            batch = labels[label]
+            base = st.session_state.get(f"rtgs_ai_{batch['batch_id']}") or rtgs_records(batch["batch_id"])
+            rtgs_frame = st.data_editor(pd.DataFrame(base), num_rows="dynamic", hide_index=True, width="stretch",
+                                        key=f"rtgs_batch_editor_{batch['batch_id']}")
+            instruction = st.text_area("Ask Oneshot to change this RTGS request", key=f"rtgs_change_{batch['batch_id']}",
+                                       placeholder="Example: Change the beneficiary name in row 2 and keep every other value unchanged.")
+            c1, c2 = st.columns(2)
+            if c1.button("Apply prompt to RTGS table", disabled=not instruction.strip(), key=f"rtgs_ai_button_{batch['batch_id']}"):
+                try:
+                    result, _ = revise_intake(secret("GEMINI_API_KEY"), "RTGS", rtgs_frame.to_dict("records"), instruction,
+                                              source_files(batch["batch_id"]), secret("GEMINI_MODEL"))
+                    st.session_state[f"rtgs_ai_{batch['batch_id']}"] = result_to_records("RTGS", result)
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"Could not apply the requested changes: {exc}")
+            if c2.button("Save RTGS changes", type="primary", key=f"rtgs_save_{batch['batch_id']}"):
+                sync_records(batch["batch_id"], "RTGS", active_records(rtgs_frame, "RTGS"), "Nikhat", "manual_or_ai_edit")
+                st.success(f"Saved changes to {label}.")
+            st.download_button("Download current RTGS Report", export_rtgs(rtgs_frame.reindex(columns=RTGS_COLUMNS)),
+                               f"{label}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+with pending_tab:
+    st.subheader("Pending DTR updation")
+    pending = [batch for batch in store.list_batches("Pending") if batch.get("row_counts", {}).get("RTGS", 0)]
+    if not pending:
+        st.success("No RTGS requests are waiting for DTR work.")
+    else:
+        pending_labels = {batch_name(batch): batch for batch in pending}
+        label = st.selectbox("View Request", list(pending_labels), key="pending_batch")
+        batch = pending_labels[label]
+        finalized_rtgs = rtgs_records(batch["batch_id"])
+        st.markdown("##### Nikhat's finalized RTGS table")
+        st.dataframe(pd.DataFrame(finalized_rtgs), hide_index=True, width="stretch")
+        dtr_instruction = st.text_area("Instructions for DTR creation", key=f"dtr_create_prompt_{batch['batch_id']}",
+                                       placeholder="Add any known DTR details. Missing LR, invoice, diesel, UPI, revenue and freight can be completed later.")
+        if st.button("Create DTR Spreadsheet", type="primary", key=f"create_dtr_{batch['batch_id']}"):
+            try:
+                with st.spinner("Creating Shyam's DTR draft from the finalized RTGS request…"):
+                    result, _ = convert_rtgs_to_dtr(secret("GEMINI_API_KEY"), finalized_rtgs, dtr_instruction,
+                                                    source_files(batch["batch_id"]), secret("GEMINI_MODEL"))
+                st.session_state[f"pending_dtr_{batch['batch_id']}"] = result_to_records("DTR", result)
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Could not create the DTR draft: {exc}")
+        draft_key = f"pending_dtr_{batch['batch_id']}"
+        if draft_key in st.session_state:
+            dtr_frame = st.data_editor(pd.DataFrame(st.session_state[draft_key]), num_rows="dynamic", hide_index=True,
+                                       width="stretch", key=f"pending_dtr_editor_{batch['batch_id']}")
+            update_prompt = st.text_area("Ask Oneshot to update this DTR", key=f"pending_dtr_change_{batch['batch_id']}")
+            if st.button("Update DTR", disabled=not update_prompt.strip(), key=f"pending_dtr_ai_{batch['batch_id']}"):
+                try:
+                    result, _ = revise_intake(secret("GEMINI_API_KEY"), "DTR", dtr_frame.to_dict("records"), update_prompt,
+                                              source_files(batch["batch_id"]), secret("GEMINI_MODEL"))
+                    st.session_state[draft_key] = result_to_records("DTR", result)
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"Could not update the DTR draft: {exc}")
+            if st.button("Save DTR Changes & Prepare Download", type="primary", key=f"pending_dtr_save_{batch['batch_id']}"):
+                records = active_records(dtr_frame, "DTR")
+                sync_records(batch["batch_id"], "DTR", records, "Shyam", "dtr_creation")
+                store.set_batch_dtr_status(batch["batch_id"], "Completed")
+                st.session_state["dtr_download"] = {"label": label, "payload": export_operational_dtr(pd.DataFrame(records))}
+                st.session_state.pop(draft_key, None)
+                st.success(f"Saved DTR for {label}. It is now available under Edit DTR Report.")
+        if st.session_state.get("dtr_download") and st.session_state["dtr_download"]["label"] == label:
+            st.download_button("Download DTR Excel", st.session_state["dtr_download"]["payload"], f"DTR-{label}.xlsx",
+                               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary")
+
+with dtr_tab:
+    st.subheader("Edit DTR Report")
+    completed = store.list_batches("Completed")
+    if not completed:
+        st.info("No DTR reports have been completed yet.")
+    else:
+        completed_labels = {batch_name(batch): batch for batch in completed}
+        label = st.selectbox("Select DTR request", list(completed_labels), key="completed_batch")
+        batch = completed_labels[label]
+        base = st.session_state.get(f"dtr_ai_{batch['batch_id']}") or dtr_records(batch["batch_id"])
+        dtr_frame = st.data_editor(pd.DataFrame(base), num_rows="dynamic", hide_index=True, width="stretch",
+                                   key=f"completed_dtr_editor_{batch['batch_id']}")
+        instruction = st.text_area("Ask Oneshot to change this DTR", key=f"completed_dtr_prompt_{batch['batch_id']}")
+        if st.button("Apply prompt to DTR", disabled=not instruction.strip(), key=f"completed_dtr_ai_{batch['batch_id']}"):
+            try:
+                result, _ = revise_intake(secret("GEMINI_API_KEY"), "DTR", dtr_frame.to_dict("records"), instruction,
+                                          source_files(batch["batch_id"]), secret("GEMINI_MODEL"))
+                st.session_state[f"dtr_ai_{batch['batch_id']}"] = result_to_records("DTR", result)
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Could not apply the requested changes: {exc}")
+        if st.button("Save DTR changes", type="primary", key=f"completed_dtr_save_{batch['batch_id']}"):
+            sync_records(batch["batch_id"], "DTR", active_records(dtr_frame, "DTR"), "Shyam", "manual_or_ai_edit")
+            st.success(f"Saved changes to {label}.")
+        st.download_button("Download current DTR Excel", export_operational_dtr(dtr_frame), f"DTR-{label}.xlsx",
+                           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+with delete_tab:
+    st.subheader("Delete Records From Memory")
+    st.error("Deletion is permanent. No record is ever removed automatically; this is the only deletion control.")
+    batches = store.list_batches()
+    if not batches:
+        st.info("There are no saved records to delete.")
+    else:
+        deletion_labels = {batch_name(batch): batch for batch in batches}
+        label = st.selectbox("Select the complete request to delete", list(deletion_labels), key="delete_batch")
+        batch = deletion_labels[label]
+        st.write({"Request": label, "Created": str(batch.get("created_at")), "Rows": batch.get("row_counts", {})})
+        confirmation = st.text_input(f"Type {label} to confirm permanent deletion", key="delete_confirmation")
+        acknowledged = st.checkbox("I understand that the RTGS rows, DTR rows, source files and revision history will be permanently deleted.")
+        if st.button("Permanently Delete This Request", disabled=confirmation != label or not acknowledged, type="primary"):
+            result = store.delete_batch(batch["batch_id"])
+            st.success(f"Deleted {label} and {result['requests']} associated record row(s). This cannot be recovered.")
             st.rerun()
-        attachments = store.get_attachments(selected.get("batch_id"))
-        if not attachments and selected.get("source_image"):
-            attachments = [{
-                "id": f"legacy_{selected['id']}", "filename": selected.get("source_filename") or "source-file",
-                "mime_type": selected.get("source_mime_type") or "application/octet-stream",
-                "payload": selected["source_image"],
-            }]
-        if attachments:
-            with st.expander(f"Source files ({len(attachments)})"):
-                for attachment in attachments:
-                    if attachment["mime_type"].startswith("image/"):
-                        st.image(attachment["payload"], caption=attachment["filename"], width=500)
-                    st.download_button(
-                        f"Download {attachment['filename']}", attachment["payload"], attachment["filename"],
-                        attachment["mime_type"], key=f"download_{attachment['id']}",
-                    )
