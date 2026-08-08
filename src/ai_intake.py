@@ -89,6 +89,8 @@ class RTGSIntakeRow(BaseModel):
     customer_reference_number: str = ""
     utr_number: str = ""
     review_notes: str = ""
+    transporter_freight: Optional[float] = None
+    origin_area: str = ""
 
 
 class RTGSIntakeResult(BaseModel):
@@ -107,19 +109,16 @@ DTR_FIELD_MAP = dict(zip(DTR_REVIEW_COLUMNS[1:], [
 ]))
 
 RTGS_FIELD_MAP = {
-    "File_Sequence_Num": "file_sequence_num", "Pymt_Prod_Type_Code": "payment_product_type_code",
-    "Pymt_Mode": "payment_mode", "Debit_Acct_no": "debit_account_number",
-    "Beneficiary Name": "beneficiary_name", "Beneficiary Account No": "beneficiary_account_number",
-    "Bene_IFSC_Code": "beneficiary_ifsc_code", "Amount": "amount",
-    "Debit narration": "debit_narration", "Credit narration": "credit_narration",
-    "Mobile Numder": "mobile_number", "Email id": "email_id", "Remark": "remark",
-    "Pymt_Date": "payment_date", "Reference_no": "reference_number",
-    "Addl_Info1": "additional_info_1", "Addl_Info2": "additional_info_2",
-    "Addl_Info3": "additional_info_3", "Addl_Info4": "additional_info_4",
-    "Addl_Info5": "additional_info_5", "STATUS": "bank_status", "Current Step": "current_step",
-    "File name": "file_name", "Rejected by": "rejected_by", "Rejection Reason": "rejection_reason",
-    "Acct_Debit_date": "account_debit_date", "Customer Ref No": "customer_reference_number",
-    "UTR NO": "utr_number", "Review Notes": "review_notes",
+    "PYMT_PROD_TYPE_CODE": "payment_product_type_code", "PYMT_MODE": "payment_mode",
+    "DEBIT_ACC_NO": "debit_account_number", "BNF_NAME": "beneficiary_name",
+    "BENE_ACC_NO": "beneficiary_account_number", "BENE_IFSC": "beneficiary_ifsc_code",
+    "AMOUNT": "amount", "DEBIT_NARR": "debit_narration", "CREDIT_NARR": "credit_narration",
+    "MOBILE_NUM": "mobile_number", "EMAIL_ID": "email_id", "REMARK": "remark",
+    "PYMT_DATE": "payment_date", "REF_NO": "reference_number",
+    "ADDL_INFO1": "additional_info_1", "ADDL_INFO2": "additional_info_2",
+    "ADDL_INFO3": "additional_info_3", "ADDL_INFO4": "additional_info_4",
+    "ADDL_INFO5": "additional_info_5", "Transporter Freight": "transporter_freight",
+    "Origin Area": "origin_area", "Review Notes": "review_notes",
 }
 
 
@@ -158,8 +157,16 @@ This is an RTGS intake for Nikhat. Extract payment/banking fields exactly as sho
 WhatsApp payment conventions:
 - Trip text supplies the payment remark/context; a cheque or account image supplies the beneficiary banking fields.
 - If multiple trip blocks show individual amounts and a final standalone amount equals their sum, treat the standalone amount as a batch total, not an extra payment.
-- Always create a separate RTGS row for every distinct trip block, even when several trips use the same beneficiary and a trailing message shows their combined total. Each row uses its own stated trip amount and trip description in Remark.
-- A final standalone total such as Rs 2,000 reconciles the preceding individual rows (for example two rows of Rs 1,000); it never becomes a separate RTGS row and never replaces the individual row amounts. Flag a total mismatch in review_notes.
+- Group consecutive trip blocks for the same beneficiary and bank account into one RTGS row. AMOUNT is the sum of their individual Rs payment amounts. Never use Transport freight as AMOUNT.
+- For one trip, REMARK is: last four vehicle digits, origin, to, destination, vehicle type, trip date as DD MM YYYY, TA. Example: 6765 Talegaon to Alandi 20MT 03 08 2026 TA.
+- For multiple trips, REMARK is exactly: last four vehicle digits, first date DD MM YYYY, to, last date DD MM YYYY, trip count immediately followed by Trp, TA. Example: 7872 02 08 2026 to 04 08 2026 3Trp TA. Do not put route names in a grouped remark.
+- Use only the last four vehicle digits in REMARK. Do not include registration letters or punctuation.
+- Extract the stated Transport freight separately into transporter_freight. If grouped trips have freight per trip, sum it. It is workflow data for the later DTR and is not an ICICI export column.
+- PYMT_DATE is today's report-sent date, never a trip date. The application applies the final date.
+- Set PYMT_PROD_TYPE_CODE to PAB_VENDOR and DEBIT_ACC_NO to 123305002576.
+- Set PYMT_MODE to FT only when BENE_IFSC begins ICIC; otherwise NEFT.
+- Set origin_area to Wada, Pune, or Baroda from the starting location/branch context when clear. Talegaon is Pune-area. This drives branch-head email: Wada Ajitthakur@billtee.com, Pune jhanitish942@gmail.com, Baroda Ashoksharma@billtee.com.
+- A final standalone total reconciles the preceding individual rows; it never becomes a separate RTGS row. Flag a mismatch in review_notes.
 - For cancelled cheques, the printed account-holder/signatory name may be the beneficiary only when clearly labelled or supported by the operator message. Do not infer a beneficiary from an illegible signature.
 """
 

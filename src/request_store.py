@@ -242,8 +242,13 @@ class RequestStore:
 
     def create_batch(self, mode, operator_name, operator_prompt, attachments, ai_draft=None, ai_summary="", model_name="gemini-3.6-flash"):
         batch_id = f"BATCH-{uuid.uuid4().hex[:16].upper()}"
-        request_label = f"RTGS-{dt.datetime.now():%Y%m%d}-{batch_id[-8:]}"
+        created = dt.datetime.now()
+        base_label = f"RTGS- Record-{created:%d/%m/%y}"
         with self.engine.begin() as conn:
+            existing = conn.execute(select(func.count()).select_from(intake_batches).where(
+                intake_batches.c.request_label.like(f"{base_label}%")
+            )).scalar() or 0
+            request_label = base_label if not existing else f"{base_label} ({existing + 1})"
             conn.execute(insert(intake_batches).values(
                 batch_id=batch_id, mode=mode, operator_name=operator_name,
                 operator_prompt=operator_prompt, ai_draft=json.dumps(ai_draft or [], default=str),
@@ -256,6 +261,15 @@ class RequestStore:
                     mime_type=attachment["mime_type"], payload=attachment["data"],
                 ))
         return batch_id
+
+    def add_attachments(self, batch_id, attachments):
+        with self.engine.begin() as conn:
+            for attachment in attachments:
+                conn.execute(insert(request_attachments).values(
+                    batch_id=batch_id, filename=attachment["filename"],
+                    mime_type=attachment.get("mime_type", ""), payload=attachment["data"],
+                ))
+        return len(attachments)
 
     def get_batch(self, batch_id):
         with self.engine.connect() as conn:

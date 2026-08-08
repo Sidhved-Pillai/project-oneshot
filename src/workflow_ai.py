@@ -32,6 +32,6 @@ FINALIZED RTGS TABLE:
 SHYAM'S INSTRUCTIONS:
 {instruction or '(none supplied)'}
 
-Create one DTR row per RTGS trip row. Carry the trip date, vehicle, route, vehicle type, company, beneficiary, transporter and stated payment into the matching DTR fields when explicitly present. In this workflow the RTGS trip amount belongs in RTGS ADVANCE. Preserve missing late-arriving LR, invoice, diesel, UPI, revenue and freight values as blank for Shyam to complete. Do not merge trips.
+Create one DTR row per underlying trip, expanding a grouped RTGS remark such as "7872 02 08 2026 to 04 08 2026 3Trp TA" when the original WhatsApp text supplies the individual dates/routes. Carry the trip date, last four vehicle digits, route, vehicle type, company, beneficiary and transporter into each matching DTR row. In this workflow each trip's Rs amount belongs in RTGS ADVANCE. Carry Transporter Freight from the RTGS workflow field or original trip text into the matching DTR row; divide a grouped total only when the source explicitly gives equal per-trip freight. Preserve missing late-arriving LR, invoice, diesel, UPI and revenue values as blank for Shyam to complete. Never merge DTR trips.
 """
     return extract_intake(api_key, "DTR", context, files or [], model=model)

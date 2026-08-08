@@ -15,7 +15,7 @@ from src.gemini_parser import parse_with_gemini
 from src.historical_suggester import HistoricalSuggester
 from src.entry_finance import financial_values
 from src.request_store import RequestStore, rows_to_dtr
-from src.rtgs_report import RTGS_COLUMNS, export_rtgs, rows_to_rtgs
+from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
 from src.operational_dtr_export import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
 from src.workflow_ai import convert_rtgs_to_dtr as workflow_convert_rtgs_to_dtr
 from src.workflow_store import RequestStore as WorkflowRequestStore
@@ -280,11 +280,24 @@ def test_rtgs_roundtrip_filter_and_exact_export_columns(tmp_path):
     rows = store.list(report_kind="RTGS")
     frame = rows_to_rtgs(rows)
     assert list(frame.columns) == RTGS_COLUMNS
-    assert frame.iloc[0]["Beneficiary Name"] == "Demo Beneficiary"
-    assert frame.iloc[0]["Beneficiary Account No"] == "001234"
-    ws = load_workbook(BytesIO(export_rtgs(frame)))["Sheet0"]
-    assert [cell.value for cell in ws[1]] == RTGS_COLUMNS
-    assert ws["F2"].value == "001234" and ws["F2"].number_format == "@"
+    assert frame.iloc[0]["BNF_NAME"] == "Demo Beneficiary"
+    assert frame.iloc[0]["BENE_ACC_NO"] == "001234"
+    import xlrd
+    ws = xlrd.open_workbook(file_contents=export_rtgs(frame), formatting_info=True).sheet_by_name("Sheet1")
+    assert ws.row_values(0) == RTGS_COLUMNS
+    assert ws.cell_value(1, 4) == "001234"
+
+
+def test_rtgs_business_rules_group_trips_and_select_email_and_mode():
+    rows = [{"BNF_NAME": "Demo & Co.", "BENE_ACC_NO": "00-123", "BENE_IFSC": "ICIC0000258",
+             "AMOUNT": 4500, "Transporter Freight": 6000,
+             "REMARK": f"7872 Talegaon to Pune 10MT 0{day} 08 2026 TA"} for day in (2, 3)]
+    result = normalize_rtgs_records(rows, dt.date(2026, 8, 8))
+    assert len(result) == 1
+    assert result[0]["AMOUNT"] == 9000 and result[0]["Transporter Freight"] == 12000
+    assert result[0]["REMARK"] == "7872 02 08 2026 to 03 08 2026 2Trp TA"
+    assert result[0]["PYMT_MODE"] == "FT" and result[0]["EMAIL_ID"] == "jhanitish942@gmail.com"
+    assert result[0]["BNF_NAME"] == "Demo Co" and result[0]["BENE_ACC_NO"] == "00123"
 
 
 def test_both_scope_appears_in_both_reports(tmp_path):
@@ -338,7 +351,7 @@ def test_specialized_prompts_encode_real_whatsapp_workflow():
     rtgs_prompt = _prompt("RTGS", "one combined transfer")
     assert "separate DTR rows" in dtr_prompt
     assert "batch-total check" in dtr_prompt
-    assert "separate RTGS row for every distinct trip" in rtgs_prompt
+    assert "Group consecutive trip blocks" in rtgs_prompt
     assert "photo-then-message sequence" in rtgs_prompt
     assert "belongs in rtgs_advance" in dtr_prompt
     assert "MICR" in dtr_prompt and "UPI QR requires verification" in rtgs_prompt
