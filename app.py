@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from src.ai_intake import DTR_REVIEW_COLUMNS, extract_intake, result_to_records
 from src.config import ROOT
 from src.operational_dtr_export import export_operational_dtr
-from src.rtgs_report import RTGS_COLUMNS, export_rtgs
+from src.rtgs_report import RTGS_COLUMNS, RTGS_REVIEW_COLUMNS, canonical_rtgs_record, export_rtgs, normalize_rtgs_records
 from src.workflow_ai import convert_rtgs_to_dtr, revise_intake
 from src.workflow_store import RequestStore
 
@@ -92,13 +92,14 @@ def request_values(mode, record, batch_id, operator):
             "payment": clean_number(record.get("Payment")), "status": "Draft",
             "notes": clean_text(record.get("Review Notes")), "created_by": operator,
         }
-    payload = {column: clean_text(value) for column, value in record.items() if column != "Amount"}
-    payload["Amount"] = optional_number(record.get("Amount"))
+    payload = {column: clean_text(value) for column, value in record.items() if column != "AMOUNT"}
+    payload["AMOUNT"] = optional_number(record.get("AMOUNT"))
     return {
         "report_scope": "RTGS", "batch_id": batch_id, "rtgs_data": payload,
-        "trip_date": record_date(record.get("Pymt_Date")), "vehicle_number": "",
-        "beneficiary_name": clean_text(record.get("Beneficiary Name")),
-        "amount": clean_number(record.get("Amount")), "payment_mode": clean_text(record.get("Pymt_Mode")),
+        "trip_date": record_date(record.get("PYMT_DATE")), "vehicle_number": "",
+        "beneficiary_name": clean_text(record.get("BNF_NAME")),
+        "amount": clean_number(record.get("AMOUNT")), "payment_mode": clean_text(record.get("PYMT_MODE")),
+        "transporter_freight": clean_number(record.get("Transporter Freight")),
         "status": "Draft", "notes": clean_text(record.get("Review Notes")), "created_by": operator,
     }
 
@@ -144,8 +145,9 @@ def rtgs_records(batch_id):
     records = []
     for row in rows:
         data = json.loads(row.get("rtgs_data") or "{}")
+        data = canonical_rtgs_record(data)
         data["Review Notes"] = row.get("notes", "")
-        records.append({column: data.get(column, "") for column in [*RTGS_COLUMNS, "Review Notes"]})
+        records.append({column: data.get(column, "") for column in RTGS_REVIEW_COLUMNS})
     return records
 
 
@@ -180,7 +182,7 @@ def source_files(batch_id):
 
 
 new_tab, rtgs_tab, pending_tab, dtr_tab, delete_tab = st.tabs([
-    "New Entry", "RTGS Records", "Pending DTR updation", "Edit DTR Report", "Delete Records From Memory",
+    "New Entry", "RTGS Records", "Pending DTR updation", "DTR Records", "Delete Records From Memory",
 ])
 
 with new_tab:
@@ -217,7 +219,7 @@ with new_tab:
         reviewed_rtgs = st.data_editor(st.session_state["new_rtgs_draft"], num_rows="dynamic", hide_index=True,
                                        width="stretch", key="new_rtgs_editor")
         if st.button("Save RTGS Record & Prepare Download", type="primary"):
-            records = active_records(reviewed_rtgs, "RTGS")
+            records = normalize_rtgs_records(active_records(reviewed_rtgs, "RTGS"), dt.date.today())
             if not records:
                 st.error("There are no non-empty RTGS rows to save.")
             else:
@@ -229,15 +231,15 @@ with new_tab:
                 numbers = sync_records(batch_id, "RTGS", records, "Nikhat", "initial_review")
                 batch = store.get_batch(batch_id)
                 st.session_state["new_rtgs_download"] = {
-                    "label": batch_name(batch), "payload": export_rtgs(pd.DataFrame(records).reindex(columns=RTGS_COLUMNS)),
+                    "label": batch_name(batch), "payload": export_rtgs(pd.DataFrame(records), dt.date.today()),
                 }
                 st.success(f"Saved {batch_name(batch)} with {len(numbers)} RTGS row(s). It is now pending for Shyam.")
                 for key in ["new_rtgs_draft", "new_rtgs_original", "new_rtgs_files", "new_rtgs_prompt_saved", "new_rtgs_summary", "new_rtgs_model"]:
                     st.session_state.pop(key, None)
     if st.session_state.get("new_rtgs_download"):
         download = st.session_state["new_rtgs_download"]
-        st.download_button("Download RTGS Report", download["payload"], f"{download['label']}.xlsx",
-                           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary")
+        st.download_button("Download RTGS Report", download["payload"], f"{download['label'].replace('/', '-')}.xls",
+                           "application/vnd.ms-excel", type="primary")
 
 with rtgs_tab:
     st.subheader("RTGS Records")
@@ -245,6 +247,10 @@ with rtgs_tab:
     if not batches:
         st.info("No RTGS records have been saved yet.")
     else:
+        date_col1, date_col2 = st.columns(2)
+        start_date = date_col1.date_input("Created from", value=dt.date.today() - dt.timedelta(days=30), key="rtgs_from")
+        end_date = date_col2.date_input("Created to", value=dt.date.today(), key="rtgs_to")
+        batches = [batch for batch in batches if start_date <= record_date(batch.get("created_at")) <= end_date]
         labels = {batch_name(batch): batch for batch in batches if batch.get("row_counts", {}).get("RTGS", 0)}
         if not labels:
             st.info("No RTGS records have been saved yet.")
@@ -252,10 +258,17 @@ with rtgs_tab:
             label = st.selectbox("Select request", list(labels), key="rtgs_batch_select")
             batch = labels[label]
             base = st.session_state.get(f"rtgs_ai_{batch['batch_id']}") or rtgs_records(batch["batch_id"])
-            rtgs_frame = st.data_editor(pd.DataFrame(base), num_rows="dynamic", hide_index=True, width="stretch",
-                                        key=f"rtgs_batch_editor_{batch['batch_id']}")
+            edit_key = f"rtgs_editing_{batch['batch_id']}"
+            if st.button("Edit RTGS Record", key=f"rtgs_edit_{batch['batch_id']}"):
+                st.session_state[edit_key] = not st.session_state.get(edit_key, False)
+            if st.session_state.get(edit_key):
+                rtgs_frame = st.data_editor(pd.DataFrame(base), num_rows="dynamic", hide_index=True, width="stretch",
+                                            key=f"rtgs_batch_editor_{batch['batch_id']}")
+            else:
+                rtgs_frame = pd.DataFrame(base)
+                st.dataframe(rtgs_frame, hide_index=True, width="stretch")
             instruction = st.text_area("Ask Oneshot to change this RTGS request", key=f"rtgs_change_{batch['batch_id']}",
-                                       placeholder="Example: Change the beneficiary name in row 2 and keep every other value unchanged.")
+                                       disabled=not st.session_state.get(edit_key), placeholder="Example: Change the beneficiary name in row 2.")
             c1, c2 = st.columns(2)
             if c1.button("Apply prompt to RTGS table", disabled=not instruction.strip(), key=f"rtgs_ai_button_{batch['batch_id']}"):
                 try:
@@ -265,11 +278,12 @@ with rtgs_tab:
                     st.rerun()
                 except Exception as exc:
                     st.error(f"Could not apply the requested changes: {exc}")
-            if c2.button("Save RTGS changes", type="primary", key=f"rtgs_save_{batch['batch_id']}"):
-                sync_records(batch["batch_id"], "RTGS", active_records(rtgs_frame, "RTGS"), "Nikhat", "manual_or_ai_edit")
+            if c2.button("Save RTGS changes", type="primary", disabled=not st.session_state.get(edit_key), key=f"rtgs_save_{batch['batch_id']}"):
+                records = normalize_rtgs_records(active_records(rtgs_frame, "RTGS"), dt.date.today())
+                sync_records(batch["batch_id"], "RTGS", records, "Nikhat", "manual_or_ai_edit")
                 st.success(f"Saved changes to {label}.")
-            st.download_button("Download current RTGS Report", export_rtgs(rtgs_frame.reindex(columns=RTGS_COLUMNS)),
-                               f"{label}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            st.download_button("Download current RTGS Report", export_rtgs(rtgs_frame, dt.date.today()),
+                               f"{label.replace('/', '-')}.xls", "application/vnd.ms-excel")
 
 with pending_tab:
     st.subheader("Pending DTR updation")
@@ -285,8 +299,17 @@ with pending_tab:
         st.dataframe(pd.DataFrame(finalized_rtgs), hide_index=True, width="stretch")
         dtr_instruction = st.text_area("Instructions for DTR creation", key=f"dtr_create_prompt_{batch['batch_id']}",
                                        placeholder="Add any known DTR details. Missing LR, invoice, diesel, UPI, revenue and freight can be completed later.")
+        extra_uploads = st.file_uploader(
+            "Upload diesel expenses, LR, invoices, UPI details or other DTR images",
+            type=["jpg", "jpeg", "png", "webp", "pdf"], accept_multiple_files=True,
+            key=f"dtr_uploads_{batch['batch_id']}",
+        )
         if st.button("Create DTR Spreadsheet", type="primary", key=f"create_dtr_{batch['batch_id']}"):
             try:
+                new_files = [{"filename": item.name, "mime_type": item.type or "application/octet-stream", "data": item.getvalue()}
+                             for item in extra_uploads]
+                if new_files:
+                    store.add_attachments(batch["batch_id"], new_files)
                 with st.spinner("Creating Shyam's DTR draft from the finalized RTGS request…"):
                     result, _ = convert_rtgs_to_dtr(secret("GEMINI_API_KEY"), finalized_rtgs, dtr_instruction,
                                                     source_files(batch["batch_id"]), secret("GEMINI_MODEL"))
@@ -299,8 +322,17 @@ with pending_tab:
             dtr_frame = st.data_editor(pd.DataFrame(st.session_state[draft_key]), num_rows="dynamic", hide_index=True,
                                        width="stretch", key=f"pending_dtr_editor_{batch['batch_id']}")
             update_prompt = st.text_area("Ask Oneshot to update this DTR", key=f"pending_dtr_change_{batch['batch_id']}")
-            if st.button("Update DTR", disabled=not update_prompt.strip(), key=f"pending_dtr_ai_{batch['batch_id']}"):
+            update_uploads = st.file_uploader(
+                "Upload more evidence for this update", type=["jpg", "jpeg", "png", "webp", "pdf"],
+                accept_multiple_files=True, key=f"dtr_update_uploads_{batch['batch_id']}",
+            )
+            if st.button("Update DTR", disabled=not update_prompt.strip() and not update_uploads,
+                         key=f"pending_dtr_ai_{batch['batch_id']}"):
                 try:
+                    new_files = [{"filename": item.name, "mime_type": item.type or "application/octet-stream", "data": item.getvalue()}
+                                 for item in update_uploads]
+                    if new_files:
+                        store.add_attachments(batch["batch_id"], new_files)
                     result, _ = revise_intake(secret("GEMINI_API_KEY"), "DTR", dtr_frame.to_dict("records"), update_prompt,
                                               source_files(batch["batch_id"]), secret("GEMINI_MODEL"))
                     st.session_state[draft_key] = result_to_records("DTR", result)
@@ -313,13 +345,13 @@ with pending_tab:
                 store.set_batch_dtr_status(batch["batch_id"], "Completed")
                 st.session_state["dtr_download"] = {"label": label, "payload": export_operational_dtr(pd.DataFrame(records))}
                 st.session_state.pop(draft_key, None)
-                st.success(f"Saved DTR for {label}. It is now available under Edit DTR Report.")
+                st.success(f"Saved DTR for {label}. It is now available under DTR Records.")
         if st.session_state.get("dtr_download") and st.session_state["dtr_download"]["label"] == label:
             st.download_button("Download DTR Excel", st.session_state["dtr_download"]["payload"], f"DTR-{label}.xlsx",
                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary")
 
 with dtr_tab:
-    st.subheader("Edit DTR Report")
+    st.subheader("DTR Records")
     completed = store.list_batches("Completed")
     if not completed:
         st.info("No DTR reports have been completed yet.")
@@ -327,23 +359,15 @@ with dtr_tab:
         completed_labels = {batch_name(batch): batch for batch in completed}
         label = st.selectbox("Select DTR request", list(completed_labels), key="completed_batch")
         batch = completed_labels[label]
-        base = st.session_state.get(f"dtr_ai_{batch['batch_id']}") or dtr_records(batch["batch_id"])
-        dtr_frame = st.data_editor(pd.DataFrame(base), num_rows="dynamic", hide_index=True, width="stretch",
-                                   key=f"completed_dtr_editor_{batch['batch_id']}")
-        instruction = st.text_area("Ask Oneshot to change this DTR", key=f"completed_dtr_prompt_{batch['batch_id']}")
-        if st.button("Apply prompt to DTR", disabled=not instruction.strip(), key=f"completed_dtr_ai_{batch['batch_id']}"):
-            try:
-                result, _ = revise_intake(secret("GEMINI_API_KEY"), "DTR", dtr_frame.to_dict("records"), instruction,
-                                          source_files(batch["batch_id"]), secret("GEMINI_MODEL"))
-                st.session_state[f"dtr_ai_{batch['batch_id']}"] = result_to_records("DTR", result)
-                st.rerun()
-            except Exception as exc:
-                st.error(f"Could not apply the requested changes: {exc}")
-        if st.button("Save DTR changes", type="primary", key=f"completed_dtr_save_{batch['batch_id']}"):
-            sync_records(batch["batch_id"], "DTR", active_records(dtr_frame, "DTR"), "Shyam", "manual_or_ai_edit")
-            st.success(f"Saved changes to {label}.")
-        st.download_button("Download current DTR Excel", export_operational_dtr(dtr_frame), f"DTR-{label}.xlsx",
+        dtr_frame = pd.DataFrame(dtr_records(batch["batch_id"]))
+        st.dataframe(dtr_frame, hide_index=True, width="stretch")
+        c1, c2 = st.columns(2)
+        c1.download_button("Download DTR Spreadsheet", export_operational_dtr(dtr_frame),
+                           f"DTR-{label.replace('/', '-')}.xlsx",
                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        rtgs_frame = pd.DataFrame(rtgs_records(batch["batch_id"]))
+        c2.download_button("Download RTGS Spreadsheet", export_rtgs(rtgs_frame, dt.date.today()),
+                           f"{label.replace('/', '-')}.xls", "application/vnd.ms-excel")
 
 with delete_tab:
     st.subheader("Delete Records From Memory")
