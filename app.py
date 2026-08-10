@@ -205,7 +205,7 @@ with new_tab:
             try:
                 with st.spinner("Reading the payment evidence and creating RTGS rows…"):
                     result, model_used = extract_intake(secret("GEMINI_API_KEY"), "RTGS", prompt, files, secret("GEMINI_MODEL"))
-                records = result_to_records("RTGS", result)
+                records = normalize_rtgs_records(result_to_records("RTGS", result), dt.date.today())
                 st.session_state.update({
                     "new_rtgs_draft": pd.DataFrame(records), "new_rtgs_original": records,
                     "new_rtgs_files": files, "new_rtgs_prompt_saved": prompt,
@@ -274,7 +274,9 @@ with rtgs_tab:
                 try:
                     result, _ = revise_intake(secret("GEMINI_API_KEY"), "RTGS", rtgs_frame.to_dict("records"), instruction,
                                               source_files(batch["batch_id"]), secret("GEMINI_MODEL"))
-                    st.session_state[f"rtgs_ai_{batch['batch_id']}"] = result_to_records("RTGS", result)
+                    st.session_state[f"rtgs_ai_{batch['batch_id']}"] = normalize_rtgs_records(
+                        result_to_records("RTGS", result), dt.date.today()
+                    )
                     st.rerun()
                 except Exception as exc:
                     st.error(f"Could not apply the requested changes: {exc}")
