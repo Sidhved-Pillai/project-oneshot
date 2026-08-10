@@ -240,7 +240,7 @@ class RequestStore:
             row = conn.execute(select(requests).where(requests.c.request_number == request_number)).mappings().first()
         return dict(row) if row else None
 
-    def create_batch(self, mode, operator_name, operator_prompt, attachments, ai_draft=None, ai_summary="", model_name="gemini-3.6-flash"):
+    def create_batch(self, mode, operator_name, operator_prompt, attachments, ai_draft=None, ai_summary="", model_name="gemini-3.1-flash-lite"):
         batch_id = f"BATCH-{uuid.uuid4().hex[:16].upper()}"
         created = dt.datetime.now()
         base_label = f"RTGS- Record-{created:%d/%m/%y}"

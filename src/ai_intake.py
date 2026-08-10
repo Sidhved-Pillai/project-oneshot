@@ -1,4 +1,5 @@
 import json
+import hashlib
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -171,13 +172,51 @@ WhatsApp payment conventions:
 """
 
 
-DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
-FALLBACK_GEMINI_MODELS = ("gemini-3.5-flash", "gemini-flash-latest")
+DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
+FALLBACK_GEMINI_MODELS = ("gemini-2.5-flash-lite",)
+ALLOWED_GEMINI_MODELS = (DEFAULT_GEMINI_MODEL, *FALLBACK_GEMINI_MODELS)
 
 
 def _model_unavailable(exc):
     message = str(exc).lower()
     return "404" in message or "not_found" in message or "no longer available" in message or "not found" in message
+
+
+def _cost_controlled_candidates(model=None):
+    """Return only the explicitly approved low-cost extraction models."""
+    candidates = []
+    if model in ALLOWED_GEMINI_MODELS:
+        candidates.append(model)
+    for candidate in ALLOWED_GEMINI_MODELS:
+        if candidate not in candidates:
+            candidates.append(candidate)
+    return candidates
+
+
+def _deduplicate_files(files):
+    """Avoid billing twice for byte-identical evidence in one request."""
+    unique_files = []
+    seen_hashes = set()
+    for item in files:
+        digest = hashlib.sha256(item["data"]).digest()
+        if digest in seen_hashes:
+            continue
+        seen_hashes.add(digest)
+        unique_files.append(item)
+    return unique_files
+
+
+def _log_usage(response, model, file_count):
+    usage = getattr(response, "usage_metadata", None)
+    print(
+        "GEMINI_USAGE "
+        f"model={getattr(response, 'model_version', None) or model} "
+        f"files={file_count} "
+        f"input_tokens={getattr(usage, 'prompt_token_count', None)} "
+        f"output_tokens={getattr(usage, 'candidates_token_count', None)} "
+        f"thinking_tokens={getattr(usage, 'thoughts_token_count', None)} "
+        f"total_tokens={getattr(usage, 'total_token_count', None)}"
+    )
 
 
 def extract_intake(api_key, mode, operator_context, files, model=None):
@@ -188,24 +227,28 @@ def extract_intake(api_key, mode, operator_context, files, model=None):
     from google import genai
     from google.genai import types
 
+    files = _deduplicate_files(files)
     schema = DTRIntakeResult if mode == "DTR" else RTGSIntakeResult
     parts = [types.Part.from_text(text=_prompt(mode, operator_context))]
     for index, item in enumerate(files, 1):
         parts.append(types.Part.from_text(text=f"Attachment {index}: {item.get('filename', 'unnamed file')}"))
         parts.append(types.Part.from_bytes(data=item["data"], mime_type=item["mime_type"]))
     client = genai.Client(api_key=api_key)
-    candidates = []
-    for candidate in (model or DEFAULT_GEMINI_MODEL, *FALLBACK_GEMINI_MODELS):
-        if candidate and candidate not in candidates:
-            candidates.append(candidate)
+    candidates = _cost_controlled_candidates(model)
     last_error = None
     for candidate in candidates:
         try:
             response = client.models.generate_content(
                 model=candidate,
                 contents=[types.Content(role="user", parts=parts)],
-                config=types.GenerateContentConfig(response_mime_type="application/json", response_schema=schema),
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=schema,
+                    media_resolution=types.MediaResolution.MEDIA_RESOLUTION_MEDIUM,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                ),
             )
+            _log_usage(response, candidate, len(files))
             return schema.model_validate_json(response.text), candidate
         except Exception as exc:
             last_error = exc
