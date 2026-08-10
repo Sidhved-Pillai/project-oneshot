@@ -16,6 +16,7 @@ RTGS_COLUMNS = [
 ]
 RTGS_REVIEW_COLUMNS = [*RTGS_COLUMNS, "Transporter Freight", "Origin Area", "Review Notes"]
 DEBIT_ACCOUNT_NUMBER = "123305002576"
+BENEFICIARY_MOBILE_NUMBER = "9028703567"
 BRANCH_EMAILS = {
     "wada": "Ajitthakur@billtee.com",
     "pune": "jhanitish942@gmail.com",
@@ -88,7 +89,7 @@ def normalize_rtgs_record(record, payment_date=None):
     out["PYMT_MODE"] = "FT" if out["BENE_IFSC"].startswith("ICIC") else "NEFT"
     out["DEBIT_NARR"] = _clean_alphanumeric(out["DEBIT_NARR"])
     out["CREDIT_NARR"] = _clean_alphanumeric(out["CREDIT_NARR"])
-    out["MOBILE_NUM"] = _digits(out["MOBILE_NUM"])[-10:]
+    out["MOBILE_NUM"] = BENEFICIARY_MOBILE_NUMBER
     out["REMARK"] = _clean_alphanumeric(out["REMARK"])
     out["REF_NO"] = _clean_alphanumeric(out["REF_NO"])
     for column in ("ADDL_INFO1", "ADDL_INFO2", "ADDL_INFO3", "ADDL_INFO4", "ADDL_INFO5"):

@@ -297,6 +297,7 @@ def test_rtgs_business_rules_group_trips_and_select_email_and_mode():
     assert result[0]["AMOUNT"] == 9000 and result[0]["Transporter Freight"] == 12000
     assert result[0]["REMARK"] == "7872 02 08 2026 to 03 08 2026 2Trp TA"
     assert result[0]["PYMT_MODE"] == "FT" and result[0]["EMAIL_ID"] == "jhanitish942@gmail.com"
+    assert result[0]["MOBILE_NUM"] == "9028703567"
     assert result[0]["BNF_NAME"] == "Demo Co" and result[0]["BENE_ACC_NO"] == "00123"
 
 
