@@ -273,7 +273,7 @@ with rtgs_tab:
             if c1.button("Apply prompt to RTGS table", disabled=not instruction.strip(), key=f"rtgs_ai_button_{batch['batch_id']}"):
                 try:
                     result, _ = revise_intake(secret("GEMINI_API_KEY"), "RTGS", rtgs_frame.to_dict("records"), instruction,
-                                              source_files(batch["batch_id"]), secret("GEMINI_MODEL"))
+                                              [], secret("GEMINI_MODEL"))
                     st.session_state[f"rtgs_ai_{batch['batch_id']}"] = normalize_rtgs_records(
                         result_to_records("RTGS", result), dt.date.today()
                     )
@@ -336,7 +336,7 @@ with pending_tab:
                     if new_files:
                         store.add_attachments(batch["batch_id"], new_files)
                     result, _ = revise_intake(secret("GEMINI_API_KEY"), "DTR", dtr_frame.to_dict("records"), update_prompt,
-                                              source_files(batch["batch_id"]), secret("GEMINI_MODEL"))
+                                              new_files, secret("GEMINI_MODEL"))
                     st.session_state[draft_key] = result_to_records("DTR", result)
                     st.rerun()
                 except Exception as exc:

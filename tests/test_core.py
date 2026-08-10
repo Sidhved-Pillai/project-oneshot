@@ -364,7 +364,7 @@ def test_only_model_availability_errors_trigger_fallback():
     assert not _model_unavailable(Exception("401 UNAUTHENTICATED: invalid API key"))
 
 
-def test_ai_extraction_falls_back_from_retired_model(monkeypatch):
+def test_ai_extraction_ignores_unapproved_expensive_model_override(monkeypatch):
     from google import genai
 
     calls = []
@@ -372,8 +372,6 @@ def test_ai_extraction_falls_back_from_retired_model(monkeypatch):
     class FakeModels:
         def generate_content(self, model, contents, config):
             calls.append(model)
-            if model == "retired-model":
-                raise Exception("404 NOT_FOUND: model is no longer available")
             return type("Response", (), {"text": '{"rows": [], "summary": "No rows"}'})()
 
     class FakeClient:
@@ -383,8 +381,33 @@ def test_ai_extraction_falls_back_from_retired_model(monkeypatch):
     monkeypatch.setattr(genai, "Client", FakeClient)
     result, model = extract_intake("test-key", "RTGS", "test prompt", [], model="retired-model")
     assert result.summary == "No rows"
-    assert model == "gemini-3.5-flash"
-    assert calls == ["retired-model", "gemini-3.5-flash"]
+    assert model == "gemini-3.1-flash-lite"
+    assert calls == ["gemini-3.1-flash-lite"]
+
+
+def test_ai_extraction_uses_only_flash_lite_fallback(monkeypatch):
+    from google import genai
+
+    calls = []
+
+    class FakeModels:
+        def generate_content(self, model, contents, config):
+            calls.append(model)
+            if model == "gemini-3.1-flash-lite":
+                raise Exception("404 NOT_FOUND: model is unavailable")
+            assert config.thinking_config.thinking_budget == 0
+            assert str(config.media_resolution).endswith("MEDIA_RESOLUTION_MEDIUM")
+            return type("Response", (), {"text": '{"rows": [], "summary": "Fallback"}'})()
+
+    class FakeClient:
+        def __init__(self, api_key):
+            self.models = FakeModels()
+
+    monkeypatch.setattr(genai, "Client", FakeClient)
+    result, model = extract_intake("test-key", "RTGS", "test prompt", [])
+    assert result.summary == "Fallback"
+    assert model == "gemini-2.5-flash-lite"
+    assert calls == ["gemini-3.1-flash-lite", "gemini-2.5-flash-lite"]
 
 
 def test_batch_sync_retains_removed_rows_as_cancelled(tmp_path):
