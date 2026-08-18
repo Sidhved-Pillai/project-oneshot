@@ -181,8 +181,27 @@ def source_files(batch_id):
             for item in store.get_attachments(batch_id)]
 
 
-new_tab, rtgs_tab, pending_tab, dtr_tab, delete_tab = st.tabs([
-    "New Entry", "RTGS Records", "Pending DTR updation", "DTR Records", "Delete Records From Memory",
+def save_new_rtgs(records):
+    """Persist the reviewed RTGS rows as the download starts."""
+    batch_id = store.create_batch(
+        "RTGS", "Nikhat", st.session_state["new_rtgs_prompt_saved"], st.session_state["new_rtgs_files"],
+        st.session_state["new_rtgs_original"], st.session_state.get("new_rtgs_summary", ""),
+        st.session_state.get("new_rtgs_model", ""),
+    )
+    numbers = sync_records(batch_id, "RTGS", records, "Nikhat", "initial_review")
+    batch = store.get_batch(batch_id)
+    st.session_state["new_rtgs_saved_message"] = (
+        f"Saved {batch_name(batch)} with {len(numbers)} RTGS row(s). It is now pending for Shyam."
+    )
+    for key in [
+        "new_rtgs_draft", "new_rtgs_original", "new_rtgs_files", "new_rtgs_prompt_saved",
+        "new_rtgs_summary", "new_rtgs_model", "new_rtgs_confirmed",
+    ]:
+        st.session_state.pop(key, None)
+
+
+new_tab, rtgs_tab, pending_tab, dtr_tab = st.tabs([
+    "New Entry", "RTGS Records", "Pending DTR updation", "DTR Records",
 ])
 
 with new_tab:
@@ -197,7 +216,9 @@ with new_tab:
         height=130, key="rtgs_prompt",
     )
     st.caption("Files and instructions are sent to Gemini. Review every beneficiary, account number, IFSC and amount before saving.")
-    if st.button("Generate live RTGS review", type="primary", disabled=not uploads and not prompt.strip()):
+    if st.session_state.pop("new_rtgs_saved_message", None) is not None:
+        st.success("RTGS report saved. Your download has started.")
+    if st.button("Generate RTGS Report", type="primary", disabled=not uploads and not prompt.strip()):
         files = [{"filename": item.name, "mime_type": item.type or "application/octet-stream", "data": item.getvalue()} for item in uploads]
         if any(len(item["data"]) > 8 * 1024 * 1024 for item in files):
             st.error("Each uploaded file must be 8 MB or smaller.")
@@ -218,28 +239,19 @@ with new_tab:
         st.caption("Correct the table before saving. You can add or remove rows.")
         reviewed_rtgs = st.data_editor(st.session_state["new_rtgs_draft"], num_rows="dynamic", hide_index=True,
                                        width="stretch", key="new_rtgs_editor")
-        if st.button("Save RTGS Record & Prepare Download", type="primary"):
-            records = normalize_rtgs_records(active_records(reviewed_rtgs, "RTGS"), dt.date.today())
-            if not records:
-                st.error("There are no non-empty RTGS rows to save.")
-            else:
-                batch_id = store.create_batch(
-                    "RTGS", "Nikhat", st.session_state["new_rtgs_prompt_saved"], st.session_state["new_rtgs_files"],
-                    st.session_state["new_rtgs_original"], st.session_state.get("new_rtgs_summary", ""),
-                    st.session_state.get("new_rtgs_model", ""),
-                )
-                numbers = sync_records(batch_id, "RTGS", records, "Nikhat", "initial_review")
-                batch = store.get_batch(batch_id)
-                st.session_state["new_rtgs_download"] = {
-                    "label": batch_name(batch), "payload": export_rtgs(pd.DataFrame(records), dt.date.today()),
-                }
-                st.success(f"Saved {batch_name(batch)} with {len(numbers)} RTGS row(s). It is now pending for Shyam.")
-                for key in ["new_rtgs_draft", "new_rtgs_original", "new_rtgs_files", "new_rtgs_prompt_saved", "new_rtgs_summary", "new_rtgs_model"]:
-                    st.session_state.pop(key, None)
-    if st.session_state.get("new_rtgs_download"):
-        download = st.session_state["new_rtgs_download"]
-        st.download_button("Download RTGS Report", download["payload"], f"{download['label'].replace('/', '-')}.xls",
-                           "application/vnd.ms-excel", type="primary")
+        records = normalize_rtgs_records(active_records(reviewed_rtgs, "RTGS"), dt.date.today())
+        confirmed = st.checkbox(
+            "I have reviewed and confirmed the RTGS table.", key="new_rtgs_confirmed",
+        )
+        if not records:
+            st.error("There are no non-empty RTGS rows to save.")
+        st.download_button(
+            "Save and download RTGS report",
+            export_rtgs(pd.DataFrame(records), dt.date.today()) if records else b"",
+            f"RTGS-report-{dt.date.today().isoformat()}.xls", "application/vnd.ms-excel",
+            type="primary", disabled=not records or not confirmed,
+            on_click=save_new_rtgs, args=(records,),
+        )
 
 with rtgs_tab:
     st.subheader("RTGS Records")
@@ -286,6 +298,32 @@ with rtgs_tab:
                 st.success(f"Saved changes to {label}.")
             st.download_button("Download current RTGS Report", export_rtgs(rtgs_frame, dt.date.today()),
                                f"{label.replace('/', '-')}.xls", "application/vnd.ms-excel")
+
+            with st.expander("Delete RTGS records"):
+                st.error(
+                    "Deletion is permanent. Deleting a request also removes its DTR rows, source files, "
+                    "and revision history."
+                )
+                all_labels = list(labels)
+                select_all = st.checkbox("Select all", key="rtgs_delete_select_all")
+                selected_labels = all_labels if select_all else st.multiselect(
+                    "Select requests to delete", all_labels, key="rtgs_delete_selection",
+                )
+                acknowledged = st.checkbox(
+                    "I understand that the selected requests and all associated data will be permanently deleted.",
+                    key="rtgs_delete_acknowledged",
+                )
+                if st.button(
+                    "Delete selected RTGS record(s)", type="primary",
+                    disabled=not selected_labels or not acknowledged, key="rtgs_delete_selected",
+                ):
+                    deleted_rows = 0
+                    for selected_label in selected_labels:
+                        deleted_rows += store.delete_batch(labels[selected_label]["batch_id"])["requests"]
+                    st.success(
+                        f"Deleted {len(selected_labels)} request(s) and {deleted_rows} associated record row(s)."
+                    )
+                    st.rerun()
 
 with pending_tab:
     st.subheader("Pending DTR updation")
@@ -370,21 +408,3 @@ with dtr_tab:
         rtgs_frame = pd.DataFrame(rtgs_records(batch["batch_id"]))
         c2.download_button("Download RTGS Spreadsheet", export_rtgs(rtgs_frame, dt.date.today()),
                            f"{label.replace('/', '-')}.xls", "application/vnd.ms-excel")
-
-with delete_tab:
-    st.subheader("Delete Records From Memory")
-    st.error("Deletion is permanent. No record is ever removed automatically; this is the only deletion control.")
-    batches = store.list_batches()
-    if not batches:
-        st.info("There are no saved records to delete.")
-    else:
-        deletion_labels = {batch_name(batch): batch for batch in batches}
-        label = st.selectbox("Select the complete request to delete", list(deletion_labels), key="delete_batch")
-        batch = deletion_labels[label]
-        st.write({"Request": label, "Created": str(batch.get("created_at")), "Rows": batch.get("row_counts", {})})
-        confirmation = st.text_input(f"Type {label} to confirm permanent deletion", key="delete_confirmation")
-        acknowledged = st.checkbox("I understand that the RTGS rows, DTR rows, source files and revision history will be permanently deleted.")
-        if st.button("Permanently Delete This Request", disabled=confirmation != label or not acknowledged, type="primary"):
-            result = store.delete_batch(batch["batch_id"])
-            st.success(f"Deleted {label} and {result['requests']} associated record row(s). This cannot be recovered.")
-            st.rerun()
