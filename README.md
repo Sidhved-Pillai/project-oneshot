@@ -1,10 +1,10 @@
 # Project Oneshot
 
-Project Oneshot is an AI-assisted logistics workflow app for Billtee. Nikhat uploads WhatsApp evidence, creates and finalizes RTGS rows, and saves a labelled request. That request enters Shyam's pending queue; he converts it into a full DTR, completes late-arriving details, and saves/downloads the operational workbook.
+Project Oneshot is a shared AI-assisted logistics workflow app for Billtee. Any authorized operations user can capture a trip or direct expense once, review the populated form, retain its evidence, edit it later, and generate DTR, bank-format RTGS, or P&L reports by date range.
 
 Missing or uncertain values remain blank and flagged for later completion in Requests. DTR requests retain the full operational field set, including LR, invoice, freight, UPI, diesel, revenue, damages and remarks. RTGS requests retain the exact 28-column consolidated-report field set. Uploaded evidence and instructions are sent to the configured Google Gemini model during extraction, so every generated row must be reviewed before saving.
 
-The interface contains `New Entry`, `RTGS Records`, `Pending DTR updation`, and `DTR Records`. RTGS and DTR records support both manual table edits and AI-assisted change instructions. Every change writes a revision snapshot.
+The interface contains four tabs: `New Entry`, `Direct Expenses`, `Records`, and `Generate Reports`. New Entry and Direct Expenses accept image/PDF evidence and fast browser voice capture in English, Hindi, or Marathi. Records remain editable and every saved change writes a revision snapshot.
 
 ## Quick start on macOS
 
@@ -34,7 +34,7 @@ DATABASE_URL = "postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require"
 
 Do not put the database URL in Git. On startup the app creates its table automatically. Images are stored in the database along with each request, with an 8 MB per-file limit. For larger long-term volumes, move attachments to private object storage and retain only their object keys in PostgreSQL.
 
-No record, request, attachment or revision is removed by refresh, reboot, redeployment or monthly rollover. Permanent deletion is available inside `RTGS Records`: an authorized user selects one or more requests (or uses Select all), acknowledges the warning, and clicks the delete button.
+No record, request, attachment or revision is removed by refresh, reboot, redeployment or monthly rollover. Permanent deletion is available inside `Records`: an authorized user selects one or more requests (or uses Select all), acknowledges the warning, and clicks the delete button.
 
 ## Updating master files
 

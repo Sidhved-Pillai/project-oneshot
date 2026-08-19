@@ -240,6 +240,12 @@ class RequestStore:
             row = conn.execute(select(requests).where(requests.c.request_number == request_number)).mappings().first()
         return dict(row) if row else None
 
+    def delete_request(self, request_number):
+        """Permanently delete one unified record and its revision history."""
+        with self.engine.begin() as conn:
+            conn.execute(delete(record_revisions).where(record_revisions.c.request_number == request_number))
+            return conn.execute(delete(requests).where(requests.c.request_number == request_number)).rowcount
+
     def create_batch(self, mode, operator_name, operator_prompt, attachments, ai_draft=None, ai_summary="", model_name="gemini-3.1-flash-lite"):
         batch_id = f"BATCH-{uuid.uuid4().hex[:16].upper()}"
         created = dt.datetime.now()

@@ -17,6 +17,7 @@ from src.entry_finance import financial_values
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
 from src.operational_dtr_export import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
+from src.pnl_report import DIRECT_EXPENSE_COLUMNS, export_pnl, pnl_summary
 from src.workflow_ai import convert_rtgs_to_dtr as workflow_convert_rtgs_to_dtr
 from src.workflow_store import RequestStore as WorkflowRequestStore
 from src.ai_intake import DTRIntakeResult, DTRIntakeRow, _model_unavailable, _prompt, extract_intake, result_to_records
@@ -438,6 +439,32 @@ def test_explicit_batch_delete_removes_rows_and_attachments(tmp_path):
     result = store.delete_batch(batch_id)
     assert result == {"requests": 1, "batches": 1}
     assert store.get_batch(batch_id) is None and store.get_attachments(batch_id) == []
+
+
+def test_unified_record_can_be_edited_and_deleted_with_revision_history(tmp_path):
+    store = WorkflowRequestStore(f"sqlite:///{tmp_path / 'unified.db'}")
+    number = store.create({
+        "report_scope": "Both", "trip_date": dt.date(2026, 8, 19),
+        "vehicle_number": "MH14AB1234", "branch": "Pune", "status": "Submitted",
+        "source_filename": "proof.jpg", "source_mime_type": "image/jpeg", "source_image": b"proof",
+    })
+    store.update(number, {"branch": "Wada"}, "records_tab", "Tester")
+    assert store.get(number)["branch"] == "Wada"
+    assert store.delete_request(number) == 1
+    assert store.get(number) is None
+
+
+def test_pnl_uses_trip_margin_and_direct_expense_categories():
+    trips = [{"revenue": 100000, "transporter_freight": 70000}]
+    expenses = [{"categories": {"Salary": 5000, "Rent": 3000}}]
+    rows = pnl_summary(trips, expenses)
+    values = {row["Particular"]: row["Amount"] for row in rows}
+    assert values["Gross Contribution"] == 30000
+    assert values["Total Direct Expenses"] == -8000
+    assert values["Net Profit / (Loss)"] == 22000
+    workbook = load_workbook(BytesIO(export_pnl(trips, expenses, dt.date(2026, 8, 1), dt.date(2026, 8, 31))))
+    assert workbook["P&L"]["A1"].value.startswith("Profit & Loss")
+    assert len(DIRECT_EXPENSE_COLUMNS) == 12
 
 
 def test_operational_dtr_export_uses_full_reference_shape():

@@ -99,6 +99,66 @@ class RTGSIntakeResult(BaseModel):
     summary: str = ""
 
 
+class UnifiedIntakeRow(BaseModel):
+    """One editable trip form populated from image, PDF, text, or voice evidence."""
+    branch: str = ""
+    date: str = ""
+    company_name: str = ""
+    vehicle_number: str = ""
+    vehicle_capacity: str = ""
+    ownership_type: str = ""
+    from_location: str = ""
+    to_location: str = ""
+    lr_invoice_number: str = ""
+    revenue: Optional[float] = None
+    transporter_freight: Optional[float] = None
+    rtgs_advance: Optional[float] = None
+    cash_advance: Optional[float] = None
+    upi: Optional[float] = None
+    diesel_advance: Optional[float] = None
+    vehicle_placed_by: str = ""
+    beneficiary_name: str = ""
+    beneficiary_account_number: str = ""
+    beneficiary_ifsc_code: str = ""
+    transporter_name: str = ""
+    remarks: str = ""
+    review_notes: str = ""
+
+
+class UnifiedIntakeResult(BaseModel):
+    rows: list[UnifiedIntakeRow] = Field(default_factory=list)
+    summary: str = ""
+
+
+class DirectExpenseIntakeRow(BaseModel):
+    date: str = ""
+    beneficiary_name: str = ""
+    vehicle_number: str = ""
+    route_expense: Optional[float] = None
+    bill_discounting: Optional[float] = None
+    salary: Optional[float] = None
+    driver_salary: Optional[float] = None
+    rent: Optional[float] = None
+    office_general_expenses: Optional[float] = None
+    conveyance: Optional[float] = None
+    emi: Optional[float] = None
+    insurance: Optional[float] = None
+    vehicle_tax: Optional[float] = None
+    repair_maintenance: Optional[float] = None
+    interest: Optional[float] = None
+    upi: Optional[float] = None
+    diesel_advance: Optional[float] = None
+    cash_advance: Optional[float] = None
+    rtgs_advance: Optional[float] = None
+    remarks: str = ""
+    review_notes: str = ""
+
+
+class DirectExpenseIntakeResult(BaseModel):
+    rows: list[DirectExpenseIntakeRow] = Field(default_factory=list)
+    summary: str = ""
+
+
 DTR_FIELD_MAP = dict(zip(DTR_REVIEW_COLUMNS[1:], [
     "branch", "company_name", "date", "vehicle_number", "vehicle_type", "ownership_type",
     "from_location", "lr_number", "invoice_number", "customer_name", "to_location",
@@ -140,6 +200,24 @@ Rules:
 - WhatsApp evidence normally arrives as a chronological pair: an evidence photo (LR/invoice, cheque, bank proof or slip) followed immediately by the trip/payment text that belongs to it. Use that photo-then-message sequence as the default pairing rule. A new evidence photo starts the next pair. If uploaded order/context does not preserve this sequence, keep uncertain associations blank and explain them.
 - If the typed WhatsApp text conflicts with an image, do not choose silently; preserve the clearest explicit value and describe the conflict in review_notes.
 - An Indian IFSC normally has four letters, then 0, then six alphanumeric characters. Use this only to flag a suspicious reading, never to repair or invent the code.
+"""
+    if mode == "EXPENSE":
+        return common + """
+Populate one direct-expense form. Extract date, beneficiary, vehicle, remarks, and every explicit amount
+under these categories: route expense, bill discounting, salary, driver's salary, rent, office and general
+expenses, conveyance, EMI, insurance, vehicle tax, repair and maintenance, and interest. Also split the
+actual payment across UPI, diesel, cash, and RTGS when stated. Spoken instructions may be English, Hindi,
+Marathi, or mixed. Do not infer a category or payment split that is not explicit.
+"""
+    if mode == "ENTRY":
+        return common + """
+Populate one logistics trip-entry form. Extract branch, trip date, company, vehicle number and capacity,
+ownership (Own or Outside), origin, destination, LR/invoice number, revenue, transporter freight,
+payment amounts split across RTGS, cash, UPI and diesel, vehicle placed by, beneficiary banking details,
+transporter, and remarks. Spoken instructions may be English, Hindi, Marathi, or a natural mixture of them;
+follow their meaning but preserve names and identifiers exactly. If several values are stated for different
+payment modes, keep every amount in its matching field. Return the single best combined row. Never invent
+missing values and explain unclear readings in review_notes.
 """
     if mode == "DTR":
         return common + """
@@ -228,7 +306,10 @@ def extract_intake(api_key, mode, operator_context, files, model=None):
     from google.genai import types
 
     files = _deduplicate_files(files)
-    schema = DTRIntakeResult if mode == "DTR" else RTGSIntakeResult
+    schema = {
+        "DTR": DTRIntakeResult, "RTGS": RTGSIntakeResult, "ENTRY": UnifiedIntakeResult,
+        "EXPENSE": DirectExpenseIntakeResult,
+    }[mode]
     parts = [types.Part.from_text(text=_prompt(mode, operator_context))]
     for index, item in enumerate(files, 1):
         parts.append(types.Part.from_text(text=f"Attachment {index}: {item.get('filename', 'unnamed file')}"))
