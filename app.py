@@ -289,12 +289,12 @@ with new_tab:
     c1, c2 = st.columns(2)
     upload = c1.file_uploader("Upload photo or PDF", type=["jpg", "jpeg", "png", "webp", "pdf"], key="trip_upload")
     audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key="trip_audio")
-    instruction = st.text_input("Optional typed instruction", placeholder="e.g., Invoice number is 12234", key="trip_instruction")
+    voice_autofill = c2.button("Autofill with Voice Prompt", type="primary", use_container_width=True, disabled=audio is None, key="trip_voice_autofill", icon="🎙️")
     files = evidence(upload, audio)
     if upload:
-        autofill(evidence(upload, None), instruction, "trip")
-    if st.button("Autofill with Voice Prompt", type="primary", disabled=audio is None, key="trip_voice_autofill", icon="🎙️"):
-        autofill(evidence(None, audio), instruction, "trip")
+        autofill(evidence(upload, None), "", "trip")
+    if voice_autofill:
+        autofill(evidence(None, audio), "", "trip")
     with st.container(border=True):
         values = trip_form("trip", business_memory)
         if st.button("Save record", type="primary", disabled=not values["branch"] or not values["vehicle_number"], key="save_trip"):
@@ -307,12 +307,12 @@ with expense_tab:
     c1, c2 = st.columns(2)
     expense_upload = c1.file_uploader("Attach bill or receipt", type=["jpg", "jpeg", "png", "webp", "pdf"], key="expense_upload")
     expense_audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key="expense_audio")
-    expense_instruction = st.text_input("Optional expense instruction", key="expense_instruction", placeholder="e.g., Driver salary ₹12,000 paid by RTGS")
+    expense_voice_autofill = c2.button("Autofill with Voice Prompt", type="primary", use_container_width=True, disabled=expense_audio is None, key="expense_voice_autofill", icon="🎙️")
     expense_files = evidence(expense_upload, expense_audio)
     if expense_upload:
-        autofill(evidence(expense_upload, None), expense_instruction, "expense", "EXPENSE")
-    if st.button("Autofill with Voice Prompt", type="primary", disabled=expense_audio is None, key="expense_voice_autofill", icon="🎙️"):
-        autofill(evidence(None, expense_audio), expense_instruction, "expense", "EXPENSE")
+        autofill(evidence(expense_upload, None), "", "expense", "EXPENSE")
+    if expense_voice_autofill:
+        autofill(evidence(None, expense_audio), "", "expense", "EXPENSE")
     with st.container(border=True):
         c1, c2, c3 = st.columns(3)
         v = {"date": c1.date_input("Date *", key="expense_date"), "beneficiary_name": c2.text_input("Beneficiary name", key="expense_beneficiary", placeholder="e.g., Rajesh Kumar"), "vehicle_number": c3.text_input("Vehicle name / number", key="expense_vehicle", placeholder="e.g., MH14JL9818")}
