@@ -6,7 +6,6 @@ import os
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
-from streamlit_mic_recorder import mic_recorder
 
 from src.ai_intake import DTR_REVIEW_COLUMNS, extract_intake
 from src.business_memory import build_business_memory, recall
@@ -86,9 +85,7 @@ def evidence(upload, audio):
     if upload:
         files.append({"filename": upload.name, "mime_type": upload.type or "application/octet-stream", "data": upload.getvalue()})
     if audio:
-        audio_bytes = audio.get("bytes") if isinstance(audio, dict) else audio.getvalue()
-        audio_type = "audio/wav" if isinstance(audio, dict) else audio.type or "audio/wav"
-        files.append({"filename": "voice-instruction.wav", "mime_type": audio_type, "data": audio_bytes})
+        files.append({"filename": "voice-instruction.wav", "mime_type": audio.type or "audio/wav", "data": audio.getvalue()})
     return files
 
 
@@ -243,7 +240,7 @@ def trip_form(prefix, memory):
     v["transporter_freight"] = c2.number_input("Transporter freight (₹)", min_value=0.0, value=None, placeholder="e.g., 38,000", key=f"{prefix}_transporter_freight")
     st.caption("Enter amounts in every payment mode used. More than one mode is supported.")
     for col, (label, field) in zip(st.columns(4), PAYMENT_FIELDS.items()):
-        v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 2,000", format="%.2f", key=f"{prefix}_{field}")
+        v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 2,000", key=f"{prefix}_{field}")
     payment = advance_summary(v["transporter_freight"], *(v[f] for f in PAYMENT_FIELDS.values()))
     total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
     summary = st.columns(3)
@@ -267,22 +264,22 @@ business_memory = build_business_memory(store.list(status="All active"))
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap');
-:root{color-scheme:light;--ink:#142126;--muted:#6b7a80;--teal:#087f73;--teal2:#12a594;--navy:#16384a;--line:#dfe9e6;--paper:#fff;--voice:#20a464}
+:root{color-scheme:light;--ink:#1d1d1f;--muted:#6e6e73;--teal:#0071e3;--teal2:#2997ff;--navy:#061b33;--line:#dfe5ec;--paper:#fff;--voice:#20a464}
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @keyframes breathe{0%,100%{box-shadow:0 0 0 0 rgba(18,165,148,.24)}50%{box-shadow:0 0 0 7px rgba(18,165,148,0)}}
 @keyframes sheen{from{transform:translateX(-130%)}to{transform:translateX(180%)}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
-html,body,[class*="css"]{font-family:'DM Sans',sans-serif}.stApp,[data-testid="stAppViewContainer"]{color:var(--ink);background:radial-gradient(circle at 8% 0%,rgba(44,190,169,.13),transparent 25rem),radial-gradient(circle at 94% 10%,rgba(92,118,255,.09),transparent 28rem),#f6f8f8}
-[data-testid="stHeader"]{background:rgba(246,248,248,.72);backdrop-filter:blur(14px)}.block-container{max-width:1200px;padding:5.25rem 2rem 5rem}.simple-hero{margin:0 0 24px;padding:4px 2px 8px;animation:rise .4s ease-out}.simple-hero .hero-kicker{color:#087f73;font-size:.7rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase}.simple-hero h1{margin:4px 0 2px;font:800 clamp(2.15rem,5vw,3.35rem) 'Manrope';letter-spacing:-.055em;color:#17353b}.simple-hero h1 span{color:#0d9385}.simple-hero p{margin:0;color:#6b7a80;font-size:1rem}
-.stTabs [data-baseweb="tab-list"]{width:100%;gap:6px;background:rgba(255,255,255,.82);backdrop-filter:blur(16px);padding:7px;border:1px solid rgba(214,226,223,.9);border-radius:16px!important;box-shadow:0 7px 24px rgba(24,58,64,.07);overflow-x:auto}.stTabs [data-baseweb="tab"]{height:44px;border-radius:11px!important;padding:9px 20px;color:#6b797d;font-weight:700;white-space:nowrap;transition:all .2s ease}.stTabs [data-baseweb="tab"]:hover{color:var(--teal);background:#f0f8f6;border-radius:11px!important}.stTabs [aria-selected="true"]{color:#fff!important;background:linear-gradient(135deg,var(--teal),var(--teal2))!important;border-radius:11px!important;box-shadow:0 6px 16px rgba(8,127,115,.22)}.stTabs [data-baseweb="tab-highlight"]{display:none}.stTabs [data-baseweb="tab-panel"]{animation:rise .36s ease-out}
+html,body,[class*="css"]{font-family:'DM Sans',sans-serif}.stApp,[data-testid="stAppViewContainer"]{color:var(--ink);background:radial-gradient(circle at 8% 0%,rgba(41,151,255,.13),transparent 25rem),radial-gradient(circle at 94% 10%,rgba(100,80,255,.08),transparent 28rem),#f5f5f7}
+[data-testid="stHeader"]{background:rgba(245,245,247,.78);backdrop-filter:blur(16px)}.block-container{max-width:1200px;padding:5.25rem 2rem 5rem}.app-hero{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;padding:22px 25px;margin-bottom:22px;color:#fff;background:linear-gradient(125deg,#061b33 0%,#064a91 52%,#0071e3 100%);border:1px solid rgba(255,255,255,.15);border-radius:24px;box-shadow:0 18px 50px rgba(0,75,155,.2);animation:rise .45s ease-out}.app-hero:after{content:"";position:absolute;inset:-70% auto -70% -30%;width:28%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.12),transparent);transform:rotate(14deg);animation:sheen 7s ease-in-out infinite}.brand-row{display:flex;align-items:center;gap:14px}.brand-mark{display:grid;place-items:center;width:46px;height:46px;border-radius:14px;background:linear-gradient(145deg,#cbe8ff,#fff);color:#0062c7;font:800 1.25rem 'Manrope';box-shadow:inset 0 0 0 1px rgba(255,255,255,.5)}.brand{font:800 clamp(1.6rem,3vw,2.2rem) 'Manrope';letter-spacing:-.045em}.brand span{color:#7bc4ff}.subtitle{margin-top:3px;color:#d7eaff;font-size:.92rem}.status-pill{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid rgba(255,255,255,.2);border-radius:999px;background:rgba(255,255,255,.12);font-size:.78rem;font-weight:700;white-space:nowrap}.status-dot{width:8px;height:8px;border-radius:50%;background:#56efb5;animation:breathe 2.4s infinite}
+.stTabs [data-baseweb="tab-list"]{gap:6px;background:rgba(255,255,255,.82);backdrop-filter:blur(16px);padding:7px;border:1px solid rgba(214,226,223,.9);border-radius:16px;box-shadow:0 7px 24px rgba(24,58,64,.07)}.stTabs [data-baseweb="tab"]{height:44px;border-radius:11px;padding:9px 20px;color:#6b797d;font-weight:700;transition:all .2s ease}.stTabs [data-baseweb="tab"]:hover{color:var(--teal);background:#f0f8f6}.stTabs [aria-selected="true"]{color:#fff!important;background:linear-gradient(135deg,var(--teal),var(--teal2))!important;box-shadow:0 6px 16px rgba(8,127,115,.22)}.stTabs [data-baseweb="tab-highlight"]{display:none}.stTabs [data-baseweb="tab-panel"]{animation:rise .36s ease-out}
 .page-intro{display:flex;gap:14px;align-items:center;margin:26px 0 18px}.page-icon{display:grid;place-items:center;width:48px;height:48px;border-radius:15px;background:linear-gradient(145deg,#e1f7f2,#f5fffd);border:1px solid #cbe9e3;font-size:1.35rem;box-shadow:0 8px 22px rgba(8,127,115,.09)}.eyebrow{color:var(--teal);font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.page-intro h2{font:800 1.45rem 'Manrope';letter-spacing:-.025em;margin:2px 0}.page-intro p{margin:0;color:var(--muted);font-size:.9rem}.flow-strip{display:flex;gap:8px;margin:0 0 18px}.flow-step{display:flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.75);color:#7b898d;font-size:.76rem;font-weight:700}.flow-step span{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#eaf1ef;color:#647572;font-size:.68rem}.flow-step.active{border-color:#b8e2da;background:#e8f7f4;color:#087468}.flow-step.active span{color:#fff;background:var(--teal)}.memory-card{margin:9px 0 5px;padding:12px 14px;border:1px solid #cae6df;border-radius:13px;background:linear-gradient(135deg,#f3fbf9,#f8f9ff);box-shadow:0 6px 18px rgba(8,127,115,.06)}.memory-card small{display:block;color:#087f73;font-size:.62rem;font-weight:800;letter-spacing:.1em}.memory-card strong{display:block;margin:2px 0;color:#24444a;font-size:.83rem}.memory-card p{display:flex;flex-wrap:wrap;gap:6px;margin:5px 0 0}.memory-card span{padding:4px 7px;border-radius:7px;background:#fff;border:1px solid #e1ece9;color:#60716f;font-size:.72rem}.memory-card span b{color:#1d514b;margin-right:3px}
 div[data-testid="stVerticalBlockBorderWrapper"]{background:rgba(255,255,255,.92);border:1px solid rgba(215,228,224,.95)!important;border-radius:20px;box-shadow:0 12px 36px rgba(34,63,68,.075);transition:transform .2s ease,box-shadow .2s ease}div[data-testid="stVerticalBlockBorderWrapper"]:hover{box-shadow:0 16px 42px rgba(34,63,68,.1)}h4{font:800 1rem 'Manrope'!important;color:#214047!important;padding:10px 0 7px!important;border-bottom:1px solid #edf2f1}
-[data-testid="stFileUploader"]{padding:13px;border-radius:17px;background:rgba(255,255,255,.75);border:1px solid var(--line)}[data-testid="stFileUploaderDropzone"]{border:1.5px dashed #9ecdc5;background:linear-gradient(145deg,#f5fbfa,#edf8f6);border-radius:13px;transition:all .2s ease}[data-testid="stFileUploaderDropzone"]:hover{border-color:var(--teal);transform:translateY(-1px);box-shadow:0 8px 20px rgba(8,127,115,.08)}.voice-label{margin:0 0 8px;color:#17212b;font-size:.9rem;font-weight:600}.voice-label+div iframe{border-radius:17px!important}
-[data-baseweb="input"]>div,[data-baseweb="select"]>div,textarea{border-color:#dce7e4!important;border-radius:11px!important;background:#fbfcfc!important;transition:border .18s ease,box-shadow .18s ease!important}[data-baseweb="input"]>div:focus-within,[data-baseweb="select"]>div:focus-within,textarea:focus{border-color:#43ad9f!important;box-shadow:0 0 0 3px rgba(18,165,148,.1)!important}.stButton>button,.stDownloadButton>button{border-radius:11px;font-weight:800;min-height:42px;transition:transform .18s ease,box-shadow .18s ease}.stButton>button[kind="primary"],.stDownloadButton>button[kind="primary"]{position:relative;overflow:hidden;border:0;color:#fff;background:linear-gradient(135deg,#087f73,#12a594);box-shadow:0 8px 20px rgba(8,127,115,.2)}.stButton>button:hover,.stDownloadButton>button:hover{transform:translateY(-1px);box-shadow:0 11px 25px rgba(8,127,115,.24)}div[data-testid="stNumberInput"] button{display:none!important}div[data-testid="stNumberInput"] [data-baseweb="input"]{min-height:56px}div[data-testid="stNumberInput"] input{padding:10px 14px 20px!important;line-height:20px!important}
-div[data-testid="stMetric"]{background:linear-gradient(145deg,#f7fcfb,#edf8f5);border:1px solid #d5ebe6;border-radius:15px;padding:13px 16px;box-shadow:0 5px 16px rgba(25,85,76,.05)}[data-testid="stMetricLabel"]{color:#6c817d;font-weight:700}[data-testid="stMetricValue"]{font:800 1.28rem 'Manrope';color:#125f58}[data-testid="stDataFrame"]{border:1px solid var(--line);border-radius:15px;overflow:hidden;box-shadow:0 8px 24px rgba(34,63,68,.06)}[data-testid="stAlert"]{border-radius:14px}details{border:1px solid var(--line)!important;border-radius:13px!important;background:rgba(255,255,255,.78)!important}
+[data-testid="stFileUploader"]{padding:13px;border-radius:17px;background:rgba(255,255,255,.78);border:1px solid var(--line)}[data-testid="stFileUploaderDropzone"]{border:1.5px dashed #8bbdec;background:linear-gradient(145deg,#f7fbff,#edf6ff);border-radius:13px;transition:all .2s ease}[data-testid="stFileUploaderDropzone"]:hover{border-color:var(--teal);transform:translateY(-1px);box-shadow:0 8px 20px rgba(0,113,227,.1)}[data-testid="stAudioInput"]{padding:13px;border:1px solid var(--line);border-radius:17px;background:rgba(255,255,255,.78)}[data-testid="stAudioInput"] button{color:#fff!important;background:#0071e3!important;border:2px solid #0071e3!important;border-radius:999px!important;box-shadow:0 3px 10px rgba(0,113,227,.25)!important}
+[data-baseweb="input"]>div,[data-baseweb="select"]>div,textarea{border-color:#dce3eb!important;border-radius:12px!important;background:#fff!important;transition:border .18s ease,box-shadow .18s ease!important}[data-baseweb="input"]>div:focus-within,[data-baseweb="select"]>div:focus-within,textarea:focus{border-color:#0071e3!important;box-shadow:0 0 0 3px rgba(0,113,227,.1)!important}.stButton>button,.stDownloadButton>button{border-radius:999px;font-weight:700;min-height:42px;padding-left:20px;padding-right:20px;transition:transform .18s ease,box-shadow .18s ease}.stButton>button[kind="primary"],.stDownloadButton>button[kind="primary"]{position:relative;overflow:hidden;border:0;color:#fff;background:#0071e3;box-shadow:0 7px 18px rgba(0,113,227,.22)}.stButton>button:hover,.stDownloadButton>button:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(0,113,227,.28)}.st-key-trip_voice_autofill button,.st-key-expense_voice_autofill button{color:#fff!important;background:linear-gradient(135deg,#1f9d60,#27b974)!important;box-shadow:0 8px 20px rgba(31,157,96,.22)!important}.st-key-trip_voice_autofill button:disabled,.st-key-expense_voice_autofill button:disabled{color:#fff!important;background:#8fd5ae!important;opacity:.72!important}
+div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);border:1px solid #d6e7f7;border-radius:16px;padding:13px 16px;box-shadow:0 5px 16px rgba(0,80,160,.05)}[data-testid="stMetricLabel"]{color:#6e7781;font-weight:700}[data-testid="stMetricValue"]{font:800 1.28rem 'Manrope';color:#0066cc}[data-testid="stDataFrame"]{border:1px solid var(--line);border-radius:15px;overflow:hidden;box-shadow:0 8px 24px rgba(34,63,68,.06)}[data-testid="stAlert"]{border-radius:14px}details{border:1px solid var(--line)!important;border-radius:13px!important;background:rgba(255,255,255,.78)!important}
 @media(max-width:700px){.block-container{padding:4.5rem .85rem 4rem}.app-hero{padding:17px}.status-pill{display:none}.stTabs [data-baseweb="tab"]{padding:8px 10px;font-size:.75rem}.flow-strip{overflow-x:auto}.flow-step{white-space:nowrap}.page-intro p{font-size:.82rem}}
 </style>
-<div class="simple-hero"><div class="hero-kicker">Operations workspace</div><h1>Project <span>Oneshot</span></h1><p>One record. Every operations report.</p></div>
+<div class="app-hero"><div class="brand-row"><div class="brand-mark">1×</div><div><div class="brand">Project <span>Oneshot</span></div><div class="subtitle">One record. Every operations report.</div></div></div><div class="status-pill"><span class="status-dot"></span>WORKSPACE READY</div></div>
 """, unsafe_allow_html=True)
 new_tab, expense_tab, records_tab, reports_tab = st.tabs(["New Entry", "Direct Expenses", "Records", "Generate Reports"])
 
@@ -291,14 +288,12 @@ with new_tab:
     workflow_steps(["Add evidence", "Review details", "Save record"], 0)
     c1, c2 = st.columns(2)
     upload = c1.file_uploader("Upload photo or PDF", type=["jpg", "jpeg", "png", "webp", "pdf"], key="trip_upload")
-    with c2:
-        st.markdown('<div class="voice-label">Voice instruction · English / हिन्दी / मराठी</div>', unsafe_allow_html=True)
-        audio = mic_recorder(start_prompt="🎙️ Autofill with Voice Prompt", stop_prompt="✓ Stop and autofill", just_once=False, use_container_width=True, key="trip_audio")
+    audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key="trip_audio")
     instruction = st.text_input("Optional typed instruction", placeholder="e.g., Invoice number is 12234", key="trip_instruction")
     files = evidence(upload, audio)
     if upload:
         autofill(evidence(upload, None), instruction, "trip")
-    if audio:
+    if st.button("Autofill with Voice Prompt", type="primary", disabled=audio is None, key="trip_voice_autofill", icon="🎙️"):
         autofill(evidence(None, audio), instruction, "trip")
     with st.container(border=True):
         values = trip_form("trip", business_memory)
@@ -311,14 +306,12 @@ with expense_tab:
     workflow_steps(["Add receipt", "Categorise", "Save expense"], 0)
     c1, c2 = st.columns(2)
     expense_upload = c1.file_uploader("Attach bill or receipt", type=["jpg", "jpeg", "png", "webp", "pdf"], key="expense_upload")
-    with c2:
-        st.markdown('<div class="voice-label">Voice instruction · English / हिन्दी / मराठी</div>', unsafe_allow_html=True)
-        expense_audio = mic_recorder(start_prompt="🎙️ Autofill with Voice Prompt", stop_prompt="✓ Stop and autofill", just_once=False, use_container_width=True, key="expense_audio")
+    expense_audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key="expense_audio")
     expense_instruction = st.text_input("Optional expense instruction", key="expense_instruction", placeholder="e.g., Driver salary ₹12,000 paid by RTGS")
     expense_files = evidence(expense_upload, expense_audio)
     if expense_upload:
         autofill(evidence(expense_upload, None), expense_instruction, "expense", "EXPENSE")
-    if expense_audio:
+    if st.button("Autofill with Voice Prompt", type="primary", disabled=expense_audio is None, key="expense_voice_autofill", icon="🎙️"):
         autofill(evidence(None, expense_audio), expense_instruction, "expense", "EXPENSE")
     with st.container(border=True):
         c1, c2, c3 = st.columns(3)
@@ -326,12 +319,12 @@ with expense_tab:
         st.markdown("#### Expense breakdown")
         cols = st.columns(3)
         for i, category in enumerate(DIRECT_EXPENSE_COLUMNS):
-            v[category] = cols[i % 3].number_input(f"{category} (₹)", min_value=0.0, value=None, placeholder="e.g., 5,000", format="%.2f", key=f"expense_category_{i}")
+            v[category] = cols[i % 3].number_input(f"{category} (₹)", min_value=0.0, value=None, placeholder="e.g., 5,000", key=f"expense_category_{i}")
         v["remarks"] = st.text_area("Remarks", key="expense_remarks", placeholder="e.g., August office rent")
         st.markdown("#### Mode of payment")
         st.caption("Fill every mode used for this expense.")
         for col, (label, field) in zip(st.columns(4), PAYMENT_FIELDS.items()):
-            v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 5,000", format="%.2f", key=f"expense_{field}")
+            v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 5,000", key=f"expense_{field}")
         expense_total = sum(number(v[name]) for name in DIRECT_EXPENSE_COLUMNS)
         paid_total = sum(number(v[field]) for field in PAYMENT_FIELDS.values())
         c1, c2 = st.columns(2)
