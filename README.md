@@ -6,6 +6,8 @@ Missing or uncertain values remain blank and flagged for later completion in Req
 
 The interface contains four tabs: `New Entry`, `Direct Expenses`, `Records`, and `Generate Reports`. New Entry and Direct Expenses accept image/PDF evidence and fast browser voice capture in English, Hindi, or Marathi. Records remain editable and every saved change writes a revision snapshot.
 
+Saved, verified trip records also form a deterministic business-memory layer. Exact vehicle, company, and beneficiary matches can suggest commonly approved capacity, transporter, ownership, branch, account, and IFSC values. Memory suggestions show their supporting record count and require an explicit click to apply; they only fill blank fields and never overwrite uploaded evidence or user-entered values.
+
 ## Quick start on macOS
 
 ```bash

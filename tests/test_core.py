@@ -18,6 +18,7 @@ from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
 from src.operational_dtr_export import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
 from src.pnl_report import DIRECT_EXPENSE_COLUMNS, export_pnl, pnl_summary
+from src.business_memory import build_business_memory, recall
 from src.workflow_ai import convert_rtgs_to_dtr as workflow_convert_rtgs_to_dtr
 from src.workflow_store import RequestStore as WorkflowRequestStore
 from src.ai_intake import DTRIntakeResult, DTRIntakeRow, _model_unavailable, _prompt, extract_intake, result_to_records
@@ -465,6 +466,26 @@ def test_pnl_uses_trip_margin_and_direct_expense_categories():
     workbook = load_workbook(BytesIO(export_pnl(trips, expenses, dt.date(2026, 8, 1), dt.date(2026, 8, 31))))
     assert workbook["P&L"]["A1"].value.startswith("Profit & Loss")
     assert len(DIRECT_EXPENSE_COLUMNS) == 12
+
+
+def test_business_memory_uses_repeated_verified_records_without_guessing():
+    rows = [
+        {"status": "Verified", "report_scope": "Both", "vehicle_number": "MH14JL9818",
+         "vehicle_type": "10MT", "transporter_name": "XYZ", "company_name": "SG", "branch": "Pune",
+         "beneficiary_name": "Demo", "rtgs_data": '{"BENE_ACC_NO":"00123","BENE_IFSC":"ICIC0001"}'},
+        {"status": "Verified", "report_scope": "Both", "vehicle_number": "MH 14 JL 9818",
+         "vehicle_type": "10MT", "transporter_name": "XYZ", "company_name": "SG", "branch": "Pune",
+         "beneficiary_name": "Demo", "rtgs_data": '{"BENE_ACC_NO":"00123","BENE_IFSC":"ICIC0001"}'},
+        {"status": "Cancelled", "report_scope": "Both", "vehicle_number": "MH14JL9818",
+         "vehicle_type": "99MT", "transporter_name": "Wrong"},
+    ]
+    memory = build_business_memory(rows)
+    vehicle = recall(memory, "vehicles", "mh-14-jl-9818")
+    assert vehicle["vehicle_capacity"] == ("10MT", 2)
+    assert vehicle["transporter_name"] == ("XYZ", 2)
+    assert recall(memory, "companies", "sg")["branch"] == ("Pune", 2)
+    assert recall(memory, "beneficiaries", "demo")["account_number"] == ("00123", 2)
+    assert recall(memory, "vehicles", "UNKNOWN") == {}
 
 
 def test_operational_dtr_export_uses_full_reference_shape():

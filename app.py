@@ -8,6 +8,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from src.ai_intake import DTR_REVIEW_COLUMNS, extract_intake
+from src.business_memory import build_business_memory, recall
 from src.config import ROOT
 from src.operational_dtr_export import export_operational_dtr
 from src.pnl_report import DIRECT_EXPENSE_COLUMNS, export_pnl, pnl_summary
@@ -110,7 +111,11 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
         for field, value in result.rows[0].model_dump().items():
             if value not in (None, ""):
                 state_field = expense_keys.get(field, field) if mode == "EXPENSE" else field
-                st.session_state[f"{prefix}_{state_field}"] = as_date(value) if field == "date" else value
+                state_key = f"{prefix}_{state_field}"
+                current = st.session_state.get(state_key)
+                blank = current in (None, "", 0, 0.0) or (field == "date" and current == dt.date.today())
+                if blank:
+                    st.session_state[state_key] = as_date(value) if field == "date" else value
         st.success("Form populated from the evidence. Please review every field before saving.")
     except Exception as exc:
         st.error(f"Could not auto-fill the form: {exc}")
@@ -142,7 +147,7 @@ def trip_payload(v, files):
         "payment_mode": ", ".join(name for name, amount in payments.items() if amount), "revenue": v["revenue"],
         "transporter_freight": v["transporter_freight"], "rtgs_advance": v["rtgs_advance"], "cash_advance": v["cash_advance"],
         "upi": v["upi"], "diesel_advance": v["diesel_advance"], "total_advance": total,
-        "balance_amount": max(number(v["transporter_freight"]) - total, 0), "status": "Submitted", "notes": v["remarks"],
+        "balance_amount": max(number(v["transporter_freight"]) - total, 0), "status": "Verified", "notes": v["remarks"],
         "dtr_data": dtr, "rtgs_data": rtgs, **file_values(files),
     }
 
@@ -156,7 +161,7 @@ def expense_payload(v, files):
         "amount": sum(categories.values()), "payment_mode": ", ".join(k for k, val in payments.items() if val),
         "rtgs_advance": payments["RTGS"], "cash_advance": payments["Cash"], "upi": payments["UPI"],
         "diesel_advance": payments["Diesel"], "total_advance": sum(payments.values()), "notes": v["remarks"],
-        "status": "Submitted", "dtr_data": {"categories": categories, "payments": payments}, **file_values(files),
+        "status": "Verified", "dtr_data": {"categories": categories, "payments": payments}, **file_values(files),
     }
 
 
@@ -176,7 +181,30 @@ def workflow_steps(items, active=0):
     st.markdown(f'<div class="flow-strip">{steps}</div>', unsafe_allow_html=True)
 
 
-def trip_form(prefix):
+def apply_memory(prefix, fields):
+    """Suggestions only fill blanks; they never replace evidence or user values."""
+    for field, value in fields.items():
+        key = f"{prefix}_{field}"
+        if st.session_state.get(key) in (None, "", 0, 0.0):
+            st.session_state[key] = value[0]
+
+
+def memory_prompt(prefix, title, source, suggestion, field_names):
+    usable = {field: suggestion[field] for field in field_names if field in suggestion}
+    missing = {field: value for field, value in usable.items() if st.session_state.get(f"{prefix}_{field}") in (None, "", 0, 0.0)}
+    if not missing:
+        return
+    labels = {
+        "vehicle_capacity": "Capacity", "transporter_name": "Transporter", "ownership_type": "Ownership",
+        "vehicle_placed_by": "Placed by", "branch": "Branch", "beneficiary_account_number": "Account",
+        "beneficiary_ifsc_code": "IFSC",
+    }
+    details = "".join(f'<span><b>{labels.get(field, field.title())}</b> {value[0]} · {value[1]} saved</span>' for field, value in missing.items())
+    st.markdown(f'<div class="memory-card"><div><small>BUSINESS MEMORY</small><strong>{title}</strong><p>{details}</p></div></div>', unsafe_allow_html=True)
+    st.button("Apply suggestion", key=f"memory_{prefix}_{source}", on_click=apply_memory, args=(prefix, missing), icon="✨")
+
+
+def trip_form(prefix, memory):
     st.markdown("#### 1. Basic information")
     c1, c2 = st.columns(2)
     v = {"date": c1.date_input("Date *", value=st.session_state.get(f"{prefix}_date", dt.date.today()), key=f"{prefix}_date"), "branch": c2.text_input("Branch *", key=f"{prefix}_branch", placeholder="e.g., Pune"), "company_name": st.text_input("Company name *", key=f"{prefix}_company_name")}
@@ -192,6 +220,7 @@ def trip_form(prefix):
     current = st.session_state.get(f"{prefix}_ownership_type", "")
     v["ownership_type"] = c3.selectbox("Own or outside", choices, index=choices.index(current) if current in choices else 0, key=f"{prefix}_ownership_type")
     v["vehicle_placed_by"] = st.text_input("Vehicle placed by", key=f"{prefix}_vehicle_placed_by")
+    memory_prompt(prefix, f"Known setup for {v['vehicle_number']}", f"vehicle_{v['vehicle_number']}", recall(memory, "vehicles", v["vehicle_number"]), ["vehicle_capacity", "transporter_name", "ownership_type", "vehicle_placed_by"])
     st.markdown("#### 3. Beneficiary details")
     c1, c2 = st.columns(2)
     v["beneficiary_name"] = c1.text_input("Beneficiary name", key=f"{prefix}_beneficiary_name")
@@ -199,6 +228,10 @@ def trip_form(prefix):
     c1, c2 = st.columns(2)
     v["beneficiary_account_number"] = c1.text_input("Account number", key=f"{prefix}_beneficiary_account_number")
     v["beneficiary_ifsc_code"] = c2.text_input("IFSC code", key=f"{prefix}_beneficiary_ifsc_code")
+    memory_prompt(prefix, f"Known branch for {v['company_name']}", f"company_{v['company_name']}", recall(memory, "companies", v["company_name"]), ["branch"])
+    beneficiary_memory = recall(memory, "beneficiaries", v["beneficiary_name"])
+    beneficiary_memory = {"beneficiary_account_number" if key == "account_number" else "beneficiary_ifsc_code" if key == "ifsc" else key: value for key, value in beneficiary_memory.items()}
+    memory_prompt(prefix, f"Known beneficiary details for {v['beneficiary_name']}", f"beneficiary_{v['beneficiary_name']}", beneficiary_memory, ["beneficiary_account_number", "beneficiary_ifsc_code", "transporter_name"])
     st.markdown("#### 4. Payment details")
     c1, c2 = st.columns(2)
     v["revenue"] = c1.number_input("Revenue freight (₹)", min_value=0.0, key=f"{prefix}_revenue")
@@ -221,6 +254,8 @@ except Exception as exc:
     st.error(f"Database connection failed: {exc}")
     st.stop()
 
+business_memory = build_business_memory(store.list(status="All active"))
+
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap');
@@ -232,7 +267,7 @@ st.markdown("""
 html,body,[class*="css"]{font-family:'DM Sans',sans-serif}.stApp,[data-testid="stAppViewContainer"]{color:var(--ink);background:radial-gradient(circle at 8% 0%,rgba(44,190,169,.13),transparent 25rem),radial-gradient(circle at 94% 10%,rgba(92,118,255,.09),transparent 28rem),#f6f8f8}
 [data-testid="stHeader"]{background:rgba(246,248,248,.72);backdrop-filter:blur(14px)}.block-container{max-width:1200px;padding:2rem 2rem 5rem}.app-hero{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;padding:22px 25px;margin-bottom:20px;color:#fff;background:linear-gradient(125deg,#102f3b 0%,#075f5a 55%,#0d8c7d 100%);border:1px solid rgba(255,255,255,.12);border-radius:22px;box-shadow:0 18px 50px rgba(19,57,67,.18);animation:rise .45s ease-out}.app-hero:after{content:"";position:absolute;inset:-70% auto -70% -30%;width:28%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.12),transparent);transform:rotate(14deg);animation:sheen 7s ease-in-out infinite}.brand-row{display:flex;align-items:center;gap:14px}.brand-mark{display:grid;place-items:center;width:46px;height:46px;border-radius:14px;background:linear-gradient(145deg,#34d6be,#fff);color:#075f5a;font:800 1.25rem 'Manrope';box-shadow:inset 0 0 0 1px rgba(255,255,255,.5)}.brand{font:800 clamp(1.6rem,3vw,2.2rem) 'Manrope';letter-spacing:-.045em}.brand span{color:#6de7d3}.subtitle{margin-top:3px;color:#cbe9e4;font-size:.92rem}.status-pill{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid rgba(255,255,255,.18);border-radius:999px;background:rgba(255,255,255,.1);font-size:.78rem;font-weight:700;white-space:nowrap}.status-dot{width:8px;height:8px;border-radius:50%;background:#56efb5;animation:breathe 2.4s infinite}
 .stTabs [data-baseweb="tab-list"]{gap:6px;background:rgba(255,255,255,.82);backdrop-filter:blur(16px);padding:7px;border:1px solid rgba(214,226,223,.9);border-radius:16px;box-shadow:0 7px 24px rgba(24,58,64,.07)}.stTabs [data-baseweb="tab"]{height:44px;border-radius:11px;padding:9px 20px;color:#6b797d;font-weight:700;transition:all .2s ease}.stTabs [data-baseweb="tab"]:hover{color:var(--teal);background:#f0f8f6}.stTabs [aria-selected="true"]{color:#fff!important;background:linear-gradient(135deg,var(--teal),var(--teal2))!important;box-shadow:0 6px 16px rgba(8,127,115,.22)}.stTabs [data-baseweb="tab-highlight"]{display:none}.stTabs [data-baseweb="tab-panel"]{animation:rise .36s ease-out}
-.page-intro{display:flex;gap:14px;align-items:center;margin:26px 0 18px}.page-icon{display:grid;place-items:center;width:48px;height:48px;border-radius:15px;background:linear-gradient(145deg,#e1f7f2,#f5fffd);border:1px solid #cbe9e3;font-size:1.35rem;box-shadow:0 8px 22px rgba(8,127,115,.09)}.eyebrow{color:var(--teal);font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.page-intro h2{font:800 1.45rem 'Manrope';letter-spacing:-.025em;margin:2px 0}.page-intro p{margin:0;color:var(--muted);font-size:.9rem}.flow-strip{display:flex;gap:8px;margin:0 0 18px}.flow-step{display:flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.75);color:#7b898d;font-size:.76rem;font-weight:700}.flow-step span{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#eaf1ef;color:#647572;font-size:.68rem}.flow-step.active{border-color:#b8e2da;background:#e8f7f4;color:#087468}.flow-step.active span{color:#fff;background:var(--teal)}
+.page-intro{display:flex;gap:14px;align-items:center;margin:26px 0 18px}.page-icon{display:grid;place-items:center;width:48px;height:48px;border-radius:15px;background:linear-gradient(145deg,#e1f7f2,#f5fffd);border:1px solid #cbe9e3;font-size:1.35rem;box-shadow:0 8px 22px rgba(8,127,115,.09)}.eyebrow{color:var(--teal);font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.page-intro h2{font:800 1.45rem 'Manrope';letter-spacing:-.025em;margin:2px 0}.page-intro p{margin:0;color:var(--muted);font-size:.9rem}.flow-strip{display:flex;gap:8px;margin:0 0 18px}.flow-step{display:flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.75);color:#7b898d;font-size:.76rem;font-weight:700}.flow-step span{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#eaf1ef;color:#647572;font-size:.68rem}.flow-step.active{border-color:#b8e2da;background:#e8f7f4;color:#087468}.flow-step.active span{color:#fff;background:var(--teal)}.memory-card{margin:9px 0 5px;padding:12px 14px;border:1px solid #cae6df;border-radius:13px;background:linear-gradient(135deg,#f3fbf9,#f8f9ff);box-shadow:0 6px 18px rgba(8,127,115,.06)}.memory-card small{display:block;color:#087f73;font-size:.62rem;font-weight:800;letter-spacing:.1em}.memory-card strong{display:block;margin:2px 0;color:#24444a;font-size:.83rem}.memory-card p{display:flex;flex-wrap:wrap;gap:6px;margin:5px 0 0}.memory-card span{padding:4px 7px;border-radius:7px;background:#fff;border:1px solid #e1ece9;color:#60716f;font-size:.72rem}.memory-card span b{color:#1d514b;margin-right:3px}
 div[data-testid="stVerticalBlockBorderWrapper"]{background:rgba(255,255,255,.92);border:1px solid rgba(215,228,224,.95)!important;border-radius:20px;box-shadow:0 12px 36px rgba(34,63,68,.075);transition:transform .2s ease,box-shadow .2s ease}div[data-testid="stVerticalBlockBorderWrapper"]:hover{box-shadow:0 16px 42px rgba(34,63,68,.1)}h4{font:800 1rem 'Manrope'!important;color:#214047!important;padding:10px 0 7px!important;border-bottom:1px solid #edf2f1}
 [data-testid="stFileUploader"]{padding:13px;border-radius:17px;background:rgba(255,255,255,.75);border:1px solid var(--line)}[data-testid="stFileUploaderDropzone"]{border:1.5px dashed #9ecdc5;background:linear-gradient(145deg,#f5fbfa,#edf8f6);border-radius:13px;transition:all .2s ease}[data-testid="stFileUploaderDropzone"]:hover{border-color:var(--teal);transform:translateY(-1px);box-shadow:0 8px 20px rgba(8,127,115,.08)}[data-testid="stAudioInput"]{padding:13px;border:1px solid var(--line);border-radius:17px;background:rgba(255,255,255,.75)}
 [data-baseweb="input"]>div,[data-baseweb="select"]>div,textarea{border-color:#dce7e4!important;border-radius:11px!important;background:#fbfcfc!important;transition:border .18s ease,box-shadow .18s ease!important}[data-baseweb="input"]>div:focus-within,[data-baseweb="select"]>div:focus-within,textarea:focus{border-color:#43ad9f!important;box-shadow:0 0 0 3px rgba(18,165,148,.1)!important}.stButton>button,.stDownloadButton>button{border-radius:11px;font-weight:800;min-height:42px;transition:transform .18s ease,box-shadow .18s ease}.stButton>button[kind="primary"],.stDownloadButton>button[kind="primary"]{position:relative;overflow:hidden;border:0;color:#fff;background:linear-gradient(135deg,#087f73,#12a594);box-shadow:0 8px 20px rgba(8,127,115,.2)}.stButton>button:hover,.stDownloadButton>button:hover{transform:translateY(-1px);box-shadow:0 11px 25px rgba(8,127,115,.24)}
@@ -253,7 +288,7 @@ with new_tab:
     files = evidence(upload, audio)
     autofill(files, instruction, "trip")
     with st.container(border=True):
-        values = trip_form("trip")
+        values = trip_form("trip", business_memory)
         if st.button("Save record", type="primary", disabled=not values["branch"] or not values["vehicle_number"], key="save_trip"):
             saved = store.create({**trip_payload(values, files), "created_by": "Operations user"})
             st.success(f"Saved {request_label(saved, values['date'])}. Entries remain filled for the next record.")
