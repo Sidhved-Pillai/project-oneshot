@@ -26,3 +26,10 @@ def financial_values(expense_type, payment_mode, amount, diesel_quantity=None):
             values[target] = amount
             values["total_advance"] = amount
     return values
+
+
+def advance_summary(transporter_freight, *advance_amounts):
+    """Return exact advance and payable totals; a negative balance means overpayment."""
+    freight = Decimal(str(transporter_freight or 0))
+    total_advance = sum((Decimal(str(value or 0)) for value in advance_amounts), Decimal("0"))
+    return {"transporter_freight": freight, "total_advance": total_advance, "balance_payable": freight - total_advance}

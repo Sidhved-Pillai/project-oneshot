@@ -13,7 +13,7 @@ from src.dtr_generator import generate_dtr, final_review_rows, DTR_COLUMNS, FINA
 from src.excel_exporter import export_dtr
 from src.gemini_parser import parse_with_gemini
 from src.historical_suggester import HistoricalSuggester
-from src.entry_finance import financial_values
+from src.entry_finance import advance_summary, financial_values
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
 from src.operational_dtr_export import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
@@ -259,6 +259,15 @@ def test_financial_mapping_and_persistent_request_roundtrip(tmp_path):
     assert len(rows) == 1 and rows[0]["source_image"] == b"proof"
     dtr = rows_to_dtr(rows)
     assert dtr.iloc[0]["UPI"] == 1250 and dtr.iloc[0]["Invoice No."] == "INV-7"
+
+
+def test_advance_summary_uses_all_modes_and_preserves_overpayment():
+    normal = advance_summary(38000, 18000, 2000, 3000, 1000)
+    assert normal["total_advance"] == 24000
+    assert normal["balance_payable"] == 14000
+    overpaid = advance_summary(20000, 18000, 3000)
+    assert overpaid["total_advance"] == 21000
+    assert overpaid["balance_payable"] == -1000
 
 
 def test_archive_hides_without_deleting(tmp_path):
