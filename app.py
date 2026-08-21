@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from src.ai_intake import DTR_REVIEW_COLUMNS, extract_intake
 from src.business_memory import build_business_memory, recall
 from src.config import ROOT
-from src.entry_finance import advance_summary
+from src.entry_finance import advance_summary, applicable_transporter_freight, is_own_vehicle
 from src.operational_dtr_export import export_operational_dtr
 from src.pnl_report import DIRECT_EXPENSE_COLUMNS, export_pnl, pnl_summary
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
@@ -20,6 +20,7 @@ load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
 STORE_INTERFACE_VERSION = 6
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
+BRANCHES = ["Wada", "Baroda", "Pune"]
 
 
 def secret(name):
@@ -129,13 +130,14 @@ def file_values(files):
 
 def trip_payload(v, files):
     payments = {name: number(v[field]) for name, field in PAYMENT_FIELDS.items()}
-    summary = advance_summary(v["transporter_freight"], *payments.values())
+    transporter_freight = float(applicable_transporter_freight(v["ownership_type"], v["transporter_freight"]))
+    summary = advance_summary(transporter_freight, *payments.values())
     total, balance = float(summary["total_advance"]), float(summary["balance_payable"])
     dtr = {
         "Branch": v["branch"], "Compnay Name": v["company_name"], "Date": v["date"], "Vehicle No.": v["vehicle_number"],
         "Vehicle Type": v["vehicle_capacity"], "Own/Outside Veh.": v["ownership_type"], "From": v["from_location"],
         "To": v["to_location"], "LR No.": v["lr_invoice_number"], "Invoice No.": v["lr_invoice_number"],
-        "Revenue": v["revenue"], "Transporter Freight": v["transporter_freight"], "RTGS ADVANCE": v["rtgs_advance"],
+        "Revenue": v["revenue"], "Transporter Freight": transporter_freight, "RTGS ADVANCE": v["rtgs_advance"],
         "Cash Adv.": v["cash_advance"], "UPI": v["upi"], "Diesel Adv.": v["diesel_advance"], "Total Adv.": total,
         "Balance Amt.": balance, "Benificiary Name": v["beneficiary_name"],
         "Transporter Name": v["transporter_name"], "Veh Placed by": v["vehicle_placed_by"], "Remark": v["remarks"],
@@ -147,7 +149,7 @@ def trip_payload(v, files):
         "company_name": v["company_name"], "branch": v["branch"], "invoice_number": v["lr_invoice_number"],
         "beneficiary_name": v["beneficiary_name"], "transporter_name": v["transporter_name"], "amount": total,
         "payment_mode": ", ".join(name for name, amount in payments.items() if amount), "revenue": v["revenue"],
-        "transporter_freight": v["transporter_freight"], "rtgs_advance": v["rtgs_advance"], "cash_advance": v["cash_advance"],
+        "transporter_freight": transporter_freight, "rtgs_advance": v["rtgs_advance"], "cash_advance": v["cash_advance"],
         "upi": v["upi"], "diesel_advance": v["diesel_advance"], "total_advance": total,
         "balance_amount": balance, "status": "Verified", "notes": v["remarks"],
         "dtr_data": dtr, "rtgs_data": rtgs, **file_values(files),
@@ -209,7 +211,13 @@ def memory_prompt(prefix, title, source, suggestion, field_names):
 def trip_form(prefix, memory):
     st.markdown("#### 1. Basic information")
     c1, c2 = st.columns(2)
-    v = {"date": c1.date_input("Date *", value=st.session_state.get(f"{prefix}_date", dt.date.today()), key=f"{prefix}_date"), "branch": c2.text_input("Branch *", key=f"{prefix}_branch", placeholder="e.g., Pune"), "company_name": st.text_input("Company name *", key=f"{prefix}_company_name", placeholder="e.g., SG Logistics")}
+    branch_key = f"{prefix}_branch"
+    branch_lookup = {branch.casefold(): branch for branch in BRANCHES}
+    current_branch = branch_lookup.get(clean_text(st.session_state.get(branch_key)).casefold(), "")
+    if st.session_state.get(branch_key) != current_branch:
+        st.session_state[branch_key] = current_branch
+    branch_choices = ["", *BRANCHES]
+    v = {"date": c1.date_input("Date *", value=st.session_state.get(f"{prefix}_date", dt.date.today()), format="DD/MM/YYYY", key=f"{prefix}_date"), "branch": c2.selectbox("Branch *", branch_choices, index=branch_choices.index(current_branch), key=branch_key, placeholder="Select a branch"), "company_name": st.text_input("Company name *", key=f"{prefix}_company_name", placeholder="e.g., SG Logistics")}
     c1, c2 = st.columns(2)
     v["from_location"] = c1.text_input("From *", key=f"{prefix}_from_location", placeholder="e.g., Talegaon, Pune")
     v["to_location"] = c2.text_input("To *", key=f"{prefix}_to_location", placeholder="e.g., Bhiwandi, Thane")
@@ -237,7 +245,13 @@ def trip_form(prefix, memory):
     st.markdown("#### 4. Payment details")
     c1, c2 = st.columns(2)
     v["revenue"] = c1.number_input("Revenue freight (₹)", min_value=0.0, value=None, placeholder="e.g., 50,000", key=f"{prefix}_revenue")
-    v["transporter_freight"] = c2.number_input("Transporter freight (₹)", min_value=0.0, value=None, placeholder="e.g., 38,000", key=f"{prefix}_transporter_freight")
+    own_vehicle = is_own_vehicle(v["ownership_type"])
+    transporter_freight_key = f"{prefix}_transporter_freight"
+    if own_vehicle:
+        st.session_state[transporter_freight_key] = None
+    v["transporter_freight"] = c2.number_input("Transporter freight (₹)", min_value=0.0, value=None, placeholder="Not applicable for own vehicles" if own_vehicle else "e.g., 38,000", disabled=own_vehicle, key=transporter_freight_key)
+    if own_vehicle:
+        c2.caption("Not applicable for an own vehicle.")
     st.caption("Enter amounts in every payment mode used. More than one mode is supported.")
     for col, (label, field) in zip(st.columns(4), PAYMENT_FIELDS.items()):
         v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 2,000", key=f"{prefix}_{field}")
@@ -317,7 +331,7 @@ with expense_tab:
         autofill(evidence(None, expense_audio), "", "expense", "EXPENSE")
     with st.container(border=True):
         c1, c2, c3 = st.columns(3)
-        v = {"date": c1.date_input("Date *", key="expense_date"), "beneficiary_name": c2.text_input("Beneficiary name", key="expense_beneficiary", placeholder="e.g., Rajesh Kumar"), "vehicle_number": c3.text_input("Vehicle name / number", key="expense_vehicle", placeholder="e.g., MH14JL9818")}
+        v = {"date": c1.date_input("Date *", format="DD/MM/YYYY", key="expense_date"), "beneficiary_name": c2.text_input("Beneficiary name", key="expense_beneficiary", placeholder="e.g., Rajesh Kumar"), "vehicle_number": c3.text_input("Vehicle name / number", key="expense_vehicle", placeholder="e.g., MH14JL9818")}
         st.markdown("#### Expense breakdown")
         cols = st.columns(3)
         for i, category in enumerate(DIRECT_EXPENSE_COLUMNS):
@@ -361,14 +375,16 @@ with records_tab:
                 st.download_button("Open attached evidence", row["source_image"], row.get("source_filename", "evidence.pdf"), row.get("source_mime_type"))
         if st.button("Save record changes", type="primary", key=f"save_record_{row['request_number']}"):
             item = edited.iloc[0].to_dict()
-            update_values = {"trip_date": as_date(item["Date"]), "branch": clean_text(item["Branch"]), "company_name": clean_text(item["Company"]), "vehicle_number": clean_text(item["Vehicle"]), "vehicle_type": clean_text(item["Vehicle Capacity"]), "ownership_type": clean_text(item["Own / Outside"]), "from_location": clean_text(item["From"]), "to_location": clean_text(item["To"]), "invoice_number": clean_text(item["LR / Invoice"]), "beneficiary_name": clean_text(item["Beneficiary"]), "revenue": number(item["Revenue"]), "transporter_freight": number(item["Transporter Freight"]), "rtgs_advance": number(item["RTGS"]), "cash_advance": number(item["Cash"]), "upi": number(item["UPI"]), "diesel_advance": number(item["Diesel"]), "notes": clean_text(item["Remarks"])}
+            ownership_type = clean_text(item["Own / Outside"])
+            transporter_freight = float(applicable_transporter_freight(ownership_type, item["Transporter Freight"]))
+            update_values = {"trip_date": as_date(item["Date"]), "branch": clean_text(item["Branch"]), "company_name": clean_text(item["Company"]), "vehicle_number": clean_text(item["Vehicle"]), "vehicle_type": clean_text(item["Vehicle Capacity"]), "ownership_type": ownership_type, "from_location": clean_text(item["From"]), "to_location": clean_text(item["To"]), "invoice_number": clean_text(item["LR / Invoice"]), "beneficiary_name": clean_text(item["Beneficiary"]), "revenue": number(item["Revenue"]), "transporter_freight": transporter_freight, "rtgs_advance": number(item["RTGS"]), "cash_advance": number(item["Cash"]), "upi": number(item["UPI"]), "diesel_advance": number(item["Diesel"]), "notes": clean_text(item["Remarks"])}
             if is_expense:
                 categories = {name: number(item.get(name)) for name in DIRECT_EXPENSE_COLUMNS}
                 update_values.update({"amount": sum(categories.values()), "dtr_data": {**raw, "categories": categories}})
             else:
-                payment = advance_summary(item["Transporter Freight"], *(item[name] for name in ("RTGS", "Cash", "UPI", "Diesel")))
+                payment = advance_summary(transporter_freight, *(item[name] for name in ("RTGS", "Cash", "UPI", "Diesel")))
                 total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
-                updated_dtr = {**raw, "Branch": item["Branch"], "Compnay Name": item["Company"], "Date": as_date(item["Date"]), "Vehicle No.": item["Vehicle"], "Vehicle Type": item["Vehicle Capacity"], "Own/Outside Veh.": item["Own / Outside"], "From": item["From"], "To": item["To"], "LR No.": item["LR / Invoice"], "Invoice No.": item["LR / Invoice"], "Revenue": item["Revenue"], "Transporter Freight": item["Transporter Freight"], "RTGS ADVANCE": item["RTGS"], "Cash Adv.": item["Cash"], "UPI": item["UPI"], "Diesel Adv.": item["Diesel"], "Total Adv.": total, "Balance Amt.": balance, "Benificiary Name": item["Beneficiary"], "Veh Placed by": item["Vehicle Placed By"], "Remark": item["Remarks"]}
+                updated_dtr = {**raw, "Branch": item["Branch"], "Compnay Name": item["Company"], "Date": as_date(item["Date"]), "Vehicle No.": item["Vehicle"], "Vehicle Type": item["Vehicle Capacity"], "Own/Outside Veh.": item["Own / Outside"], "From": item["From"], "To": item["To"], "LR No.": item["LR / Invoice"], "Invoice No.": item["LR / Invoice"], "Revenue": item["Revenue"], "Transporter Freight": transporter_freight, "RTGS ADVANCE": item["RTGS"], "Cash Adv.": item["Cash"], "UPI": item["UPI"], "Diesel Adv.": item["Diesel"], "Total Adv.": total, "Balance Amt.": balance, "Benificiary Name": item["Beneficiary"], "Veh Placed by": item["Vehicle Placed By"], "Remark": item["Remarks"]}
                 updated_rtgs = {**rtgs_raw, "BNF_NAME": item["Beneficiary"], "BENE_ACC_NO": item["Account Number"], "BENE_IFSC": item["IFSC"], "AMOUNT": item["RTGS"], "REMARK": item["Remarks"], "Origin Area": item["Branch"]}
                 update_values.update({"amount": total, "total_advance": total, "balance_amount": balance, "dtr_data": updated_dtr, "rtgs_data": updated_rtgs})
             store.update(row["request_number"], update_values, "records_tab", "Operations user")
@@ -388,8 +404,8 @@ with reports_tab:
     page_intro("Report studio", "Generate reports", "Choose a period and create a ready-to-use DTR, RTGS, or P&L workbook.", "↗")
     workflow_steps(["Choose dates", "Select format", "Download"], 0)
     c1, c2 = st.columns(2)
-    start = c1.date_input("Records from", value=dt.date.today() - dt.timedelta(days=30), key="report_from")
-    end = c2.date_input("Records to", value=dt.date.today(), key="report_to")
+    start = c1.date_input("Records from", value=dt.date.today() - dt.timedelta(days=30), format="DD/MM/YYYY", key="report_from")
+    end = c2.date_input("Records to", value=dt.date.today(), format="DD/MM/YYYY", key="report_to")
     report_type = st.segmented_control("Report type", ["DTR", "RTGS", "P&L"], default="DTR", key="report_type")
     selected_rows = store.list(start, end, status="All active") if start <= end else []
     trips = [row for row in selected_rows if row.get("report_scope") != "Expense"]
