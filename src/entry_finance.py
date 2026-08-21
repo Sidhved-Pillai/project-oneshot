@@ -1,16 +1,6 @@
 from decimal import Decimal
 
 
-def is_own_vehicle(ownership_type):
-    """Recognize both current and historical labels for company-owned vehicles."""
-    return str(ownership_type or "").strip().casefold().startswith("own")
-
-
-def applicable_transporter_freight(ownership_type, amount):
-    """Own vehicles never carry transporter freight."""
-    return Decimal("0") if is_own_vehicle(ownership_type) else Decimal(str(amount or 0))
-
-
 def financial_values(expense_type, payment_mode, amount, diesel_quantity=None):
     """Translate the simple entry controls into the existing DTR financial columns."""
     amount = Decimal(str(amount or 0))

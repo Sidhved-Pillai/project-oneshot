@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from src.ai_intake import DTR_REVIEW_COLUMNS, extract_intake
 from src.business_memory import build_business_memory, recall
 from src.config import ROOT
-from src.entry_finance import advance_summary, applicable_transporter_freight, is_own_vehicle
+from src.entry_finance import advance_summary
 from src.operational_dtr_export import export_operational_dtr
 from src.pnl_report import DIRECT_EXPENSE_COLUMNS, export_pnl, pnl_summary
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
@@ -46,6 +46,14 @@ def number(value):
         return float(value or 0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def is_own_vehicle(ownership_type):
+    return clean_text(ownership_type).casefold().startswith("own")
+
+
+def applicable_transporter_freight(ownership_type, amount):
+    return 0.0 if is_own_vehicle(ownership_type) else number(amount)
 
 
 def as_date(value):

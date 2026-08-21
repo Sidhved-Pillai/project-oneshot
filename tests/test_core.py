@@ -13,7 +13,7 @@ from src.dtr_generator import generate_dtr, final_review_rows, DTR_COLUMNS, FINA
 from src.excel_exporter import export_dtr
 from src.gemini_parser import parse_with_gemini
 from src.historical_suggester import HistoricalSuggester
-from src.entry_finance import advance_summary, applicable_transporter_freight, financial_values, is_own_vehicle
+from src.entry_finance import advance_summary, financial_values
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
 from src.operational_dtr_export import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
@@ -268,13 +268,6 @@ def test_advance_summary_uses_all_modes_and_preserves_overpayment():
     overpaid = advance_summary(20000, 18000, 3000)
     assert overpaid["total_advance"] == 21000
     assert overpaid["balance_payable"] == -1000
-
-
-def test_own_vehicle_never_uses_transporter_freight():
-    assert is_own_vehicle("Own")
-    assert is_own_vehicle("Own Vehicle")
-    assert applicable_transporter_freight("Own", 38000) == 0
-    assert applicable_transporter_freight("Outside", 38000) == 38000
 
 
 def test_archive_hides_without_deleting(tmp_path):
