@@ -1,5 +1,6 @@
 import datetime as dt
 import hashlib
+import hmac
 import json
 import os
 
@@ -21,6 +22,8 @@ st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide"
 STORE_INTERFACE_VERSION = 6
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 BRANCHES = ["Wada", "Baroda", "Pune"]
+SPECIAL_CODE_SALT = bytes.fromhex("28d7f0e0dfb9b32fecf4f4656d309042")
+SPECIAL_CODE_HASH = bytes.fromhex("b17d745a7cfdb8fad453e479e3950b905f0505478fe8268461ae74fdbc2248fb")
 ASCII_BOLD = str.maketrans(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
     "𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝗮𝗯𝗰𝗱𝗲𝗳𝗴𝗵𝗶𝗷𝗸𝗹𝗺𝗻𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝟬𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵",
@@ -58,6 +61,40 @@ def is_own_vehicle(ownership_type):
 
 def applicable_transporter_freight(ownership_type, amount):
     return 0.0 if is_own_vehicle(ownership_type) else number(amount)
+
+
+def verify_special_access_code(value):
+    entered = clean_text(value)
+    configured = clean_text(secret("SPECIAL_ACCESS_CODE"))
+    if configured:
+        return hmac.compare_digest(entered, configured)
+    candidate = hashlib.pbkdf2_hmac("sha256", entered.encode(), SPECIAL_CODE_SALT, 600_000)
+    return hmac.compare_digest(candidate, SPECIAL_CODE_HASH)
+
+
+def require_authentication():
+    if st.session_state.get("authenticated"):
+        return
+    st.markdown("""
+    <style>
+    [data-testid="stAppViewContainer"]{background:radial-gradient(circle at 50% 18%,rgba(41,151,255,.16),transparent 28rem),#f5f5f7}
+    [data-testid="stHeader"]{background:transparent}.block-container{max-width:520px;padding-top:15vh}
+    .login-heading{text-align:center;margin-bottom:24px}.login-heading h1{margin:0;color:#1d1d1f;font:800 2rem -apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;letter-spacing:-.045em}.login-heading p{margin:8px 0 0;color:#6e6e73;font-size:.95rem}
+    [data-testid="stForm"]{padding:24px;border:1px solid rgba(255,255,255,.9);border-radius:24px;background:rgba(255,255,255,.72);box-shadow:0 18px 50px rgba(31,52,78,.12);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px)}
+    [data-testid="stFormSubmitButton"] button{width:100%;min-height:44px;border:0;border-radius:999px;color:#fff;background:#0071e3;font-weight:700}
+    </style>
+    <div class="login-heading"><h1>Project Oneshot</h1><p>Enter the special-member access code to continue.</p></div>
+    """, unsafe_allow_html=True)
+    with st.form("special_member_login"):
+        access_code = st.text_input("6-digit access code", type="password", max_chars=6, placeholder="••••••", key="special_access_code")
+        submitted = st.form_submit_button("Continue", use_container_width=True)
+    if submitted:
+        if len(access_code) == 6 and access_code.isdigit() and verify_special_access_code(access_code):
+            st.session_state["authenticated"] = True
+            st.session_state.pop("special_access_code", None)
+            st.rerun()
+        st.error("Incorrect access code. Please try again.")
+    st.stop()
 
 
 def as_date(value):
@@ -302,6 +339,8 @@ def trip_form(prefix, memory):
     v["remarks"] = st.text_area("Remarks", key=f"{prefix}_remarks", placeholder="e.g., Advance paid for Talegaon to Bhiwandi trip")
     return v
 
+
+require_authentication()
 
 try:
     store = get_store(secret("DATABASE_URL"), STORE_INTERFACE_VERSION)
