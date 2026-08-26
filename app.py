@@ -72,6 +72,10 @@ def verify_special_access_code(value):
     return hmac.compare_digest(candidate, SPECIAL_CODE_HASH)
 
 
+def identify_special_member(value):
+    return "Sid" if verify_special_access_code(value) else None
+
+
 def require_authentication():
     if st.session_state.get("authenticated"):
         return
@@ -89,8 +93,12 @@ def require_authentication():
         access_code = st.text_input("6-digit access code", type="password", max_chars=6, placeholder="••••••", key="special_access_code")
         submitted = st.form_submit_button("Continue", use_container_width=True)
     if submitted:
-        if len(access_code) == 6 and access_code.isdigit() and verify_special_access_code(access_code):
+        member = identify_special_member(access_code) if len(access_code) == 6 and access_code.isdigit() else None
+        if member:
             st.session_state["authenticated"] = True
+            st.session_state["authenticated_user"] = member
+            st.session_state["is_special_member"] = True
+            st.session_state["welcome_pending"] = True
             st.session_state.pop("special_access_code", None)
             st.rerun()
         st.error("Incorrect access code. Please try again.")
@@ -341,6 +349,8 @@ def trip_form(prefix, memory):
 
 
 require_authentication()
+if st.session_state.pop("welcome_pending", False):
+    st.toast(f"Welcome {st.session_state['authenticated_user']}!", icon="👋")
 
 try:
     store = get_store(secret("DATABASE_URL"), STORE_INTERFACE_VERSION)
