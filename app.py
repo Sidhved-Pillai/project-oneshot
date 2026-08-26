@@ -91,6 +91,18 @@ def record_select_label(row):
     return f"{request_label(row)} [{details}]"
 
 
+def billtee_leaderboard(rows):
+    totals = {name: 0.0 for name in ("Ajit", "Nitish", "Ashok")}
+    for row in rows:
+        dtr = unpack(row.get("dtr_data"))
+        first_name = clean_text(dtr.get("Veh Placed by")).split(" ", 1)[0].casefold()
+        for name in totals:
+            if first_name == name.casefold():
+                totals[name] += number(dtr.get("Billtee"))
+                break
+    return sorted(totals.items(), key=lambda item: (-item[1], item[0]))
+
+
 def rtgs_remark(row):
     existing = unpack(row.get("rtgs_data")).get("REMARK") or row.get("notes")
     if clean_text(existing):
@@ -313,6 +325,7 @@ html,body,[class*="css"]{font-family:'DM Sans',sans-serif}.stApp,[data-testid="s
 [data-testid="stTabs"] [data-testid="stTab"]{overflow:hidden!important;border-radius:999px!important}[data-testid="stTabs"] [data-testid="stTab"]:hover{background:#edf8fd!important;border-color:rgba(190,224,240,.82)!important;border-radius:999px!important}[data-testid="stTabs"] [data-testid="stTab"][aria-selected="true"]>div:last-child{display:none!important}
 [data-testid="stTabs"] [role="tablist"]{padding-bottom:8px!important}
 .page-intro{display:flex;gap:14px;align-items:center;margin:26px 0 18px}.page-icon{display:grid;place-items:center;width:48px;height:48px;border-radius:15px;background:linear-gradient(145deg,#e1f7f2,#f5fffd);border:1px solid #cbe9e3;font-size:1.35rem;box-shadow:0 8px 22px rgba(8,127,115,.09)}.eyebrow{color:var(--teal);font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.page-intro h2{font:800 1.45rem 'Manrope';letter-spacing:-.025em;margin:2px 0}.page-intro p{margin:0;color:var(--muted);font-size:.9rem}.flow-strip{display:flex;gap:8px;margin:0 0 18px}.flow-step{display:flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.75);color:#7b898d;font-size:.76rem;font-weight:700}.flow-step span{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#eaf1ef;color:#647572;font-size:.68rem}.flow-step.active{border-color:#b8e2da;background:#e8f7f4;color:#087468}.flow-step.active span{color:#fff;background:var(--teal)}.memory-card{margin:9px 0 5px;padding:12px 14px;border:1px solid #cae6df;border-radius:13px;background:linear-gradient(135deg,#f3fbf9,#f8f9ff);box-shadow:0 6px 18px rgba(8,127,115,.06)}.memory-card small{display:block;color:#087f73;font-size:.62rem;font-weight:800;letter-spacing:.1em}.memory-card strong{display:block;margin:2px 0;color:#24444a;font-size:.83rem}.memory-card p{display:flex;flex-wrap:wrap;gap:6px;margin:5px 0 0}.memory-card span{padding:4px 7px;border-radius:7px;background:#fff;border:1px solid #e1ece9;color:#60716f;font-size:.72rem}.memory-card span b{color:#1d514b;margin-right:3px}
+.billtee-board{width:100%;margin:6px 0 18px;border-collapse:separate;border-spacing:0;overflow:hidden;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.82)}.billtee-board th,.billtee-board td{padding:11px 15px;text-align:left;border-bottom:1px solid #edf1f5;font-weight:800}.billtee-board th{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.05em}.billtee-board td:last-child,.billtee-board th:last-child{text-align:right}.billtee-board tr:last-child td{border-bottom:0}
 div[data-testid="stVerticalBlockBorderWrapper"]{background:rgba(255,255,255,.92);border:1px solid rgba(215,228,224,.95)!important;border-radius:20px;box-shadow:0 12px 36px rgba(34,63,68,.075);transition:transform .2s ease,box-shadow .2s ease}div[data-testid="stVerticalBlockBorderWrapper"]:hover{box-shadow:0 16px 42px rgba(34,63,68,.1)}h4{font:800 1rem 'Manrope'!important;color:#214047!important;padding:10px 0 7px!important;border-bottom:1px solid #edf2f1}
 [data-testid="stFileUploader"]{padding:13px;border-radius:17px;background:rgba(255,255,255,.78);border:1px solid var(--line)}[data-testid="stFileUploaderDropzone"]{border:1.5px dashed #8bbdec;background:linear-gradient(145deg,#f7fbff,#edf6ff);border-radius:13px;transition:all .2s ease}[data-testid="stFileUploaderDropzone"]:hover{border-color:var(--teal);transform:translateY(-1px);box-shadow:0 8px 20px rgba(0,113,227,.1)}[data-testid="stAudioInput"]{padding:13px;border:1px solid var(--line);border-radius:17px;background:rgba(255,255,255,.78)}[data-testid="stAudioInput"] button{color:#fff!important;background:#0071e3!important;border:2px solid #0071e3!important;border-radius:999px!important;box-shadow:0 3px 10px rgba(0,113,227,.25)!important}
 [data-baseweb="input"]>div,[data-baseweb="select"]>div,textarea{border-color:#dce3eb!important;border-radius:12px!important;background:#fff!important;transition:border .18s ease,box-shadow .18s ease!important}[data-baseweb="input"]>div:focus-within,[data-baseweb="select"]>div:focus-within,textarea:focus{border-color:#0071e3!important;box-shadow:0 0 0 3px rgba(0,113,227,.1)!important}[data-testid="stNumberInput"] button{display:none!important}.stButton>button,.stDownloadButton>button{border-radius:999px;font-weight:700;min-height:42px;padding-left:20px;padding-right:20px;transition:transform .18s ease,box-shadow .18s ease}.stButton>button[kind="primary"],.stDownloadButton>button[kind="primary"]{position:relative;overflow:hidden;border:0;color:#fff;background:#0071e3;box-shadow:0 7px 18px rgba(0,113,227,.22)}.stButton>button:hover,.stDownloadButton>button:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(0,113,227,.28)}.st-key-trip_voice_autofill button,.st-key-expense_voice_autofill button{color:#fff!important;background:linear-gradient(135deg,#1f9d60,#27b974)!important;box-shadow:0 8px 20px rgba(31,157,96,.22)!important}.st-key-trip_voice_autofill button:disabled,.st-key-expense_voice_autofill button:disabled{color:#fff!important;background:#8fd5ae!important;opacity:.72!important}
@@ -387,10 +400,19 @@ with records_tab:
         filter_from = c1.date_input("Records from", value=min(record_dates), format="DD/MM/YYYY", key="records_filter_from")
         filter_to = c2.date_input("Records to", value=max(record_dates), format="DD/MM/YYYY", key="records_filter_to")
         placed_by_filter = c3.selectbox("Vehicle placed by", ["All", *placed_by_options], key="records_filter_placed_by")
+        date_filtered_rows = [row for row in rows if filter_from <= as_date(row.get("trip_date")) <= filter_to]
+        leaderboard_rows = "".join(
+            f"<tr><td>{rank}</td><td>{name}</td><td>₹{amount:,.2f}</td></tr>"
+            for rank, (name, amount) in enumerate(billtee_leaderboard(date_filtered_rows), 1)
+        )
+        st.markdown("#### Billtee leaderboard")
+        st.markdown(
+            f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Vehicle placed by</th><th>Total Billtee</th></tr></thead><tbody>{leaderboard_rows}</tbody></table>',
+            unsafe_allow_html=True,
+        )
         rows = [
-            row for row in rows
-            if filter_from <= as_date(row.get("trip_date")) <= filter_to
-            and (placed_by_filter == "All" or clean_text(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter)
+            row for row in date_filtered_rows
+            if placed_by_filter == "All" or clean_text(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter
         ]
     if not rows:
         st.info("No records match the selected filters.")
