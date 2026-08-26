@@ -265,6 +265,9 @@ def test_advance_summary_uses_all_modes_and_preserves_overpayment():
     normal = advance_summary(38000, 18000, 2000, 3000, 1000)
     assert normal["total_advance"] == 24000
     assert normal["balance_payable"] == 14000
+    with_billtee = advance_summary(38000, 18000, 2000, 3000, 1000, 1000)
+    assert with_billtee["total_advance"] == 25000
+    assert with_billtee["balance_payable"] == 13000
     overpaid = advance_summary(20000, 18000, 3000)
     assert overpaid["total_advance"] == 21000
     assert overpaid["balance_payable"] == -1000

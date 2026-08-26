@@ -21,6 +21,10 @@ st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide"
 STORE_INTERFACE_VERSION = 6
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 BRANCHES = ["Wada", "Baroda", "Pune"]
+ASCII_BOLD = str.maketrans(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
+    "𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝗮𝗯𝗰𝗱𝗲𝗳𝗴𝗵𝗶𝗷𝗸𝗹𝗺𝗻𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝟬𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵",
+)
 
 
 def secret(name):
@@ -76,6 +80,15 @@ def request_label(row_or_number, date=None):
         row_or_number = row_or_number.get("request_number", "")
     suffix = clean_text(row_or_number).split("-")[-1].lstrip("0") or "1"
     return f"Request - {as_date(date):%d/%m/%y} · {suffix}"
+
+
+def record_select_label(row):
+    dtr = unpack(row.get("dtr_data"))
+    placed_by = clean_text(dtr.get("Veh Placed by")) or "Not specified"
+    billtee = number(dtr.get("Billtee"))
+    billtee_text = f"{billtee:,.0f}" if billtee.is_integer() else f"{billtee:,.2f}"
+    details = f"{placed_by}, Billtee Amt: {billtee_text}".translate(ASCII_BOLD)
+    return f"{request_label(row)} [{details}]"
 
 
 def rtgs_remark(row):
@@ -138,15 +151,16 @@ def file_values(files):
 
 def trip_payload(v, files):
     payments = {name: number(v[field]) for name, field in PAYMENT_FIELDS.items()}
+    billtee = number(v["billtee"])
     transporter_freight = float(applicable_transporter_freight(v["ownership_type"], v["transporter_freight"]))
-    summary = advance_summary(transporter_freight, *payments.values())
+    summary = advance_summary(transporter_freight, *payments.values(), billtee)
     total, balance = float(summary["total_advance"]), float(summary["balance_payable"])
     dtr = {
         "Branch": v["branch"], "Compnay Name": v["company_name"], "Date": v["date"], "Vehicle No.": v["vehicle_number"],
         "Vehicle Type": v["vehicle_capacity"], "Own/Outside Veh.": v["ownership_type"], "From": v["from_location"],
         "To": v["to_location"], "LR No.": v["lr_invoice_number"], "Invoice No.": v["lr_invoice_number"],
         "Revenue": v["revenue"], "Transporter Freight": transporter_freight, "RTGS ADVANCE": v["rtgs_advance"],
-        "Cash Adv.": v["cash_advance"], "UPI": v["upi"], "Diesel Adv.": v["diesel_advance"], "Total Adv.": total,
+        "Cash Adv.": v["cash_advance"], "UPI": v["upi"], "Diesel Adv.": v["diesel_advance"], "Billtee": billtee, "Total Adv.": total,
         "Balance Amt.": balance, "Benificiary Name": v["beneficiary_name"],
         "Transporter Name": v["transporter_name"], "Veh Placed by": v["vehicle_placed_by"], "Remark": v["remarks"],
     }
@@ -260,15 +274,17 @@ def trip_form(prefix, memory):
     v["transporter_freight"] = c2.number_input("Transporter freight (₹)", min_value=0.0, value=None, placeholder="Not applicable for own vehicles" if own_vehicle else "e.g., 38,000", disabled=own_vehicle, key=transporter_freight_key)
     if own_vehicle:
         c2.caption("Not applicable for an own vehicle.")
-    st.caption("Enter amounts in every payment mode used. More than one mode is supported.")
-    for col, (label, field) in zip(st.columns(4), PAYMENT_FIELDS.items()):
+    st.caption("Enter amounts in every payment mode used. Billtee is also deducted before calculating the balance payable.")
+    deduction_columns = st.columns(5)
+    for col, (label, field) in zip(deduction_columns, PAYMENT_FIELDS.items()):
         v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 2,000", key=f"{prefix}_{field}")
-    payment = advance_summary(v["transporter_freight"], *(v[f] for f in PAYMENT_FIELDS.values()))
+    v["billtee"] = deduction_columns[-1].number_input("Billtee (₹)", min_value=0.0, value=None, placeholder="e.g., 1,000", key=f"{prefix}_billtee")
+    payment = advance_summary(v["transporter_freight"], *(v[f] for f in PAYMENT_FIELDS.values()), v["billtee"])
     total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
     summary = st.columns(3)
     summary[0].metric("Transporter freight", f"₹{number(v['transporter_freight']):,.2f}")
     summary[1].metric("Total advance", f"₹{total:,.2f}")
-    summary[2].metric("Balance payable", f"₹{balance:,.2f}", help="Transporter freight minus RTGS, Cash, UPI and Diesel advances. A negative amount indicates an overpayment.")
+    summary[2].metric("Balance payable", f"₹{balance:,.2f}", help="Transporter freight minus RTGS, Cash, UPI, Diesel and Billtee deductions. A negative amount indicates an overpayment.")
     if balance < 0:
         st.warning(f"Advance exceeds transporter freight by ₹{abs(balance):,.2f}. Please review the payment amounts.")
     v["remarks"] = st.text_area("Remarks", key=f"{prefix}_remarks", placeholder="e.g., Advance paid for Talegaon to Bhiwandi trip")
@@ -363,15 +379,28 @@ with expense_tab:
 with records_tab:
     page_intro("Single source of truth", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
     rows = store.list(status="All active")
+    if rows:
+        record_dates = [as_date(row.get("trip_date")) for row in rows]
+        placed_by_options = sorted({clean_text(unpack(row.get("dtr_data")).get("Veh Placed by")) for row in rows} - {""}, key=str.casefold)
+        st.markdown("#### Filter records")
+        c1, c2, c3 = st.columns(3)
+        filter_from = c1.date_input("Records from", value=min(record_dates), format="DD/MM/YYYY", key="records_filter_from")
+        filter_to = c2.date_input("Records to", value=max(record_dates), format="DD/MM/YYYY", key="records_filter_to")
+        placed_by_filter = c3.selectbox("Vehicle placed by", ["All", *placed_by_options], key="records_filter_placed_by")
+        rows = [
+            row for row in rows
+            if filter_from <= as_date(row.get("trip_date")) <= filter_to
+            and (placed_by_filter == "All" or clean_text(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter)
+        ]
     if not rows:
-        st.info("No records have been saved yet.")
+        st.info("No records match the selected filters.")
     else:
-        labels = {request_label(row): row for row in rows}
+        labels = {record_select_label(row): row for row in rows}
         selected_label = st.selectbox("Select a record", list(labels), key="record_select")
         row = labels[selected_label]
         raw, is_expense = unpack(row.get("dtr_data")), row.get("report_scope") == "Expense"
         rtgs_raw = unpack(row.get("rtgs_data"))
-        display = {"Date": row.get("trip_date"), "Type": "Direct expense" if is_expense else "Trip", "Branch": row.get("branch", ""), "Company": row.get("company_name", ""), "Vehicle": row.get("vehicle_number", ""), "Vehicle Capacity": row.get("vehicle_type", ""), "Own / Outside": row.get("ownership_type", ""), "From": row.get("from_location", ""), "To": row.get("to_location", ""), "LR / Invoice": row.get("invoice_number", ""), "Beneficiary": row.get("beneficiary_name", ""), "Account Number": rtgs_raw.get("BENE_ACC_NO", ""), "IFSC": rtgs_raw.get("BENE_IFSC", ""), "Vehicle Placed By": raw.get("Veh Placed by", ""), "Revenue": number(row.get("revenue")), "Transporter Freight": number(row.get("transporter_freight")), "RTGS": number(row.get("rtgs_advance")), "Cash": number(row.get("cash_advance")), "UPI": number(row.get("upi")), "Diesel": number(row.get("diesel_advance")), "Remarks": row.get("notes", "")}
+        display = {"Date": row.get("trip_date"), "Type": "Direct expense" if is_expense else "Trip", "Branch": row.get("branch", ""), "Company": row.get("company_name", ""), "Vehicle": row.get("vehicle_number", ""), "Vehicle Capacity": row.get("vehicle_type", ""), "Own / Outside": row.get("ownership_type", ""), "From": row.get("from_location", ""), "To": row.get("to_location", ""), "LR / Invoice": row.get("invoice_number", ""), "Beneficiary": row.get("beneficiary_name", ""), "Account Number": rtgs_raw.get("BENE_ACC_NO", ""), "IFSC": rtgs_raw.get("BENE_IFSC", ""), "Vehicle Placed By": raw.get("Veh Placed by", ""), "Revenue": number(row.get("revenue")), "Transporter Freight": number(row.get("transporter_freight")), "RTGS": number(row.get("rtgs_advance")), "Cash": number(row.get("cash_advance")), "UPI": number(row.get("upi")), "Diesel": number(row.get("diesel_advance")), "Billtee": number(raw.get("Billtee")), "Remarks": row.get("notes", "")}
         if is_expense:
             display.update(raw.get("categories", {}))
         edited = st.data_editor(pd.DataFrame([display]), hide_index=True, width="stretch", disabled=["Type"], key=f"record_editor_{row['request_number']}")
@@ -385,14 +414,15 @@ with records_tab:
             item = edited.iloc[0].to_dict()
             ownership_type = clean_text(item["Own / Outside"])
             transporter_freight = float(applicable_transporter_freight(ownership_type, item["Transporter Freight"]))
+            billtee = number(item["Billtee"])
             update_values = {"trip_date": as_date(item["Date"]), "branch": clean_text(item["Branch"]), "company_name": clean_text(item["Company"]), "vehicle_number": clean_text(item["Vehicle"]), "vehicle_type": clean_text(item["Vehicle Capacity"]), "ownership_type": ownership_type, "from_location": clean_text(item["From"]), "to_location": clean_text(item["To"]), "invoice_number": clean_text(item["LR / Invoice"]), "beneficiary_name": clean_text(item["Beneficiary"]), "revenue": number(item["Revenue"]), "transporter_freight": transporter_freight, "rtgs_advance": number(item["RTGS"]), "cash_advance": number(item["Cash"]), "upi": number(item["UPI"]), "diesel_advance": number(item["Diesel"]), "notes": clean_text(item["Remarks"])}
             if is_expense:
                 categories = {name: number(item.get(name)) for name in DIRECT_EXPENSE_COLUMNS}
                 update_values.update({"amount": sum(categories.values()), "dtr_data": {**raw, "categories": categories}})
             else:
-                payment = advance_summary(transporter_freight, *(item[name] for name in ("RTGS", "Cash", "UPI", "Diesel")))
+                payment = advance_summary(transporter_freight, *(item[name] for name in ("RTGS", "Cash", "UPI", "Diesel")), billtee)
                 total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
-                updated_dtr = {**raw, "Branch": item["Branch"], "Compnay Name": item["Company"], "Date": as_date(item["Date"]), "Vehicle No.": item["Vehicle"], "Vehicle Type": item["Vehicle Capacity"], "Own/Outside Veh.": item["Own / Outside"], "From": item["From"], "To": item["To"], "LR No.": item["LR / Invoice"], "Invoice No.": item["LR / Invoice"], "Revenue": item["Revenue"], "Transporter Freight": transporter_freight, "RTGS ADVANCE": item["RTGS"], "Cash Adv.": item["Cash"], "UPI": item["UPI"], "Diesel Adv.": item["Diesel"], "Total Adv.": total, "Balance Amt.": balance, "Benificiary Name": item["Beneficiary"], "Veh Placed by": item["Vehicle Placed By"], "Remark": item["Remarks"]}
+                updated_dtr = {**raw, "Branch": item["Branch"], "Compnay Name": item["Company"], "Date": as_date(item["Date"]), "Vehicle No.": item["Vehicle"], "Vehicle Type": item["Vehicle Capacity"], "Own/Outside Veh.": item["Own / Outside"], "From": item["From"], "To": item["To"], "LR No.": item["LR / Invoice"], "Invoice No.": item["LR / Invoice"], "Revenue": item["Revenue"], "Transporter Freight": transporter_freight, "RTGS ADVANCE": item["RTGS"], "Cash Adv.": item["Cash"], "UPI": item["UPI"], "Diesel Adv.": item["Diesel"], "Billtee": billtee, "Total Adv.": total, "Balance Amt.": balance, "Benificiary Name": item["Beneficiary"], "Veh Placed by": item["Vehicle Placed By"], "Remark": item["Remarks"]}
                 updated_rtgs = {**rtgs_raw, "BNF_NAME": item["Beneficiary"], "BENE_ACC_NO": item["Account Number"], "BENE_IFSC": item["IFSC"], "AMOUNT": item["RTGS"], "REMARK": item["Remarks"], "Origin Area": item["Branch"]}
                 update_values.update({"amount": total, "total_advance": total, "balance_amount": balance, "dtr_data": updated_dtr, "rtgs_data": updated_rtgs})
             store.update(row["request_number"], update_values, "records_tab", "Operations user")
