@@ -149,15 +149,38 @@ def billtee_leaderboard(rows):
     return sorted(totals.items(), key=lambda item: (-item[1], item[0]))
 
 
+def trip_auto_remark(vehicle_number, origin, destination, vehicle_capacity, trip_date):
+    digits = "".join(character for character in clean_text(vehicle_number) if character.isdigit())[-4:]
+    origin, destination = clean_text(origin), clean_text(destination)
+    route = f"{origin} to {destination}" if origin and destination else origin or destination
+    parts = [digits, route, clean_text(vehicle_capacity), f"{as_date(trip_date):%d %m %Y}", "TA"]
+    return " ".join(part for part in parts if part).strip()
+
+
+def expense_auto_remark(vehicle_number, beneficiary_name, categories, expense_date):
+    digits = "".join(character for character in clean_text(vehicle_number) if character.isdigit())[-4:]
+    category_text = ", ".join(categories)
+    parts = [digits, clean_text(beneficiary_name), category_text, f"{as_date(expense_date):%d %m %Y}", "DE"]
+    return " ".join(part for part in parts if part).strip()
+
+
+def sync_auto_remark(widget_key, generated):
+    tracker_key = f"{widget_key}_generated"
+    current = clean_text(st.session_state.get(widget_key))
+    previous = clean_text(st.session_state.get(tracker_key))
+    if generated and (not current or current == previous):
+        st.session_state[widget_key] = generated
+    st.session_state[tracker_key] = generated
+
+
 def rtgs_remark(row):
     existing = unpack(row.get("rtgs_data")).get("REMARK") or row.get("notes")
     if clean_text(existing):
         return clean_text(existing)
-    digits = "".join(character for character in clean_text(row.get("vehicle_number")) if character.isdigit())[-4:]
-    origin, destination = clean_text(row.get("from_location")), clean_text(row.get("to_location"))
-    route = f"{origin} to {destination}" if origin and destination else origin or destination
-    parts = [digits, route, clean_text(row.get("vehicle_type")), f"{as_date(row.get('trip_date')):%d %m %Y}", "TA"]
-    return " ".join(part for part in parts if part).strip()
+    return trip_auto_remark(
+        row.get("vehicle_number"), row.get("from_location"), row.get("to_location"),
+        row.get("vehicle_type"), row.get("trip_date"),
+    )
 
 
 def evidence(upload, audio):
@@ -345,7 +368,11 @@ def trip_form(prefix, memory):
     summary[2].metric("Balance payable", f"₹{balance:,.2f}", help="Transporter freight minus RTGS, Cash, UPI, Diesel and Billtee deductions. A negative amount indicates an overpayment.")
     if balance < 0:
         st.warning(f"Advance exceeds transporter freight by ₹{abs(balance):,.2f}. Please review the payment amounts.")
-    v["remarks"] = st.text_area("Remarks", key=f"{prefix}_remarks", placeholder="e.g., Advance paid for Talegaon to Bhiwandi trip")
+    remark_key = f"{prefix}_remarks"
+    generated_remark = trip_auto_remark(v["vehicle_number"], v["from_location"], v["to_location"], v["vehicle_capacity"], v["date"])
+    if any(clean_text(v[field]) for field in ("vehicle_number", "from_location", "to_location", "vehicle_capacity")):
+        sync_auto_remark(remark_key, generated_remark)
+    v["remarks"] = st.text_area("Remarks", key=remark_key, placeholder="Auto-filled from the trip details")
     return v
 
 
@@ -423,7 +450,11 @@ with expense_tab:
         cols = st.columns(3)
         for i, category in enumerate(DIRECT_EXPENSE_COLUMNS):
             v[category] = cols[i % 3].number_input(f"{category} (₹)", min_value=0.0, value=None, placeholder="e.g., 5,000", key=f"expense_category_{i}")
-        v["remarks"] = st.text_area("Remarks", key="expense_remarks", placeholder="e.g., August office rent")
+        expense_categories = [category for category in DIRECT_EXPENSE_COLUMNS if number(v[category])]
+        expense_generated_remark = expense_auto_remark(v["vehicle_number"], v["beneficiary_name"], expense_categories, v["date"])
+        if clean_text(v["vehicle_number"]) or clean_text(v["beneficiary_name"]) or expense_categories:
+            sync_auto_remark("expense_remarks", expense_generated_remark)
+        v["remarks"] = st.text_area("Remarks", key="expense_remarks", placeholder="Auto-filled from the expense details")
         st.markdown("#### Mode of payment")
         st.caption("Fill every mode used for this expense.")
         for col, (label, field) in zip(st.columns(4), PAYMENT_FIELDS.items()):
