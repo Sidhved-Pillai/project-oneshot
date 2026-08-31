@@ -24,6 +24,20 @@ PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advanc
 BRANCHES = ["Wada", "Baroda", "Pune"]
 SPECIAL_CODE_SALT = bytes.fromhex("28d7f0e0dfb9b32fecf4f4656d309042")
 SPECIAL_CODE_HASH = bytes.fromhex("b17d745a7cfdb8fad453e479e3950b905f0505478fe8268461ae74fdbc2248fb")
+MEMBER_CODE_HASHES = {
+    "Ajit": "a25be184e5abecae4f87eef475fbecf9b2b51c9dc3e11a9022a0196798b1e88f",
+    "Nikhat": "f4931443e89ce4e103cdcee1a82c297b3bbf26bdbc31fccf36b8de2b193e8845",
+    "Nitish": "ea565453a2706b0e72df78364c854e9aaaf62848ef6b292efe341dea3b207177",
+    "Gopal": "8422d601483b1cda8d20f11b17b482c756fb005912c2ac6f83baca98d6554e5c",
+    "Shyam": "37d9997a10e64c52c8dfa34f66ffb078531f04cd9af2f6f455d45a3125068dba",
+    "Nikhil": "40ed3b8fb38df58e9bef001c1bab0d0c9b08a4b13a84a9e7a9b4d549bb2c5e90",
+    "Vinod": "17c4bc70c02f37310d326cff94f608c18de6e14c6df949eb51fbd37d0e7b52cb",
+    "Manish": "a021c3c411a4a3cb971eeb978f3df49f172c31d58a270a7d8c7a4218a2eb24f9",
+}
+SPECIAL_MEMBERS = {"Sid", "Ajit", "Vinod", "Nikhil", "Shyam", "Nikhat"}
+PNL_MEMBERS = {"Sid", "Ajit", "Vinod", "Nikhil"}
+AUDITED_MEMBERS = {"Ajit", "Nikhat", "Shyam"}
+LIMITED_RECORD_BRANCH = {"Nitish": "Pune", "Gopal": "Pune", "Manish": "Wada"}
 ASCII_BOLD = str.maketrans(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
     "𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝗮𝗯𝗰𝗱𝗲𝗳𝗴𝗵𝗶𝗷𝗸𝗹𝗺𝗻𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝟬𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵",
@@ -72,8 +86,14 @@ def verify_special_access_code(value):
     return hmac.compare_digest(candidate, SPECIAL_CODE_HASH)
 
 
-def identify_special_member(value):
-    return "Sid" if verify_special_access_code(value) else None
+def identify_member(value):
+    if verify_special_access_code(value):
+        return "Sid"
+    candidate = hashlib.pbkdf2_hmac("sha256", clean_text(value).encode(), SPECIAL_CODE_SALT, 600_000)
+    for member, digest in MEMBER_CODE_HASHES.items():
+        if hmac.compare_digest(candidate, bytes.fromhex(digest)):
+            return member
+    return None
 
 
 def require_authentication():
@@ -94,11 +114,11 @@ def require_authentication():
         access_code = st.text_input("6-digit access code", type="password", max_chars=6, key="special_access_code")
         submitted = st.form_submit_button("Continue", use_container_width=True)
     if submitted:
-        member = identify_special_member(access_code) if len(access_code) == 6 and access_code.isdigit() else None
+        member = identify_member(access_code) if len(access_code) == 6 and access_code.isdigit() else None
         if member:
             st.session_state["authenticated"] = True
             st.session_state["authenticated_user"] = member
-            st.session_state["is_special_member"] = True
+            st.session_state["is_special_member"] = member in SPECIAL_MEMBERS
             st.session_state["welcome_pending"] = True
             st.session_state.pop("special_access_code", None)
             st.rerun()
@@ -311,15 +331,16 @@ def memory_prompt(prefix, title, source, suggestion, field_names):
     st.button("Apply suggestion", key=f"memory_{prefix}_{source}", on_click=apply_memory, args=(prefix, missing), icon="✨")
 
 
-def trip_form(prefix, memory):
+def trip_form(prefix, memory, allowed_branches=None):
     st.markdown("#### 1. Basic information")
     c1, c2 = st.columns(2)
     branch_key = f"{prefix}_branch"
-    branch_lookup = {branch.casefold(): branch for branch in BRANCHES}
+    available_branches = allowed_branches or BRANCHES
+    branch_lookup = {branch.casefold(): branch for branch in available_branches}
     current_branch = branch_lookup.get(clean_text(st.session_state.get(branch_key)).casefold(), "")
     if st.session_state.get(branch_key) != current_branch:
         st.session_state[branch_key] = current_branch
-    branch_choices = ["", *BRANCHES]
+    branch_choices = ["", *available_branches]
     v = {"date": c1.date_input("Date *", value=st.session_state.get(f"{prefix}_date", dt.date.today()), format="DD/MM/YYYY", key=f"{prefix}_date"), "branch": c2.selectbox("Branch *", branch_choices, index=branch_choices.index(current_branch), key=branch_key, placeholder="Select a branch"), "company_name": st.text_input("Company name *", key=f"{prefix}_company_name", placeholder="e.g., SG Logistics")}
     c1, c2 = st.columns(2)
     v["from_location"] = c1.text_input("From *", key=f"{prefix}_from_location", placeholder="e.g., Talegaon, Pune")
@@ -388,6 +409,17 @@ except Exception as exc:
 
 business_memory = build_business_memory(store.list(status="All active"))
 current_user = st.session_state.get("authenticated_user", "Unknown member")
+is_special_member = current_user in SPECIAL_MEMBERS
+can_use_direct_expenses = is_special_member or current_user == "Manish"
+can_generate_reports = is_special_member
+can_generate_pnl = current_user in PNL_MEMBERS
+record_branch_scope = LIMITED_RECORD_BRANCH.get(current_user)
+allowed_entry_branches = [record_branch_scope] if record_branch_scope else BRANCHES
+
+
+def audit_action(action, request_number="", details=""):
+    if current_user in AUDITED_MEMBERS:
+        store.log_action(current_user, action, request_number, details)
 
 st.markdown("""
 <style>
@@ -412,6 +444,19 @@ div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);b
 </style>
 <div class="app-hero"><div class="brand-row"><div class="brand-mark">1×</div><div><div class="brand">Project <span>Oneshot</span></div><div class="subtitle">One record. Every operations report.</div></div></div><div class="status-pill"><span class="status-dot"></span>WORKSPACE READY</div></div>
 """, unsafe_allow_html=True)
+hidden_tabs = []
+if not can_use_direct_expenses:
+    hidden_tabs.append(2)
+if not can_generate_reports:
+    hidden_tabs.append(4)
+if not is_special_member:
+    hidden_tabs.append(5)
+if hidden_tabs:
+    hidden_tab_css = "".join(
+        f'[data-baseweb="tab-list"] [data-testid="stTab"]:nth-child({index}){{display:none!important}}'
+        for index in hidden_tabs
+    )
+    st.markdown(f"<style>{hidden_tab_css}</style>", unsafe_allow_html=True)
 new_tab, expense_tab, records_tab, reports_tab, logs_tab = st.tabs(["New Entry", "Direct Expenses", "Records", "Generate Reports", "Logs"])
 
 with new_tab:
@@ -427,19 +472,21 @@ with new_tab:
     if voice_autofill:
         autofill(evidence(None, audio), "", "trip")
     with st.container(border=True):
-        values = trip_form("trip", business_memory)
+        values = trip_form("trip", business_memory, allowed_entry_branches)
         if st.button("Save record", type="primary", disabled=not values["branch"] or not values["vehicle_number"], key="save_trip"):
             saved = store.create({**trip_payload(values, files), "created_by": current_user})
-            store.log_action(current_user, "Created trip record", saved, request_label(saved, values["date"]))
+            audit_action("Created trip record", saved, request_label(saved, values["date"]))
             st.success(f"Saved {request_label(saved, values['date'])}. Entries remain filled for the next record.")
 
 with expense_tab:
+    if not can_use_direct_expenses:
+        st.warning("Direct Expenses is not available for your account.")
     page_intro("Expense capture", "Direct expense", "Turn bills and spoken notes into clean, categorised expense records.", "₹")
     workflow_steps(["Add receipt", "Categorise", "Save expense"], 0)
     c1, c2 = st.columns(2)
-    expense_upload = c1.file_uploader("Attach bill or receipt", type=["jpg", "jpeg", "png", "webp", "pdf"], key="expense_upload")
-    expense_audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key="expense_audio")
-    expense_voice_autofill = c2.button("Autofill with Voice Prompt", type="primary", use_container_width=True, disabled=expense_audio is None, key="expense_voice_autofill", icon="🎙️")
+    expense_upload = c1.file_uploader("Attach bill or receipt", type=["jpg", "jpeg", "png", "webp", "pdf"], key="expense_upload", disabled=not can_use_direct_expenses)
+    expense_audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key="expense_audio", disabled=not can_use_direct_expenses)
+    expense_voice_autofill = c2.button("Autofill with Voice Prompt", type="primary", use_container_width=True, disabled=expense_audio is None or not can_use_direct_expenses, key="expense_voice_autofill", icon="🎙️")
     expense_files = evidence(expense_upload, expense_audio)
     if expense_upload:
         autofill(evidence(expense_upload, None), "", "expense", "EXPENSE")
@@ -468,14 +515,17 @@ with expense_tab:
         c2.metric("Payment modes total", f"₹{paid_total:,.2f}")
         if paid_total and abs(expense_total - paid_total) > 0.01:
             st.warning("Expense total and payment-mode total do not match. Review before saving.")
-        if st.button("Save direct expense", type="primary", key="save_expense"):
+        if st.button("Save direct expense", type="primary", key="save_expense", disabled=not can_use_direct_expenses):
             saved = store.create({**expense_payload(v, expense_files), "created_by": current_user})
-            store.log_action(current_user, "Created direct expense", saved, request_label(saved, v["date"]))
+            audit_action("Created direct expense", saved, request_label(saved, v["date"]))
             st.success(f"Saved {request_label(saved, v['date'])}.")
 
 with records_tab:
     page_intro("Single source of truth", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
     rows = store.list(status="All active")
+    if record_branch_scope:
+        rows = [row for row in rows if clean_text(row.get("branch")).casefold() == record_branch_scope.casefold()]
+        st.caption(f"Your account can access {record_branch_scope} records only.")
     if rows:
         record_dates = [as_date(row.get("trip_date")) for row in rows]
         placed_by_options = sorted({clean_text(unpack(row.get("dtr_data")).get("Veh Placed by")) for row in rows} - {""}, key=str.casefold)
@@ -509,7 +559,8 @@ with records_tab:
         display = {"Date": row.get("trip_date"), "Type": "Direct expense" if is_expense else "Trip", "Branch": row.get("branch", ""), "Company": row.get("company_name", ""), "Vehicle": row.get("vehicle_number", ""), "Vehicle Capacity": row.get("vehicle_type", ""), "Own / Outside": row.get("ownership_type", ""), "From": row.get("from_location", ""), "To": row.get("to_location", ""), "LR / Invoice": row.get("invoice_number", ""), "Beneficiary": row.get("beneficiary_name", ""), "Account Number": rtgs_raw.get("BENE_ACC_NO", ""), "IFSC": rtgs_raw.get("BENE_IFSC", ""), "Vehicle Placed By": raw.get("Veh Placed by", ""), "Revenue": number(row.get("revenue")), "Transporter Freight": number(row.get("transporter_freight")), "RTGS": number(row.get("rtgs_advance")), "Cash": number(row.get("cash_advance")), "UPI": number(row.get("upi")), "Diesel": number(row.get("diesel_advance")), "Billtee": number(raw.get("Billtee")), "Remarks": row.get("notes", "")}
         if is_expense:
             display.update(raw.get("categories", {}))
-        edited = st.data_editor(pd.DataFrame([display]), hide_index=True, width="stretch", disabled=["Type"], key=f"record_editor_{row['request_number']}")
+        locked_columns = ["Type", "Branch"] if record_branch_scope else ["Type"]
+        edited = st.data_editor(pd.DataFrame([display]), hide_index=True, width="stretch", disabled=locked_columns, key=f"record_editor_{row['request_number']}")
         if row.get("source_image"):
             st.markdown("#### Attached evidence")
             if clean_text(row.get("source_mime_type")).startswith("image/"):
@@ -532,7 +583,7 @@ with records_tab:
                 updated_rtgs = {**rtgs_raw, "BNF_NAME": item["Beneficiary"], "BENE_ACC_NO": item["Account Number"], "BENE_IFSC": item["IFSC"], "AMOUNT": item["RTGS"], "REMARK": item["Remarks"], "Origin Area": item["Branch"]}
                 update_values.update({"amount": total, "total_advance": total, "balance_amount": balance, "dtr_data": updated_dtr, "rtgs_data": updated_rtgs})
             store.update(row["request_number"], update_values, "records_tab", current_user)
-            store.log_action(current_user, "Updated record", row["request_number"], request_label(row))
+            audit_action("Updated record", row["request_number"], request_label(row))
             st.success("Record updated. A revision snapshot was saved.")
             st.rerun()
         with st.expander("Delete records"):
@@ -543,18 +594,21 @@ with records_tab:
                 for label in chosen:
                     request_number = labels[label]["request_number"]
                     if store.delete_request(request_number):
-                        store.log_action(current_user, "Deleted record", request_number, label)
+                        audit_action("Deleted record", request_number, label)
                 st.success(f"Deleted {len(chosen)} record(s).")
                 st.rerun()
 
 with reports_tab:
+    if not can_generate_reports:
+        st.warning("Generate Reports is not available for your account.")
     page_intro("Report studio", "Generate reports", "Choose a period and create a ready-to-use DTR, RTGS, or P&L workbook.", "↗")
     workflow_steps(["Choose dates", "Select format", "Download"], 0)
     c1, c2 = st.columns(2)
     start = c1.date_input("Records from", value=dt.date.today() - dt.timedelta(days=30), format="DD/MM/YYYY", key="report_from")
     end = c2.date_input("Records to", value=dt.date.today(), format="DD/MM/YYYY", key="report_to")
-    report_type = st.segmented_control("Report type", ["DTR", "RTGS", "P&L"], default="DTR", key="report_type")
-    selected_rows = store.list(start, end, status="All active") if start <= end else []
+    report_options = ["DTR", "RTGS", *(["P&L"] if can_generate_pnl else [])]
+    report_type = st.segmented_control("Report type", report_options, default="DTR", key="report_type")
+    selected_rows = store.list(start, end, status="All active") if can_generate_reports and start <= end else []
     trips = [row for row in selected_rows if row.get("report_scope") != "Expense"]
     expenses = [row for row in selected_rows if row.get("report_scope") == "Expense"]
     st.caption(f"{len(trips)} trip record(s) and {len(expenses)} direct expense record(s) selected.")
@@ -565,7 +619,7 @@ with reports_tab:
             records.append({column: data.get(column, "") for column in DTR_REVIEW_COLUMNS} | {"Sr No.": i})
         frame = pd.DataFrame(records, columns=DTR_REVIEW_COLUMNS)
         st.dataframe(frame, hide_index=True, width="stretch")
-        st.download_button("Download DTR report", export_operational_dtr(frame), f"DTR-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=frame.empty, on_click=store.log_action, args=(current_user, "Downloaded DTR report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
+        st.download_button("Download DTR report", export_operational_dtr(frame), f"DTR-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=frame.empty or not can_generate_reports, on_click=audit_action, args=("Downloaded DTR report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
     elif report_type == "RTGS":
         records = []
         for row in reversed([item for item in trips if number(item.get("rtgs_advance")) > 0]):
@@ -576,16 +630,16 @@ with reports_tab:
         records = normalize_rtgs_records(records, dt.date.today())
         frame = pd.DataFrame(records, columns=RTGS_REVIEW_COLUMNS)
         st.dataframe(frame, hide_index=True, width="stretch")
-        st.download_button("Download bank-format RTGS report", export_rtgs(frame, dt.date.today()), f"RTGS-{start}-{end}.xls", "application/vnd.ms-excel", type="primary", disabled=frame.empty, on_click=store.log_action, args=(current_user, "Downloaded RTGS report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
+        st.download_button("Download bank-format RTGS report", export_rtgs(frame, dt.date.today()), f"RTGS-{start}-{end}.xls", "application/vnd.ms-excel", type="primary", disabled=frame.empty or not can_generate_reports, on_click=audit_action, args=("Downloaded RTGS report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
     else:
         expense_data = [{**row, "categories": unpack(row.get("dtr_data")).get("categories", {})} for row in expenses]
         frame = pd.DataFrame(pnl_summary(trips, expense_data))
         st.dataframe(frame, hide_index=True, width="stretch")
-        st.download_button("Download P&L report", export_pnl(trips, expense_data, start, end), f"PNL-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", on_click=store.log_action, args=(current_user, "Downloaded P&L report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
+        st.download_button("Download P&L report", export_pnl(trips, expense_data, start, end), f"PNL-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=not can_generate_pnl, on_click=audit_action, args=("Downloaded P&L report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
 
 with logs_tab:
     page_intro("Restricted audit", "Logs", "Review record changes and report activity across the workspace.", "⌁")
-    if not st.session_state.get("is_special_member", False):
+    if not is_special_member:
         st.warning("Logs are available only to special members.")
     else:
         log_rows = store.list_activity_logs()
