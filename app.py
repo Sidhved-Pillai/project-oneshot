@@ -19,7 +19,7 @@ from src.workflow_store import RequestStore
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
-STORE_INTERFACE_VERSION = 6
+STORE_INTERFACE_VERSION = 7
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 BRANCHES = ["Wada", "Baroda", "Pune"]
 SPECIAL_CODE_SALT = bytes.fromhex("28d7f0e0dfb9b32fecf4f4656d309042")
@@ -88,7 +88,7 @@ def require_authentication():
     [data-testid="InputInstructions"]{display:none!important}
     [data-testid="stFormSubmitButton"] button{width:100%;min-height:44px;border:0;border-radius:999px;color:#fff;background:#0071e3;font-weight:700}
     </style>
-    <div class="login-heading"><h1>Project Oneshot</h1><p>Enter the special-member access code to continue.</p></div>
+    <div class="login-heading"><h1>Project Oneshot</h1><p>Enter the member access code to continue.</p></div>
     """, unsafe_allow_html=True)
     with st.form("special_member_login"):
         access_code = st.text_input("6-digit access code", type="password", max_chars=6, key="special_access_code")
@@ -387,6 +387,7 @@ except Exception as exc:
     st.stop()
 
 business_memory = build_business_memory(store.list(status="All active"))
+current_user = st.session_state.get("authenticated_user", "Unknown member")
 
 st.markdown("""
 <style>
@@ -411,7 +412,7 @@ div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);b
 </style>
 <div class="app-hero"><div class="brand-row"><div class="brand-mark">1×</div><div><div class="brand">Project <span>Oneshot</span></div><div class="subtitle">One record. Every operations report.</div></div></div><div class="status-pill"><span class="status-dot"></span>WORKSPACE READY</div></div>
 """, unsafe_allow_html=True)
-new_tab, expense_tab, records_tab, reports_tab = st.tabs(["New Entry", "Direct Expenses", "Records", "Generate Reports"])
+new_tab, expense_tab, records_tab, reports_tab, logs_tab = st.tabs(["New Entry", "Direct Expenses", "Records", "Generate Reports", "Logs"])
 
 with new_tab:
     page_intro("Smart capture", "New trip entry", "Add evidence once, review the details, and keep every report in sync.", "✦")
@@ -428,7 +429,8 @@ with new_tab:
     with st.container(border=True):
         values = trip_form("trip", business_memory)
         if st.button("Save record", type="primary", disabled=not values["branch"] or not values["vehicle_number"], key="save_trip"):
-            saved = store.create({**trip_payload(values, files), "created_by": "Operations user"})
+            saved = store.create({**trip_payload(values, files), "created_by": current_user})
+            store.log_action(current_user, "Created trip record", saved, request_label(saved, values["date"]))
             st.success(f"Saved {request_label(saved, values['date'])}. Entries remain filled for the next record.")
 
 with expense_tab:
@@ -467,7 +469,8 @@ with expense_tab:
         if paid_total and abs(expense_total - paid_total) > 0.01:
             st.warning("Expense total and payment-mode total do not match. Review before saving.")
         if st.button("Save direct expense", type="primary", key="save_expense"):
-            saved = store.create({**expense_payload(v, expense_files), "created_by": "Operations user"})
+            saved = store.create({**expense_payload(v, expense_files), "created_by": current_user})
+            store.log_action(current_user, "Created direct expense", saved, request_label(saved, v["date"]))
             st.success(f"Saved {request_label(saved, v['date'])}.")
 
 with records_tab:
@@ -528,7 +531,8 @@ with records_tab:
                 updated_dtr = {**raw, "Branch": item["Branch"], "Compnay Name": item["Company"], "Date": as_date(item["Date"]), "Vehicle No.": item["Vehicle"], "Vehicle Type": item["Vehicle Capacity"], "Own/Outside Veh.": item["Own / Outside"], "From": item["From"], "To": item["To"], "LR No.": item["LR / Invoice"], "Invoice No.": item["LR / Invoice"], "Revenue": item["Revenue"], "Transporter Freight": transporter_freight, "RTGS ADVANCE": item["RTGS"], "Cash Adv.": item["Cash"], "UPI": item["UPI"], "Diesel Adv.": item["Diesel"], "Billtee": billtee, "Total Adv.": total, "Balance Amt.": balance, "Benificiary Name": item["Beneficiary"], "Veh Placed by": item["Vehicle Placed By"], "Remark": item["Remarks"]}
                 updated_rtgs = {**rtgs_raw, "BNF_NAME": item["Beneficiary"], "BENE_ACC_NO": item["Account Number"], "BENE_IFSC": item["IFSC"], "AMOUNT": item["RTGS"], "REMARK": item["Remarks"], "Origin Area": item["Branch"]}
                 update_values.update({"amount": total, "total_advance": total, "balance_amount": balance, "dtr_data": updated_dtr, "rtgs_data": updated_rtgs})
-            store.update(row["request_number"], update_values, "records_tab", "Operations user")
+            store.update(row["request_number"], update_values, "records_tab", current_user)
+            store.log_action(current_user, "Updated record", row["request_number"], request_label(row))
             st.success("Record updated. A revision snapshot was saved.")
             st.rerun()
         with st.expander("Delete records"):
@@ -537,7 +541,9 @@ with records_tab:
             acknowledged = st.checkbox("I understand this permanently deletes the selected records.", key="records_delete_ack")
             if st.button("Delete selected records", disabled=not chosen or not acknowledged, key="records_delete"):
                 for label in chosen:
-                    store.delete_request(labels[label]["request_number"])
+                    request_number = labels[label]["request_number"]
+                    if store.delete_request(request_number):
+                        store.log_action(current_user, "Deleted record", request_number, label)
                 st.success(f"Deleted {len(chosen)} record(s).")
                 st.rerun()
 
@@ -559,7 +565,7 @@ with reports_tab:
             records.append({column: data.get(column, "") for column in DTR_REVIEW_COLUMNS} | {"Sr No.": i})
         frame = pd.DataFrame(records, columns=DTR_REVIEW_COLUMNS)
         st.dataframe(frame, hide_index=True, width="stretch")
-        st.download_button("Download DTR report", export_operational_dtr(frame), f"DTR-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=frame.empty)
+        st.download_button("Download DTR report", export_operational_dtr(frame), f"DTR-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=frame.empty, on_click=store.log_action, args=(current_user, "Downloaded DTR report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
     elif report_type == "RTGS":
         records = []
         for row in reversed([item for item in trips if number(item.get("rtgs_advance")) > 0]):
@@ -570,9 +576,30 @@ with reports_tab:
         records = normalize_rtgs_records(records, dt.date.today())
         frame = pd.DataFrame(records, columns=RTGS_REVIEW_COLUMNS)
         st.dataframe(frame, hide_index=True, width="stretch")
-        st.download_button("Download bank-format RTGS report", export_rtgs(frame, dt.date.today()), f"RTGS-{start}-{end}.xls", "application/vnd.ms-excel", type="primary", disabled=frame.empty)
+        st.download_button("Download bank-format RTGS report", export_rtgs(frame, dt.date.today()), f"RTGS-{start}-{end}.xls", "application/vnd.ms-excel", type="primary", disabled=frame.empty, on_click=store.log_action, args=(current_user, "Downloaded RTGS report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
     else:
         expense_data = [{**row, "categories": unpack(row.get("dtr_data")).get("categories", {})} for row in expenses]
         frame = pd.DataFrame(pnl_summary(trips, expense_data))
         st.dataframe(frame, hide_index=True, width="stretch")
-        st.download_button("Download P&L report", export_pnl(trips, expense_data, start, end), f"PNL-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary")
+        st.download_button("Download P&L report", export_pnl(trips, expense_data, start, end), f"PNL-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", on_click=store.log_action, args=(current_user, "Downloaded P&L report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
+
+with logs_tab:
+    page_intro("Restricted audit", "Logs", "Review record changes and report activity across the workspace.", "⌁")
+    if not st.session_state.get("is_special_member", False):
+        st.warning("Logs are available only to special members.")
+    else:
+        log_rows = store.list_activity_logs()
+        if not log_rows:
+            st.info("No activity has been recorded yet.")
+        else:
+            log_frame = pd.DataFrame([
+                {
+                    "Date & time": row.get("created_at"),
+                    "Member": row.get("user_name", ""),
+                    "Action": row.get("action", ""),
+                    "Record": row.get("request_number", ""),
+                    "Details": row.get("details", ""),
+                }
+                for row in log_rows
+            ])
+            st.dataframe(log_frame, hide_index=True, width="stretch")

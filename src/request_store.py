@@ -95,6 +95,16 @@ record_revisions = Table(
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
 )
 
+activity_logs = Table(
+    "activity_logs", metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("user_name", String(120), nullable=False, index=True),
+    Column("action", String(80), nullable=False, index=True),
+    Column("request_number", String(40), default="", index=True),
+    Column("details", Text, default=""),
+    Column("created_at", DateTime, nullable=False, server_default=func.now(), index=True),
+)
+
 
 def database_url():
     """Use a durable hosted database when configured; SQLite is local-only."""
@@ -245,6 +255,24 @@ class RequestStore:
         with self.engine.begin() as conn:
             conn.execute(delete(record_revisions).where(record_revisions.c.request_number == request_number))
             return conn.execute(delete(requests).where(requests.c.request_number == request_number)).rowcount
+
+    def log_action(self, user_name, action, request_number="", details=""):
+        """Append one immutable audit event."""
+        with self.engine.begin() as conn:
+            conn.execute(insert(activity_logs).values(
+                user_name=user_name or "Unknown member",
+                action=action,
+                request_number=request_number or "",
+                details=details or "",
+            ))
+
+    def list_activity_logs(self, limit=500):
+        """Return newest audit events first. Log rows are intentionally append-only."""
+        with self.engine.connect() as conn:
+            rows = conn.execute(
+                select(activity_logs).order_by(activity_logs.c.id.desc()).limit(limit)
+            ).mappings()
+            return [dict(row) for row in rows]
 
     def create_batch(self, mode, operator_name, operator_prompt, attachments, ai_draft=None, ai_summary="", model_name="gemini-3.1-flash-lite"):
         batch_id = f"BATCH-{uuid.uuid4().hex[:16].upper()}"

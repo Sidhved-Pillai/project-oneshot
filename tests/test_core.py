@@ -467,6 +467,18 @@ def test_unified_record_can_be_edited_and_deleted_with_revision_history(tmp_path
     assert store.get(number) is None
 
 
+def test_activity_log_is_persistent_and_newest_first(tmp_path):
+    database = f"sqlite:///{tmp_path / 'activity.db'}"
+    store = WorkflowRequestStore(database)
+    store.log_action("Nitish", "Created trip record", "REQ-1", "Request - 23/08/26")
+    store.log_action("Ashok", "Downloaded DTR report", details="01/08/2026 to 31/08/2026")
+
+    logs = WorkflowRequestStore(database).list_activity_logs()
+    assert [row["user_name"] for row in logs] == ["Ashok", "Nitish"]
+    assert logs[0]["action"] == "Downloaded DTR report"
+    assert logs[1]["request_number"] == "REQ-1"
+
+
 def test_pnl_uses_trip_margin_and_direct_expense_categories():
     trips = [{"revenue": 100000, "transporter_freight": 70000}]
     expenses = [{"categories": {"Salary": 5000, "Rent": 3000}}]
