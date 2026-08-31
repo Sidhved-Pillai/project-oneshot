@@ -214,8 +214,9 @@ def rtgs_remark(row):
 
 def evidence(upload, audio):
     files = []
-    if upload:
-        files.append({"filename": upload.name, "mime_type": upload.type or "application/octet-stream", "data": upload.getvalue()})
+    uploads = upload if isinstance(upload, list) else ([upload] if upload else [])
+    for item in uploads:
+        files.append({"filename": item.name, "mime_type": item.type or "application/octet-stream", "data": item.getvalue()})
     if audio:
         files.append({"filename": "voice-instruction.wav", "mime_type": audio.type or "audio/wav", "data": audio.getvalue()})
     return files
@@ -254,12 +255,14 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
         st.error(f"Could not auto-fill the form: {exc}")
 
 
-def file_values(files):
-    source = next((f for f in files if f["mime_type"].startswith("image/") or f["mime_type"] == "application/pdf"), None)
+def file_values(files, preferred_filename=None):
+    evidence_files = [f for f in files if f["mime_type"].startswith("image/") or f["mime_type"] == "application/pdf"]
+    source = next((f for f in evidence_files if f["filename"] == preferred_filename), None)
+    source = source or (evidence_files[-1] if evidence_files else None)
     return {"source_filename": source["filename"] if source else "", "source_mime_type": source["mime_type"] if source else "", "source_image": source["data"] if source else None}
 
 
-def trip_payload(v, files):
+def trip_payload(v, files, invoice_filename=None):
     payments = {name: number(v[field]) for name, field in PAYMENT_FIELDS.items()}
     billtee = number(v["billtee"])
     transporter_freight = float(applicable_transporter_freight(v["ownership_type"], v["transporter_freight"]))
@@ -268,7 +271,7 @@ def trip_payload(v, files):
     dtr = {
         "Branch": v["branch"], "Compnay Name": v["company_name"], "Date": v["date"], "Vehicle No.": v["vehicle_number"],
         "Vehicle Type": v["vehicle_capacity"], "Own/Outside Veh.": v["ownership_type"], "From": v["from_location"],
-        "To": v["to_location"], "LR No.": v["lr_invoice_number"], "Invoice No.": v["lr_invoice_number"],
+        "To": v["to_location"], "LR No.": v["lr_number"], "Invoice No.": v["invoice_number"],
         "Revenue": v["revenue"], "Transporter Freight": transporter_freight, "RTGS ADVANCE": v["rtgs_advance"],
         "Cash Adv.": v["cash_advance"], "UPI": v["upi"], "Diesel Adv.": v["diesel_advance"], "Billtee": billtee, "Total Adv.": total,
         "Balance Amt.": balance, "Benificiary Name": v["beneficiary_name"],
@@ -279,13 +282,13 @@ def trip_payload(v, files):
     return {
         "report_scope": "Both", "trip_date": v["date"], "vehicle_number": v["vehicle_number"], "vehicle_type": v["vehicle_capacity"],
         "ownership_type": v["ownership_type"], "from_location": v["from_location"], "to_location": v["to_location"],
-        "company_name": v["company_name"], "branch": v["branch"], "invoice_number": v["lr_invoice_number"],
+        "company_name": v["company_name"], "branch": v["branch"], "invoice_number": v["invoice_number"],
         "beneficiary_name": v["beneficiary_name"], "transporter_name": v["transporter_name"], "amount": total,
         "payment_mode": ", ".join(name for name, amount in payments.items() if amount), "revenue": v["revenue"],
         "transporter_freight": transporter_freight, "rtgs_advance": v["rtgs_advance"], "cash_advance": v["cash_advance"],
         "upi": v["upi"], "diesel_advance": v["diesel_advance"], "total_advance": total,
         "balance_amount": balance, "status": "Verified", "notes": v["remarks"],
-        "dtr_data": dtr, "rtgs_data": rtgs, **file_values(files),
+        "dtr_data": dtr, "rtgs_data": rtgs, **file_values(files, invoice_filename),
     }
 
 
@@ -358,7 +361,9 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     c1, c2 = st.columns(2)
     v["from_location"] = c1.text_input("From *", key=f"{prefix}_from_location", placeholder="e.g., Talegaon, Pune")
     v["to_location"] = c2.text_input("To *", key=f"{prefix}_to_location", placeholder="e.g., Bhiwandi, Thane")
-    v["lr_invoice_number"] = st.text_input("LR / Invoice number", key=f"{prefix}_lr_invoice_number", placeholder="e.g., LR-12234")
+    c1, c2 = st.columns(2)
+    v["lr_number"] = c1.text_input("LR number", key=f"{prefix}_lr_number", placeholder="e.g., LR-12234")
+    v["invoice_number"] = c2.text_input("Invoice number", key=f"{prefix}_invoice_number", placeholder="e.g., INV-10595976")
     st.markdown("#### 2. Vehicle information")
     c1, c2, c3 = st.columns(3)
     v["vehicle_number"] = c1.text_input("Vehicle number *", key=f"{prefix}_vehicle_number", placeholder="e.g., MH14JL9818")
@@ -456,6 +461,92 @@ def audit_action(action, request_number="", details=""):
     if current_user in AUDITED_MEMBERS:
         store.log_action(current_user, action, request_number, details)
 
+
+@st.dialog("View evidence and edit record", width="large")
+def view_record(row):
+    raw, is_expense = unpack(row.get("dtr_data")), row.get("report_scope") == "Expense"
+    rtgs_raw = unpack(row.get("rtgs_data"))
+    display = {
+        "Date": row.get("trip_date"), "Type": "Direct expense" if is_expense else "Trip",
+        "Branch": row.get("branch", ""), "Company": row.get("company_name", ""),
+        "Vehicle": row.get("vehicle_number", ""), "Vehicle Capacity": row.get("vehicle_type", ""),
+        "Own / Outside": row.get("ownership_type", ""), "From": row.get("from_location", ""),
+        "To": row.get("to_location", ""), "LR No.": raw.get("LR No.", ""),
+        "Invoice No.": raw.get("Invoice No.") or row.get("invoice_number", ""),
+        "Beneficiary": row.get("beneficiary_name", ""), "Account Number": rtgs_raw.get("BENE_ACC_NO", ""),
+        "IFSC": rtgs_raw.get("BENE_IFSC", ""), "Vehicle Placed By": raw.get("Veh Placed by", ""),
+        "Revenue": number(row.get("revenue")), "Transporter Freight": number(row.get("transporter_freight")),
+        "RTGS": number(row.get("rtgs_advance")), "Cash": number(row.get("cash_advance")),
+        "UPI": number(row.get("upi")), "Diesel": number(row.get("diesel_advance")),
+        "Add Pumps": raw.get("Diesel Pump Name", ""), "Card Name": raw.get("Card Name", ""),
+        "Billtee": number(raw.get("Billtee")), "Remarks": row.get("notes", ""),
+    }
+    if is_expense:
+        display.update(raw.get("categories", {}))
+    locked_columns = ["Type", "Branch"] if record_branch_scope else ["Type"]
+    edited = st.data_editor(
+        pd.DataFrame([display]), hide_index=True, width="stretch", disabled=locked_columns,
+        key=f"record_editor_{row['request_number']}",
+    )
+    if row.get("source_image"):
+        st.markdown("#### Invoice evidence")
+        if clean_text(row.get("source_mime_type")).startswith("image/"):
+            st.image(row["source_image"], caption=row.get("source_filename", "Invoice evidence"), width=500)
+        else:
+            st.download_button(
+                "Open invoice evidence", row["source_image"], row.get("source_filename", "invoice.pdf"),
+                row.get("source_mime_type"),
+            )
+    if st.button("Save record changes", type="primary", key=f"save_record_{row['request_number']}"):
+        item = edited.iloc[0].to_dict()
+        ownership_type = clean_text(item["Own / Outside"])
+        transporter_freight = float(applicable_transporter_freight(ownership_type, item["Transporter Freight"]))
+        billtee = number(item["Billtee"])
+        update_values = {
+            "trip_date": as_date(item["Date"]), "branch": clean_text(item["Branch"]),
+            "company_name": clean_text(item["Company"]), "vehicle_number": clean_text(item["Vehicle"]),
+            "vehicle_type": clean_text(item["Vehicle Capacity"]), "ownership_type": ownership_type,
+            "from_location": clean_text(item["From"]), "to_location": clean_text(item["To"]),
+            "invoice_number": clean_text(item["Invoice No."]), "beneficiary_name": clean_text(item["Beneficiary"]),
+            "revenue": number(item["Revenue"]), "transporter_freight": transporter_freight,
+            "rtgs_advance": number(item["RTGS"]), "cash_advance": number(item["Cash"]),
+            "upi": number(item["UPI"]), "diesel_advance": number(item["Diesel"]),
+            "notes": clean_text(item["Remarks"]),
+        }
+        if is_expense:
+            categories = {name: number(item.get(name)) for name in DIRECT_EXPENSE_COLUMNS}
+            update_values.update({
+                "amount": sum(categories.values()),
+                "dtr_data": {**raw, "categories": categories, "Diesel Pump Name": clean_text(item["Add Pumps"]), "Card Name": clean_text(item["Card Name"])},
+            })
+        else:
+            payment = advance_summary(transporter_freight, *(item[name] for name in ("RTGS", "Cash", "UPI", "Diesel")), billtee)
+            total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
+            updated_dtr = {
+                **raw, "Branch": item["Branch"], "Compnay Name": item["Company"], "Date": as_date(item["Date"]),
+                "Vehicle No.": item["Vehicle"], "Vehicle Type": item["Vehicle Capacity"],
+                "Own/Outside Veh.": item["Own / Outside"], "From": item["From"], "To": item["To"],
+                "LR No.": item["LR No."], "Invoice No.": item["Invoice No."], "Revenue": item["Revenue"],
+                "Transporter Freight": transporter_freight, "RTGS ADVANCE": item["RTGS"], "Cash Adv.": item["Cash"],
+                "UPI": item["UPI"], "Diesel Adv.": item["Diesel"], "Diesel Pump Name": clean_text(item["Add Pumps"]),
+                "Card Name": clean_text(item["Card Name"]), "Billtee": billtee, "Total Adv.": total,
+                "Balance Amt.": balance, "Benificiary Name": item["Beneficiary"],
+                "Veh Placed by": item["Vehicle Placed By"], "Remark": item["Remarks"],
+            }
+            updated_rtgs = {
+                **rtgs_raw, "BNF_NAME": item["Beneficiary"], "BENE_ACC_NO": item["Account Number"],
+                "BENE_IFSC": item["IFSC"], "AMOUNT": item["RTGS"], "REMARK": item["Remarks"],
+                "Origin Area": item["Branch"],
+            }
+            update_values.update({
+                "amount": total, "total_advance": total, "balance_amount": balance,
+                "dtr_data": updated_dtr, "rtgs_data": updated_rtgs,
+            })
+        store.update(row["request_number"], update_values, "records_tab", current_user)
+        audit_action("Updated record", row["request_number"], request_label(row))
+        st.toast("Record updated. A revision snapshot was saved.", icon="✅")
+        st.rerun()
+
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap');
@@ -498,7 +589,13 @@ with new_tab:
     page_intro("Smart capture", "New trip entry", "Add evidence once, review the details, and keep every report in sync.", "✦")
     workflow_steps(["Add evidence", "Review details", "Save and add another"], 0)
     c1, c2 = st.columns(2)
-    upload = c1.file_uploader("Upload photo or PDF", type=["jpg", "jpeg", "png", "webp", "pdf"], key="trip_upload")
+    upload = c1.file_uploader("Upload photos or PDFs", type=["jpg", "jpeg", "png", "webp", "pdf"], accept_multiple_files=True, key="trip_upload", help="Upload the cheque, invoice, and any supporting evidence together.")
+    invoice_filename = None
+    if upload:
+        invoice_filename = c1.selectbox(
+            "Invoice evidence shown in Records", [item.name for item in upload], index=len(upload) - 1,
+            key="trip_invoice_evidence", help="All files are used for autofill; only this invoice file is displayed in Records.",
+        )
     audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key="trip_audio")
     voice_autofill = c2.button("Autofill with Voice Prompt", type="primary", use_container_width=True, disabled=audio is None, key="trip_voice_autofill", icon="🎙️")
     files = evidence(upload, audio)
@@ -509,7 +606,7 @@ with new_tab:
     with st.container(border=True):
         values = trip_form("trip", business_memory, allowed_entry_branches, simplified=current_user == "Manish")
         if st.button("Save and Another Entry", type="primary", disabled=not values["branch"] or not values["vehicle_number"], key="save_trip"):
-            saved = store.create({**trip_payload(values, files), "created_by": current_user})
+            saved = store.create({**trip_payload(values, files, invoice_filename), "created_by": current_user})
             audit_action("Created trip record", saved, request_label(saved, values["date"]))
             st.session_state["saved_entry_notice"] = f"Saved {request_label(saved, values['date'])}. Ready for another entry."
             st.session_state["reset_trip_form"] = True
@@ -521,7 +618,7 @@ with expense_tab:
     page_intro("Expense capture", "Direct expense", "Turn bills and spoken notes into clean, categorised expense records.", "₹")
     workflow_steps(["Add receipt", "Categorise", "Save expense"], 0)
     c1, c2 = st.columns(2)
-    expense_upload = c1.file_uploader("Attach bill or receipt", type=["jpg", "jpeg", "png", "webp", "pdf"], key="expense_upload", disabled=not can_use_direct_expenses)
+    expense_upload = c1.file_uploader("Attach bills or receipts", type=["jpg", "jpeg", "png", "webp", "pdf"], accept_multiple_files=True, key="expense_upload", disabled=not can_use_direct_expenses)
     expense_audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key="expense_audio", disabled=not can_use_direct_expenses)
     expense_voice_autofill = c2.button("Autofill with Voice Prompt", type="primary", use_container_width=True, disabled=expense_audio is None or not can_use_direct_expenses, key="expense_voice_autofill", icon="🎙️")
     expense_files = evidence(expense_upload, expense_audio)
@@ -581,59 +678,41 @@ with records_tab:
         vehicle_filter = c4.selectbox("Vehicle no.", ["All", *vehicle_options], key="records_filter_vehicle")
         ownership_filter = c5.selectbox("Own or outside", ["Both", "Own", "Outside"], key="records_filter_ownership")
         date_filtered_rows = [row for row in rows if filter_from <= as_date(row.get("trip_date")) <= filter_to]
-        leaderboard_rows = "".join(
-            f"<tr><td>{rank}</td><td>{name}</td><td>{trip_count}</td><td>₹{revenue:,.2f}</td></tr>"
-            for rank, (name, trip_count, revenue) in enumerate(trip_leaderboard(date_filtered_rows), 1)
-        )
-        st.markdown("#### Trip leaderboard")
-        st.markdown(
-            f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Vehicle placed by</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_rows}</tbody></table>',
-            unsafe_allow_html=True,
-        )
         rows = [
             row for row in date_filtered_rows
             if (placed_by_filter == "All" or clean_text(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter)
             and (vehicle_filter == "All" or clean_text(row.get("vehicle_number")) == vehicle_filter)
             and ownership_matches(row.get("ownership_type"), ownership_filter)
         ]
+        leaderboard_rows = "".join(
+            f"<tr><td>{rank}</td><td>{name}</td><td>{trip_count}</td><td>₹{revenue:,.2f}</td></tr>"
+            for rank, (name, trip_count, revenue) in enumerate(trip_leaderboard(rows), 1)
+        )
+        st.markdown("#### Trip leaderboard")
+        st.markdown(
+            f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Vehicle placed by</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_rows}</tbody></table>',
+            unsafe_allow_html=True,
+        )
     if not rows:
         st.info("No records match the selected filters.")
     else:
         labels = {record_select_label(row): row for row in rows}
-        selected_label = st.selectbox("Select a record", list(labels), key="record_select")
-        row = labels[selected_label]
-        raw, is_expense = unpack(row.get("dtr_data")), row.get("report_scope") == "Expense"
-        rtgs_raw = unpack(row.get("rtgs_data"))
-        display = {"Date": row.get("trip_date"), "Type": "Direct expense" if is_expense else "Trip", "Branch": row.get("branch", ""), "Company": row.get("company_name", ""), "Vehicle": row.get("vehicle_number", ""), "Vehicle Capacity": row.get("vehicle_type", ""), "Own / Outside": row.get("ownership_type", ""), "From": row.get("from_location", ""), "To": row.get("to_location", ""), "LR / Invoice": row.get("invoice_number", ""), "Beneficiary": row.get("beneficiary_name", ""), "Account Number": rtgs_raw.get("BENE_ACC_NO", ""), "IFSC": rtgs_raw.get("BENE_IFSC", ""), "Vehicle Placed By": raw.get("Veh Placed by", ""), "Revenue": number(row.get("revenue")), "Transporter Freight": number(row.get("transporter_freight")), "RTGS": number(row.get("rtgs_advance")), "Cash": number(row.get("cash_advance")), "UPI": number(row.get("upi")), "Diesel": number(row.get("diesel_advance")), "Add Pumps": raw.get("Diesel Pump Name", ""), "Card Name": raw.get("Card Name", ""), "Billtee": number(raw.get("Billtee")), "Remarks": row.get("notes", "")}
-        if is_expense:
-            display.update(raw.get("categories", {}))
-        locked_columns = ["Type", "Branch"] if record_branch_scope else ["Type"]
-        edited = st.data_editor(pd.DataFrame([display]), hide_index=True, width="stretch", disabled=locked_columns, key=f"record_editor_{row['request_number']}")
-        if row.get("source_image"):
-            st.markdown("#### Attached evidence")
-            if clean_text(row.get("source_mime_type")).startswith("image/"):
-                st.image(row["source_image"], caption=row.get("source_filename", "Evidence"), width=500)
-            else:
-                st.download_button("Open attached evidence", row["source_image"], row.get("source_filename", "evidence.pdf"), row.get("source_mime_type"))
-        if st.button("Save record changes", type="primary", key=f"save_record_{row['request_number']}"):
-            item = edited.iloc[0].to_dict()
-            ownership_type = clean_text(item["Own / Outside"])
-            transporter_freight = float(applicable_transporter_freight(ownership_type, item["Transporter Freight"]))
-            billtee = number(item["Billtee"])
-            update_values = {"trip_date": as_date(item["Date"]), "branch": clean_text(item["Branch"]), "company_name": clean_text(item["Company"]), "vehicle_number": clean_text(item["Vehicle"]), "vehicle_type": clean_text(item["Vehicle Capacity"]), "ownership_type": ownership_type, "from_location": clean_text(item["From"]), "to_location": clean_text(item["To"]), "invoice_number": clean_text(item["LR / Invoice"]), "beneficiary_name": clean_text(item["Beneficiary"]), "revenue": number(item["Revenue"]), "transporter_freight": transporter_freight, "rtgs_advance": number(item["RTGS"]), "cash_advance": number(item["Cash"]), "upi": number(item["UPI"]), "diesel_advance": number(item["Diesel"]), "notes": clean_text(item["Remarks"])}
-            if is_expense:
-                categories = {name: number(item.get(name)) for name in DIRECT_EXPENSE_COLUMNS}
-                update_values.update({"amount": sum(categories.values()), "dtr_data": {**raw, "categories": categories, "Diesel Pump Name": clean_text(item["Add Pumps"]), "Card Name": clean_text(item["Card Name"])}})
-            else:
-                payment = advance_summary(transporter_freight, *(item[name] for name in ("RTGS", "Cash", "UPI", "Diesel")), billtee)
-                total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
-                updated_dtr = {**raw, "Branch": item["Branch"], "Compnay Name": item["Company"], "Date": as_date(item["Date"]), "Vehicle No.": item["Vehicle"], "Vehicle Type": item["Vehicle Capacity"], "Own/Outside Veh.": item["Own / Outside"], "From": item["From"], "To": item["To"], "LR No.": item["LR / Invoice"], "Invoice No.": item["LR / Invoice"], "Revenue": item["Revenue"], "Transporter Freight": transporter_freight, "RTGS ADVANCE": item["RTGS"], "Cash Adv.": item["Cash"], "UPI": item["UPI"], "Diesel Adv.": item["Diesel"], "Diesel Pump Name": clean_text(item["Add Pumps"]), "Card Name": clean_text(item["Card Name"]), "Billtee": billtee, "Total Adv.": total, "Balance Amt.": balance, "Benificiary Name": item["Beneficiary"], "Veh Placed by": item["Vehicle Placed By"], "Remark": item["Remarks"]}
-                updated_rtgs = {**rtgs_raw, "BNF_NAME": item["Beneficiary"], "BENE_ACC_NO": item["Account Number"], "BENE_IFSC": item["IFSC"], "AMOUNT": item["RTGS"], "REMARK": item["Remarks"], "Origin Area": item["Branch"]}
-                update_values.update({"amount": total, "total_advance": total, "balance_amount": balance, "dtr_data": updated_dtr, "rtgs_data": updated_rtgs})
-            store.update(row["request_number"], update_values, "records_tab", current_user)
-            audit_action("Updated record", row["request_number"], request_label(row))
-            st.success("Record updated. A revision snapshot was saved.")
-            st.rerun()
+        st.markdown("#### Live records")
+        with st.container(height=420, border=True):
+            header = st.columns([1.35, .8, .9, 1.1, 1.15, 1, .85])
+            for column, title in zip(header, ("Record", "Date", "Branch", "Vehicle", "Placed by", "Revenue", "")):
+                column.markdown(f"**{title}**")
+            for record in rows:
+                raw = unpack(record.get("dtr_data"))
+                columns = st.columns([1.35, .8, .9, 1.1, 1.15, 1, .85], vertical_alignment="center")
+                columns[0].write(request_label(record))
+                columns[1].write(f"{as_date(record.get('trip_date')):%d/%m/%y}")
+                columns[2].write(clean_text(record.get("branch")) or "—")
+                columns[3].write(clean_text(record.get("vehicle_number")) or "—")
+                columns[4].write(clean_text(raw.get("Veh Placed by")) or "—")
+                columns[5].write(f"₹{number(record.get('revenue')):,.0f}")
+                if columns[6].button("View Evidence", key=f"view_record_{record['request_number']}", use_container_width=True):
+                    view_record(record)
         with st.expander("Delete records"):
             select_all = st.checkbox("Select all", key="records_delete_all")
             chosen = list(labels) if select_all else st.multiselect("Select records", list(labels), key="records_delete_selection")
