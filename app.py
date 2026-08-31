@@ -73,6 +73,12 @@ def is_own_vehicle(ownership_type):
     return clean_text(ownership_type).casefold().startswith("own")
 
 
+def ownership_matches(ownership_type, selected):
+    if selected in (None, "", "Both"):
+        return True
+    return is_own_vehicle(ownership_type) if selected == "Own" else clean_text(ownership_type).casefold().startswith("outside")
+
+
 def applicable_transporter_freight(ownership_type, amount):
     return 0.0 if is_own_vehicle(ownership_type) else number(amount)
 
@@ -266,6 +272,7 @@ def trip_payload(v, files):
         "Revenue": v["revenue"], "Transporter Freight": transporter_freight, "RTGS ADVANCE": v["rtgs_advance"],
         "Cash Adv.": v["cash_advance"], "UPI": v["upi"], "Diesel Adv.": v["diesel_advance"], "Billtee": billtee, "Total Adv.": total,
         "Balance Amt.": balance, "Benificiary Name": v["beneficiary_name"],
+        "Diesel Pump Name": v["diesel_pump_name"], "Card Name": v["card_name"],
         "Transporter Name": v["transporter_name"], "Veh Placed by": v["vehicle_placed_by"], "Remark": v["remarks"],
     }
     rtgs = {"BNF_NAME": v["beneficiary_name"], "BENE_ACC_NO": v["beneficiary_account_number"], "BENE_IFSC": v["beneficiary_ifsc_code"], "AMOUNT": v["rtgs_advance"], "REMARK": v["remarks"], "Origin Area": v["branch"]}
@@ -291,7 +298,10 @@ def expense_payload(v, files):
         "amount": sum(categories.values()), "payment_mode": ", ".join(k for k, val in payments.items() if val),
         "rtgs_advance": payments["RTGS"], "cash_advance": payments["Cash"], "upi": payments["UPI"],
         "diesel_advance": payments["Diesel"], "total_advance": sum(payments.values()), "notes": v["remarks"],
-        "status": "Verified", "dtr_data": {"categories": categories, "payments": payments}, **file_values(files),
+        "status": "Verified", "dtr_data": {
+            "categories": categories, "payments": payments,
+            "Diesel Pump Name": v["diesel_pump_name"], "Card Name": v["card_name"],
+        }, **file_values(files),
     }
 
 
@@ -391,6 +401,12 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     for col, (label, field) in zip(deduction_columns, PAYMENT_FIELDS.items()):
         v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 2,000", key=f"{prefix}_{field}")
     v["billtee"] = deduction_columns[-1].number_input("Billtee (₹)", min_value=0.0, value=None, placeholder="e.g., 1,000", key=f"{prefix}_billtee")
+    if number(v["diesel_advance"]) > 0:
+        pump_col, card_col = st.columns(2)
+        v["diesel_pump_name"] = pump_col.text_input("Add Pumps", key=f"{prefix}_diesel_pump_name", placeholder="e.g., HP Petrol Pump")
+        v["card_name"] = card_col.text_input("Card Name", key=f"{prefix}_card_name", placeholder="e.g., HPCL DriveTrack")
+    else:
+        v["diesel_pump_name"], v["card_name"] = "", ""
     payment = advance_summary(v["transporter_freight"], *(v[f] for f in PAYMENT_FIELDS.values()), v["billtee"])
     total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
     summary = st.columns(2 if simplified else 3)
@@ -529,6 +545,12 @@ with expense_tab:
         st.caption("Fill every mode used for this expense.")
         for col, (label, field) in zip(st.columns(4), PAYMENT_FIELDS.items()):
             v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 5,000", key=f"expense_{field}")
+        if number(v["diesel_advance"]) > 0:
+            pump_col, card_col = st.columns(2)
+            v["diesel_pump_name"] = pump_col.text_input("Add Pumps", key="expense_diesel_pump_name", placeholder="e.g., HP Petrol Pump")
+            v["card_name"] = card_col.text_input("Card Name", key="expense_card_name", placeholder="e.g., HPCL DriveTrack")
+        else:
+            v["diesel_pump_name"], v["card_name"] = "", ""
         expense_total = sum(number(v[name]) for name in DIRECT_EXPENSE_COLUMNS)
         paid_total = sum(number(v[field]) for field in PAYMENT_FIELDS.values())
         c1, c2 = st.columns(2)
@@ -552,11 +574,12 @@ with records_tab:
         placed_by_options = sorted({clean_text(unpack(row.get("dtr_data")).get("Veh Placed by")) for row in rows} - {""}, key=str.casefold)
         vehicle_options = sorted({clean_text(row.get("vehicle_number")) for row in rows} - {""}, key=str.casefold)
         st.markdown("#### Filter records")
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3, c4, c5 = st.columns(5)
         filter_from = c1.date_input("Records from", value=min(record_dates), format="DD/MM/YYYY", key="records_filter_from")
         filter_to = c2.date_input("Records to", value=max(record_dates), format="DD/MM/YYYY", key="records_filter_to")
         placed_by_filter = c3.selectbox("Vehicle placed by", ["All", *placed_by_options], key="records_filter_placed_by")
         vehicle_filter = c4.selectbox("Vehicle no.", ["All", *vehicle_options], key="records_filter_vehicle")
+        ownership_filter = c5.selectbox("Own or outside", ["Both", "Own", "Outside"], key="records_filter_ownership")
         date_filtered_rows = [row for row in rows if filter_from <= as_date(row.get("trip_date")) <= filter_to]
         leaderboard_rows = "".join(
             f"<tr><td>{rank}</td><td>{name}</td><td>{trip_count}</td><td>₹{revenue:,.2f}</td></tr>"
@@ -571,6 +594,7 @@ with records_tab:
             row for row in date_filtered_rows
             if (placed_by_filter == "All" or clean_text(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter)
             and (vehicle_filter == "All" or clean_text(row.get("vehicle_number")) == vehicle_filter)
+            and ownership_matches(row.get("ownership_type"), ownership_filter)
         ]
     if not rows:
         st.info("No records match the selected filters.")
@@ -580,7 +604,7 @@ with records_tab:
         row = labels[selected_label]
         raw, is_expense = unpack(row.get("dtr_data")), row.get("report_scope") == "Expense"
         rtgs_raw = unpack(row.get("rtgs_data"))
-        display = {"Date": row.get("trip_date"), "Type": "Direct expense" if is_expense else "Trip", "Branch": row.get("branch", ""), "Company": row.get("company_name", ""), "Vehicle": row.get("vehicle_number", ""), "Vehicle Capacity": row.get("vehicle_type", ""), "Own / Outside": row.get("ownership_type", ""), "From": row.get("from_location", ""), "To": row.get("to_location", ""), "LR / Invoice": row.get("invoice_number", ""), "Beneficiary": row.get("beneficiary_name", ""), "Account Number": rtgs_raw.get("BENE_ACC_NO", ""), "IFSC": rtgs_raw.get("BENE_IFSC", ""), "Vehicle Placed By": raw.get("Veh Placed by", ""), "Revenue": number(row.get("revenue")), "Transporter Freight": number(row.get("transporter_freight")), "RTGS": number(row.get("rtgs_advance")), "Cash": number(row.get("cash_advance")), "UPI": number(row.get("upi")), "Diesel": number(row.get("diesel_advance")), "Billtee": number(raw.get("Billtee")), "Remarks": row.get("notes", "")}
+        display = {"Date": row.get("trip_date"), "Type": "Direct expense" if is_expense else "Trip", "Branch": row.get("branch", ""), "Company": row.get("company_name", ""), "Vehicle": row.get("vehicle_number", ""), "Vehicle Capacity": row.get("vehicle_type", ""), "Own / Outside": row.get("ownership_type", ""), "From": row.get("from_location", ""), "To": row.get("to_location", ""), "LR / Invoice": row.get("invoice_number", ""), "Beneficiary": row.get("beneficiary_name", ""), "Account Number": rtgs_raw.get("BENE_ACC_NO", ""), "IFSC": rtgs_raw.get("BENE_IFSC", ""), "Vehicle Placed By": raw.get("Veh Placed by", ""), "Revenue": number(row.get("revenue")), "Transporter Freight": number(row.get("transporter_freight")), "RTGS": number(row.get("rtgs_advance")), "Cash": number(row.get("cash_advance")), "UPI": number(row.get("upi")), "Diesel": number(row.get("diesel_advance")), "Add Pumps": raw.get("Diesel Pump Name", ""), "Card Name": raw.get("Card Name", ""), "Billtee": number(raw.get("Billtee")), "Remarks": row.get("notes", "")}
         if is_expense:
             display.update(raw.get("categories", {}))
         locked_columns = ["Type", "Branch"] if record_branch_scope else ["Type"]
@@ -599,11 +623,11 @@ with records_tab:
             update_values = {"trip_date": as_date(item["Date"]), "branch": clean_text(item["Branch"]), "company_name": clean_text(item["Company"]), "vehicle_number": clean_text(item["Vehicle"]), "vehicle_type": clean_text(item["Vehicle Capacity"]), "ownership_type": ownership_type, "from_location": clean_text(item["From"]), "to_location": clean_text(item["To"]), "invoice_number": clean_text(item["LR / Invoice"]), "beneficiary_name": clean_text(item["Beneficiary"]), "revenue": number(item["Revenue"]), "transporter_freight": transporter_freight, "rtgs_advance": number(item["RTGS"]), "cash_advance": number(item["Cash"]), "upi": number(item["UPI"]), "diesel_advance": number(item["Diesel"]), "notes": clean_text(item["Remarks"])}
             if is_expense:
                 categories = {name: number(item.get(name)) for name in DIRECT_EXPENSE_COLUMNS}
-                update_values.update({"amount": sum(categories.values()), "dtr_data": {**raw, "categories": categories}})
+                update_values.update({"amount": sum(categories.values()), "dtr_data": {**raw, "categories": categories, "Diesel Pump Name": clean_text(item["Add Pumps"]), "Card Name": clean_text(item["Card Name"])}})
             else:
                 payment = advance_summary(transporter_freight, *(item[name] for name in ("RTGS", "Cash", "UPI", "Diesel")), billtee)
                 total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
-                updated_dtr = {**raw, "Branch": item["Branch"], "Compnay Name": item["Company"], "Date": as_date(item["Date"]), "Vehicle No.": item["Vehicle"], "Vehicle Type": item["Vehicle Capacity"], "Own/Outside Veh.": item["Own / Outside"], "From": item["From"], "To": item["To"], "LR No.": item["LR / Invoice"], "Invoice No.": item["LR / Invoice"], "Revenue": item["Revenue"], "Transporter Freight": transporter_freight, "RTGS ADVANCE": item["RTGS"], "Cash Adv.": item["Cash"], "UPI": item["UPI"], "Diesel Adv.": item["Diesel"], "Billtee": billtee, "Total Adv.": total, "Balance Amt.": balance, "Benificiary Name": item["Beneficiary"], "Veh Placed by": item["Vehicle Placed By"], "Remark": item["Remarks"]}
+                updated_dtr = {**raw, "Branch": item["Branch"], "Compnay Name": item["Company"], "Date": as_date(item["Date"]), "Vehicle No.": item["Vehicle"], "Vehicle Type": item["Vehicle Capacity"], "Own/Outside Veh.": item["Own / Outside"], "From": item["From"], "To": item["To"], "LR No.": item["LR / Invoice"], "Invoice No.": item["LR / Invoice"], "Revenue": item["Revenue"], "Transporter Freight": transporter_freight, "RTGS ADVANCE": item["RTGS"], "Cash Adv.": item["Cash"], "UPI": item["UPI"], "Diesel Adv.": item["Diesel"], "Diesel Pump Name": clean_text(item["Add Pumps"]), "Card Name": clean_text(item["Card Name"]), "Billtee": billtee, "Total Adv.": total, "Balance Amt.": balance, "Benificiary Name": item["Beneficiary"], "Veh Placed by": item["Vehicle Placed By"], "Remark": item["Remarks"]}
                 updated_rtgs = {**rtgs_raw, "BNF_NAME": item["Beneficiary"], "BENE_ACC_NO": item["Account Number"], "BENE_IFSC": item["IFSC"], "AMOUNT": item["RTGS"], "REMARK": item["Remarks"], "Origin Area": item["Branch"]}
                 update_values.update({"amount": total, "total_advance": total, "balance_amount": balance, "dtr_data": updated_dtr, "rtgs_data": updated_rtgs})
             store.update(row["request_number"], update_values, "records_tab", current_user)
@@ -632,8 +656,15 @@ with reports_tab:
     end = c2.date_input("Records to", value=dt.date.today(), format="DD/MM/YYYY", key="report_to")
     report_options = ["DTR", "RTGS", *(["P&L"] if can_generate_pnl else [])]
     report_type = st.segmented_control("Report type", report_options, default="DTR", key="report_type")
+    pnl_ownership_filter = "Both"
+    if report_type == "P&L":
+        pnl_ownership_filter = st.segmented_control(
+            "Own or outside vehicle", ["Both", "Own", "Outside"], default="Both", key="pnl_ownership_filter",
+        )
     selected_rows = store.list(start, end, status="All active") if can_generate_reports and start <= end else []
     trips = [row for row in selected_rows if row.get("report_scope") != "Expense"]
+    if report_type == "P&L":
+        trips = [row for row in trips if ownership_matches(row.get("ownership_type"), pnl_ownership_filter)]
     expenses = [row for row in selected_rows if row.get("report_scope") == "Expense"]
     st.caption(f"{len(trips)} trip record(s) and {len(expenses)} direct expense record(s) selected.")
     if report_type == "DTR":
