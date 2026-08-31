@@ -157,16 +157,19 @@ def record_select_label(row):
     return f"{request_label(row)} [{details}]"
 
 
-def billtee_leaderboard(rows):
-    totals = {name: 0.0 for name in ("Ajit", "Nitish", "Ashok")}
+def trip_leaderboard(rows):
+    totals = {}
     for row in rows:
+        if row.get("report_scope") == "Expense":
+            continue
         dtr = unpack(row.get("dtr_data"))
-        first_name = clean_text(dtr.get("Veh Placed by")).split(" ", 1)[0].casefold()
-        for name in totals:
-            if first_name == name.casefold():
-                totals[name] += number(dtr.get("Billtee"))
-                break
-    return sorted(totals.items(), key=lambda item: (-item[1], item[0]))
+        name = clean_text(dtr.get("Veh Placed by")) or "Not specified"
+        trip_count, revenue = totals.get(name, (0, 0.0))
+        totals[name] = (trip_count + 1, revenue + number(row.get("revenue")))
+    return sorted(
+        ((name, trip_count, revenue) for name, (trip_count, revenue) in totals.items()),
+        key=lambda item: (-item[2], -item[1], item[0].casefold()),
+    )
 
 
 def trip_auto_remark(vehicle_number, origin, destination, vehicle_capacity, trip_date):
@@ -331,7 +334,7 @@ def memory_prompt(prefix, title, source, suggestion, field_names):
     st.button("Apply suggestion", key=f"memory_{prefix}_{source}", on_click=apply_memory, args=(prefix, missing), icon="✨")
 
 
-def trip_form(prefix, memory, allowed_branches=None):
+def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     st.markdown("#### 1. Basic information")
     c1, c2 = st.columns(2)
     branch_key = f"{prefix}_branch"
@@ -355,27 +358,34 @@ def trip_form(prefix, memory, allowed_branches=None):
     v["ownership_type"] = c3.selectbox("Own or outside", choices, index=choices.index(current) if current in choices else 0, key=f"{prefix}_ownership_type")
     v["vehicle_placed_by"] = st.text_input("Vehicle placed by", key=f"{prefix}_vehicle_placed_by", placeholder="e.g., Ajit Thakur")
     memory_prompt(prefix, f"Known setup for {v['vehicle_number']}", f"vehicle_{v['vehicle_number']}", recall(memory, "vehicles", v["vehicle_number"]), ["vehicle_capacity", "transporter_name", "ownership_type", "vehicle_placed_by"])
-    st.markdown("#### 3. Beneficiary details")
-    c1, c2 = st.columns(2)
-    v["beneficiary_name"] = c1.text_input("Beneficiary name", key=f"{prefix}_beneficiary_name", placeholder="e.g., XYZ Transport")
-    v["transporter_name"] = c2.text_input("Transporter name", key=f"{prefix}_transporter_name", placeholder="e.g., XYZ Transport")
-    c1, c2 = st.columns(2)
-    v["beneficiary_account_number"] = c1.text_input("Account number", key=f"{prefix}_beneficiary_account_number", placeholder="e.g., 0206101019660")
-    v["beneficiary_ifsc_code"] = c2.text_input("IFSC code", key=f"{prefix}_beneficiary_ifsc_code", placeholder="e.g., ICIC0001234")
     memory_prompt(prefix, f"Known branch for {v['company_name']}", f"company_{v['company_name']}", recall(memory, "companies", v["company_name"]), ["branch"])
-    beneficiary_memory = recall(memory, "beneficiaries", v["beneficiary_name"])
-    beneficiary_memory = {"beneficiary_account_number" if key == "account_number" else "beneficiary_ifsc_code" if key == "ifsc" else key: value for key, value in beneficiary_memory.items()}
-    memory_prompt(prefix, f"Known beneficiary details for {v['beneficiary_name']}", f"beneficiary_{v['beneficiary_name']}", beneficiary_memory, ["beneficiary_account_number", "beneficiary_ifsc_code", "transporter_name"])
-    st.markdown("#### 4. Payment details")
-    c1, c2 = st.columns(2)
-    v["revenue"] = c1.number_input("Revenue freight (₹)", min_value=0.0, value=None, placeholder="e.g., 50,000", key=f"{prefix}_revenue")
-    own_vehicle = is_own_vehicle(v["ownership_type"])
-    transporter_freight_key = f"{prefix}_transporter_freight"
-    if own_vehicle:
-        st.session_state[transporter_freight_key] = None
-    v["transporter_freight"] = c2.number_input("Transporter freight (₹)", min_value=0.0, value=None, placeholder="Not applicable for own vehicles" if own_vehicle else "e.g., 38,000", disabled=own_vehicle, key=transporter_freight_key)
-    if own_vehicle:
-        c2.caption("Not applicable for an own vehicle.")
+    if simplified:
+        v.update({"beneficiary_name": "", "transporter_name": "", "beneficiary_account_number": "", "beneficiary_ifsc_code": ""})
+    else:
+        st.markdown("#### 3. Beneficiary details")
+        c1, c2 = st.columns(2)
+        v["beneficiary_name"] = c1.text_input("Beneficiary name", key=f"{prefix}_beneficiary_name", placeholder="e.g., XYZ Transport")
+        v["transporter_name"] = c2.text_input("Transporter name", key=f"{prefix}_transporter_name", placeholder="e.g., XYZ Transport")
+        c1, c2 = st.columns(2)
+        v["beneficiary_account_number"] = c1.text_input("Account number", key=f"{prefix}_beneficiary_account_number", placeholder="e.g., 0206101019660")
+        v["beneficiary_ifsc_code"] = c2.text_input("IFSC code", key=f"{prefix}_beneficiary_ifsc_code", placeholder="e.g., ICIC0001234")
+        beneficiary_memory = recall(memory, "beneficiaries", v["beneficiary_name"])
+        beneficiary_memory = {"beneficiary_account_number" if key == "account_number" else "beneficiary_ifsc_code" if key == "ifsc" else key: value for key, value in beneficiary_memory.items()}
+        memory_prompt(prefix, f"Known beneficiary details for {v['beneficiary_name']}", f"beneficiary_{v['beneficiary_name']}", beneficiary_memory, ["beneficiary_account_number", "beneficiary_ifsc_code", "transporter_name"])
+    st.markdown(f"#### {'3' if simplified else '4'}. Payment details")
+    if simplified:
+        v["revenue"] = st.number_input("Revenue freight (₹)", min_value=0.0, value=None, placeholder="e.g., 50,000", key=f"{prefix}_revenue")
+        v["transporter_freight"] = 0.0
+    else:
+        c1, c2 = st.columns(2)
+        v["revenue"] = c1.number_input("Revenue freight (₹)", min_value=0.0, value=None, placeholder="e.g., 50,000", key=f"{prefix}_revenue")
+        own_vehicle = is_own_vehicle(v["ownership_type"])
+        transporter_freight_key = f"{prefix}_transporter_freight"
+        if own_vehicle:
+            st.session_state[transporter_freight_key] = None
+        v["transporter_freight"] = c2.number_input("Transporter freight (₹)", min_value=0.0, value=None, placeholder="Not applicable for own vehicles" if own_vehicle else "e.g., 38,000", disabled=own_vehicle, key=transporter_freight_key)
+        if own_vehicle:
+            c2.caption("Not applicable for an own vehicle.")
     st.caption("Enter amounts in every payment mode used. Billtee is also deducted before calculating the balance payable.")
     deduction_columns = st.columns(5)
     for col, (label, field) in zip(deduction_columns, PAYMENT_FIELDS.items()):
@@ -383,11 +393,14 @@ def trip_form(prefix, memory, allowed_branches=None):
     v["billtee"] = deduction_columns[-1].number_input("Billtee (₹)", min_value=0.0, value=None, placeholder="e.g., 1,000", key=f"{prefix}_billtee")
     payment = advance_summary(v["transporter_freight"], *(v[f] for f in PAYMENT_FIELDS.values()), v["billtee"])
     total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
-    summary = st.columns(3)
-    summary[0].metric("Transporter freight", f"₹{number(v['transporter_freight']):,.2f}")
-    summary[1].metric("Total advance", f"₹{total:,.2f}")
-    summary[2].metric("Balance payable", f"₹{balance:,.2f}", help="Transporter freight minus RTGS, Cash, UPI, Diesel and Billtee deductions. A negative amount indicates an overpayment.")
-    if balance < 0:
+    summary = st.columns(2 if simplified else 3)
+    metric_offset = 0
+    if not simplified:
+        summary[0].metric("Transporter freight", f"₹{number(v['transporter_freight']):,.2f}")
+        metric_offset = 1
+    summary[metric_offset].metric("Total advance", f"₹{total:,.2f}")
+    summary[metric_offset + 1].metric("Balance payable", f"₹{balance:,.2f}", help="Transporter freight minus RTGS, Cash, UPI, Diesel and Billtee deductions. A negative amount indicates an overpayment.")
+    if balance < 0 and not simplified:
         st.warning(f"Advance exceeds transporter freight by ₹{abs(balance):,.2f}. Please review the payment amounts.")
     remark_key = f"{prefix}_remarks"
     generated_remark = trip_auto_remark(v["vehicle_number"], v["from_location"], v["to_location"], v["vehicle_capacity"], v["date"])
@@ -415,6 +428,12 @@ can_generate_reports = is_special_member
 can_generate_pnl = current_user in PNL_MEMBERS
 record_branch_scope = LIMITED_RECORD_BRANCH.get(current_user)
 allowed_entry_branches = [record_branch_scope] if record_branch_scope else BRANCHES
+if st.session_state.pop("reset_trip_form", False):
+    for state_key in list(st.session_state):
+        if state_key.startswith("trip_"):
+            del st.session_state[state_key]
+if saved_entry_notice := st.session_state.pop("saved_entry_notice", None):
+    st.toast(saved_entry_notice, icon="✅")
 
 
 def audit_action(action, request_number="", details=""):
@@ -461,7 +480,7 @@ new_tab, expense_tab, records_tab, reports_tab, logs_tab = st.tabs(["New Entry",
 
 with new_tab:
     page_intro("Smart capture", "New trip entry", "Add evidence once, review the details, and keep every report in sync.", "✦")
-    workflow_steps(["Add evidence", "Review details", "Save record"], 0)
+    workflow_steps(["Add evidence", "Review details", "Save and add another"], 0)
     c1, c2 = st.columns(2)
     upload = c1.file_uploader("Upload photo or PDF", type=["jpg", "jpeg", "png", "webp", "pdf"], key="trip_upload")
     audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key="trip_audio")
@@ -472,11 +491,13 @@ with new_tab:
     if voice_autofill:
         autofill(evidence(None, audio), "", "trip")
     with st.container(border=True):
-        values = trip_form("trip", business_memory, allowed_entry_branches)
-        if st.button("Save record", type="primary", disabled=not values["branch"] or not values["vehicle_number"], key="save_trip"):
+        values = trip_form("trip", business_memory, allowed_entry_branches, simplified=current_user == "Manish")
+        if st.button("Save and Another Entry", type="primary", disabled=not values["branch"] or not values["vehicle_number"], key="save_trip"):
             saved = store.create({**trip_payload(values, files), "created_by": current_user})
             audit_action("Created trip record", saved, request_label(saved, values["date"]))
-            st.success(f"Saved {request_label(saved, values['date'])}. Entries remain filled for the next record.")
+            st.session_state["saved_entry_notice"] = f"Saved {request_label(saved, values['date'])}. Ready for another entry."
+            st.session_state["reset_trip_form"] = True
+            st.rerun()
 
 with expense_tab:
     if not can_use_direct_expenses:
@@ -529,24 +550,27 @@ with records_tab:
     if rows:
         record_dates = [as_date(row.get("trip_date")) for row in rows]
         placed_by_options = sorted({clean_text(unpack(row.get("dtr_data")).get("Veh Placed by")) for row in rows} - {""}, key=str.casefold)
+        vehicle_options = sorted({clean_text(row.get("vehicle_number")) for row in rows} - {""}, key=str.casefold)
         st.markdown("#### Filter records")
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         filter_from = c1.date_input("Records from", value=min(record_dates), format="DD/MM/YYYY", key="records_filter_from")
         filter_to = c2.date_input("Records to", value=max(record_dates), format="DD/MM/YYYY", key="records_filter_to")
         placed_by_filter = c3.selectbox("Vehicle placed by", ["All", *placed_by_options], key="records_filter_placed_by")
+        vehicle_filter = c4.selectbox("Vehicle no.", ["All", *vehicle_options], key="records_filter_vehicle")
         date_filtered_rows = [row for row in rows if filter_from <= as_date(row.get("trip_date")) <= filter_to]
         leaderboard_rows = "".join(
-            f"<tr><td>{rank}</td><td>{name}</td><td>₹{amount:,.2f}</td></tr>"
-            for rank, (name, amount) in enumerate(billtee_leaderboard(date_filtered_rows), 1)
+            f"<tr><td>{rank}</td><td>{name}</td><td>{trip_count}</td><td>₹{revenue:,.2f}</td></tr>"
+            for rank, (name, trip_count, revenue) in enumerate(trip_leaderboard(date_filtered_rows), 1)
         )
-        st.markdown("#### Billtee leaderboard")
+        st.markdown("#### Trip leaderboard")
         st.markdown(
-            f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Vehicle placed by</th><th>Total Billtee</th></tr></thead><tbody>{leaderboard_rows}</tbody></table>',
+            f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Vehicle placed by</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_rows}</tbody></table>',
             unsafe_allow_html=True,
         )
         rows = [
             row for row in date_filtered_rows
-            if placed_by_filter == "All" or clean_text(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter
+            if (placed_by_filter == "All" or clean_text(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter)
+            and (vehicle_filter == "All" or clean_text(row.get("vehicle_number")) == vehicle_filter)
         ]
     if not rows:
         st.info("No records match the selected filters.")
