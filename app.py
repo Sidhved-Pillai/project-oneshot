@@ -265,16 +265,22 @@ def file_values(files, preferred_filename=None):
 def trip_payload(v, files, invoice_filename=None):
     payments = {name: number(v[field]) for name, field in PAYMENT_FIELDS.items()}
     billtee = number(v["billtee"])
+    repairs_maintenance = number(v.get("repairs_maintenance"))
     transporter_freight = float(applicable_transporter_freight(v["ownership_type"], v["transporter_freight"]))
-    summary = advance_summary(transporter_freight, *payments.values(), billtee)
-    total, balance = float(summary["total_advance"]), float(summary["balance_payable"])
+    if v.get("simplified"):
+        total = sum(payments.values())
+        balance = number(v["revenue"]) - total - repairs_maintenance
+    else:
+        summary = advance_summary(transporter_freight, *payments.values(), billtee)
+        total, balance = float(summary["total_advance"]), float(summary["balance_payable"])
     dtr = {
         "Branch": v["branch"], "Compnay Name": v["company_name"], "Date": v["date"], "Vehicle No.": v["vehicle_number"],
         "Vehicle Type": v["vehicle_capacity"], "Own/Outside Veh.": v["ownership_type"], "From": v["from_location"],
         "To": v["to_location"], "LR No.": v["lr_number"], "Invoice No.": v["invoice_number"],
         "Revenue": v["revenue"], "Transporter Freight": transporter_freight, "RTGS ADVANCE": v["rtgs_advance"],
         "Cash Adv.": v["cash_advance"], "UPI": v["upi"], "Diesel Adv.": v["diesel_advance"], "Billtee": billtee, "Total Adv.": total,
-        "Balance Amt.": balance, "Benificiary Name": v["beneficiary_name"],
+        "Balance Amt.": balance, "Repairs & Maintenance": repairs_maintenance,
+        "Repair Reason": clean_text(v.get("repair_reason")), "Benificiary Name": v["beneficiary_name"],
         "Diesel Pump Name": v["diesel_pump_name"], "Card Name": v["card_name"],
         "Transporter Name": v["transporter_name"], "Veh Placed by": v["vehicle_placed_by"], "Remark": v["remarks"],
     }
@@ -348,6 +354,7 @@ def memory_prompt(prefix, title, source, suggestion, field_names):
 
 
 def trip_form(prefix, memory, allowed_branches=None, simplified=False):
+    v = {"simplified": simplified}
     st.markdown("#### 1. Basic information")
     c1, c2 = st.columns(2)
     branch_key = f"{prefix}_branch"
@@ -357,7 +364,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     if st.session_state.get(branch_key) != current_branch:
         st.session_state[branch_key] = current_branch
     branch_choices = ["", *available_branches]
-    v = {"date": c1.date_input("Date *", value=st.session_state.get(f"{prefix}_date", dt.date.today()), format="DD/MM/YYYY", key=f"{prefix}_date"), "branch": c2.selectbox("Branch *", branch_choices, index=branch_choices.index(current_branch), key=branch_key, placeholder="Select a branch"), "company_name": st.text_input("Company name *", key=f"{prefix}_company_name", placeholder="e.g., SG Logistics")}
+    v.update({"date": c1.date_input("Date *", value=st.session_state.get(f"{prefix}_date", dt.date.today()), format="DD/MM/YYYY", key=f"{prefix}_date"), "branch": c2.selectbox("Branch *", branch_choices, index=branch_choices.index(current_branch), key=branch_key, placeholder="Select a branch"), "company_name": st.text_input("Company name *", key=f"{prefix}_company_name", placeholder="e.g., SG Logistics")})
     c1, c2 = st.columns(2)
     v["from_location"] = c1.text_input("From *", key=f"{prefix}_from_location", placeholder="e.g., Talegaon, Pune")
     v["to_location"] = c2.text_input("To *", key=f"{prefix}_to_location", placeholder="e.g., Bhiwandi, Thane")
@@ -401,26 +408,40 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         v["transporter_freight"] = c2.number_input("Transporter freight (₹)", min_value=0.0, value=None, placeholder="Not applicable for own vehicles" if own_vehicle else "e.g., 38,000", disabled=own_vehicle, key=transporter_freight_key)
         if own_vehicle:
             c2.caption("Not applicable for an own vehicle.")
-    st.caption("Enter amounts in every payment mode used. Billtee is also deducted before calculating the balance payable.")
+    st.caption("Enter amounts in every payment mode used. Repairs and maintenance are deducted from Profit / Loss." if simplified else "Enter amounts in every payment mode used. Billtee is also deducted before calculating the balance payable.")
     deduction_columns = st.columns(5)
     for col, (label, field) in zip(deduction_columns, PAYMENT_FIELDS.items()):
         v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 2,000", key=f"{prefix}_{field}")
-    v["billtee"] = deduction_columns[-1].number_input("Billtee (₹)", min_value=0.0, value=None, placeholder="e.g., 1,000", key=f"{prefix}_billtee")
+    if simplified:
+        v["billtee"] = 0.0
+        v["repairs_maintenance"] = deduction_columns[-1].number_input("Repairs & Maintenance (₹)", min_value=0.0, value=None, placeholder="e.g., 1,000", key=f"{prefix}_repairs_maintenance")
+        v["repair_reason"] = st.text_input("Reason", key=f"{prefix}_repair_reason", placeholder="e.g., Tyre puncture repair") if number(v["repairs_maintenance"]) > 0 else ""
+    else:
+        v["billtee"] = deduction_columns[-1].number_input("Billtee (₹)", min_value=0.0, value=None, placeholder="e.g., 1,000", key=f"{prefix}_billtee")
+        v["repairs_maintenance"], v["repair_reason"] = 0.0, ""
     if number(v["diesel_advance"]) > 0:
         pump_col, card_col = st.columns(2)
         v["diesel_pump_name"] = pump_col.text_input("Add Pumps", key=f"{prefix}_diesel_pump_name", placeholder="e.g., HP Petrol Pump")
         v["card_name"] = card_col.text_input("Card Name", key=f"{prefix}_card_name", placeholder="e.g., HPCL DriveTrack")
     else:
         v["diesel_pump_name"], v["card_name"] = "", ""
-    payment = advance_summary(v["transporter_freight"], *(v[f] for f in PAYMENT_FIELDS.values()), v["billtee"])
-    total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
+    if simplified:
+        total = sum(number(v[field]) for field in PAYMENT_FIELDS.values())
+        balance = number(v["revenue"]) - total - number(v["repairs_maintenance"])
+    else:
+        payment = advance_summary(v["transporter_freight"], *(v[f] for f in PAYMENT_FIELDS.values()), v["billtee"])
+        total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
     summary = st.columns(2 if simplified else 3)
     metric_offset = 0
     if not simplified:
         summary[0].metric("Transporter freight", f"₹{number(v['transporter_freight']):,.2f}")
         metric_offset = 1
     summary[metric_offset].metric("Total advance", f"₹{total:,.2f}")
-    summary[metric_offset + 1].metric("Balance payable", f"₹{balance:,.2f}", help="Transporter freight minus RTGS, Cash, UPI, Diesel and Billtee deductions. A negative amount indicates an overpayment.")
+    if simplified:
+        loss_class = " negative" if balance < 0 else ""
+        summary[metric_offset + 1].markdown(f'<div class="profit-loss-card{loss_class}"><span>Profit / Loss</span><strong>₹{balance:,.2f}</strong></div>', unsafe_allow_html=True)
+    else:
+        summary[metric_offset + 1].metric("Balance payable", f"₹{balance:,.2f}", help="Transporter freight minus RTGS, Cash, UPI, Diesel and Billtee deductions. A negative amount indicates an overpayment.")
     if balance < 0 and not simplified:
         st.warning(f"Advance exceeds transporter freight by ₹{abs(balance):,.2f}. Please review the payment amounts.")
     remark_key = f"{prefix}_remarks"
@@ -465,6 +486,7 @@ def audit_action(action, request_number="", details=""):
 @st.dialog("View evidence and edit record", width="large")
 def view_record(row):
     raw, is_expense = unpack(row.get("dtr_data")), row.get("report_scope") == "Expense"
+    is_manish_record = clean_text(row.get("created_by")) == "Manish" and not is_expense
     rtgs_raw = unpack(row.get("rtgs_data"))
     display = {
         "Date": row.get("trip_date"), "Type": "Direct expense" if is_expense else "Trip",
@@ -483,7 +505,15 @@ def view_record(row):
     }
     if is_expense:
         display.update(raw.get("categories", {}))
+    if is_manish_record:
+        display.pop("Billtee", None)
+        display.update({
+            "Repairs & Maintenance": number(raw.get("Repairs & Maintenance")),
+            "Reason": raw.get("Repair Reason", ""), "Profit / Loss": number(row.get("balance_amount")),
+        })
     locked_columns = ["Type", "Branch"] if record_branch_scope else ["Type"]
+    if is_manish_record:
+        locked_columns.append("Profit / Loss")
     edited = st.data_editor(
         pd.DataFrame([display]), hide_index=True, width="stretch", disabled=locked_columns,
         key=f"record_editor_{row['request_number']}",
@@ -501,7 +531,8 @@ def view_record(row):
         item = edited.iloc[0].to_dict()
         ownership_type = clean_text(item["Own / Outside"])
         transporter_freight = float(applicable_transporter_freight(ownership_type, item["Transporter Freight"]))
-        billtee = number(item["Billtee"])
+        billtee = number(item.get("Billtee"))
+        repairs_maintenance = number(item.get("Repairs & Maintenance"))
         update_values = {
             "trip_date": as_date(item["Date"]), "branch": clean_text(item["Branch"]),
             "company_name": clean_text(item["Company"]), "vehicle_number": clean_text(item["Vehicle"]),
@@ -520,8 +551,12 @@ def view_record(row):
                 "dtr_data": {**raw, "categories": categories, "Diesel Pump Name": clean_text(item["Add Pumps"]), "Card Name": clean_text(item["Card Name"])},
             })
         else:
-            payment = advance_summary(transporter_freight, *(item[name] for name in ("RTGS", "Cash", "UPI", "Diesel")), billtee)
-            total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
+            if is_manish_record:
+                total = sum(number(item[name]) for name in ("RTGS", "Cash", "UPI", "Diesel"))
+                balance = number(item["Revenue"]) - total - repairs_maintenance
+            else:
+                payment = advance_summary(transporter_freight, *(item[name] for name in ("RTGS", "Cash", "UPI", "Diesel")), billtee)
+                total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
             updated_dtr = {
                 **raw, "Branch": item["Branch"], "Compnay Name": item["Company"], "Date": as_date(item["Date"]),
                 "Vehicle No.": item["Vehicle"], "Vehicle Type": item["Vehicle Capacity"],
@@ -530,7 +565,8 @@ def view_record(row):
                 "Transporter Freight": transporter_freight, "RTGS ADVANCE": item["RTGS"], "Cash Adv.": item["Cash"],
                 "UPI": item["UPI"], "Diesel Adv.": item["Diesel"], "Diesel Pump Name": clean_text(item["Add Pumps"]),
                 "Card Name": clean_text(item["Card Name"]), "Billtee": billtee, "Total Adv.": total,
-                "Balance Amt.": balance, "Benificiary Name": item["Beneficiary"],
+                "Balance Amt.": balance, "Repairs & Maintenance": repairs_maintenance,
+                "Repair Reason": clean_text(item.get("Reason")), "Benificiary Name": item["Beneficiary"],
                 "Veh Placed by": item["Vehicle Placed By"], "Remark": item["Remarks"],
             }
             updated_rtgs = {
@@ -565,7 +601,7 @@ html,body,[class*="css"]{font-family:'DM Sans',sans-serif}.stApp,[data-testid="s
 div[data-testid="stVerticalBlockBorderWrapper"]{background:rgba(255,255,255,.92);border:1px solid rgba(215,228,224,.95)!important;border-radius:20px;box-shadow:0 12px 36px rgba(34,63,68,.075);transition:transform .2s ease,box-shadow .2s ease}div[data-testid="stVerticalBlockBorderWrapper"]:hover{box-shadow:0 16px 42px rgba(34,63,68,.1)}h4{font:800 1rem 'Manrope'!important;color:#214047!important;padding:10px 0 7px!important;border-bottom:1px solid #edf2f1}
 [data-testid="stFileUploader"]{padding:13px;border-radius:17px;background:rgba(255,255,255,.78);border:1px solid var(--line)}[data-testid="stFileUploaderDropzone"]{border:1.5px dashed #8bbdec;background:linear-gradient(145deg,#f7fbff,#edf6ff);border-radius:13px;transition:all .2s ease}[data-testid="stFileUploaderDropzone"]:hover{border-color:var(--teal);transform:translateY(-1px);box-shadow:0 8px 20px rgba(0,113,227,.1)}[data-testid="stAudioInput"]{padding:13px;border:1px solid var(--line);border-radius:17px;background:rgba(255,255,255,.78)}[data-testid="stAudioInput"] button{color:#fff!important;background:#0071e3!important;border:2px solid #0071e3!important;border-radius:999px!important;box-shadow:0 3px 10px rgba(0,113,227,.25)!important}
 [data-baseweb="input"]>div,[data-baseweb="select"]>div,textarea{border-color:#dce3eb!important;border-radius:12px!important;background:#fff!important;transition:border .18s ease,box-shadow .18s ease!important}[data-baseweb="input"]>div:focus-within,[data-baseweb="select"]>div:focus-within,textarea:focus{border-color:#0071e3!important;box-shadow:0 0 0 3px rgba(0,113,227,.1)!important}[data-testid="InputInstructions"]{display:none!important}[data-testid="stNumberInput"] button{display:none!important}.stButton>button,.stDownloadButton>button{border-radius:999px;font-weight:700;min-height:42px;padding-left:20px;padding-right:20px;transition:transform .18s ease,box-shadow .18s ease}.stButton>button[kind="primary"],.stDownloadButton>button[kind="primary"]{position:relative;overflow:hidden;border:0;color:#fff;background:#0071e3;box-shadow:0 7px 18px rgba(0,113,227,.22)}.stButton>button:hover,.stDownloadButton>button:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(0,113,227,.28)}.st-key-trip_voice_autofill button,.st-key-expense_voice_autofill button{color:#fff!important;background:linear-gradient(135deg,#1f9d60,#27b974)!important;box-shadow:0 8px 20px rgba(31,157,96,.22)!important}.st-key-trip_voice_autofill button:disabled,.st-key-expense_voice_autofill button:disabled{color:#fff!important;background:#8fd5ae!important;opacity:.72!important}
-div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);border:1px solid #d6e7f7;border-radius:16px;padding:13px 16px;box-shadow:0 5px 16px rgba(0,80,160,.05)}[data-testid="stMetricLabel"]{color:#6e7781;font-weight:700}[data-testid="stMetricValue"]{font:800 1.28rem 'Manrope';color:#0066cc}[data-testid="stDataFrame"]{border:1px solid var(--line);border-radius:15px;overflow:hidden;box-shadow:0 8px 24px rgba(34,63,68,.06)}[data-testid="stAlert"]{border-radius:14px}details{border:1px solid var(--line)!important;border-radius:13px!important;background:rgba(255,255,255,.78)!important}
+div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);border:1px solid #d6e7f7;border-radius:16px;padding:13px 16px;box-shadow:0 5px 16px rgba(0,80,160,.05)}[data-testid="stMetricLabel"]{color:#6e7781;font-weight:700}[data-testid="stMetricValue"]{font:800 1.28rem 'Manrope';color:#0066cc}.profit-loss-card{min-height:91px;padding:13px 16px;border:1px solid #d6e7f7;border-radius:16px;background:linear-gradient(145deg,#f8fbff,#eef6ff);box-shadow:0 5px 16px rgba(0,80,160,.05)}.profit-loss-card span{display:block;color:#6e7781;font-weight:700}.profit-loss-card strong{display:block;margin-top:4px;color:#0066cc;font:800 1.28rem 'Manrope'}.profit-loss-card.negative strong{color:#d70015}[data-testid="stDataFrame"]{border:1px solid var(--line);border-radius:15px;overflow:hidden;box-shadow:0 8px 24px rgba(34,63,68,.06)}[data-testid="stAlert"]{border-radius:14px}details{border:1px solid var(--line)!important;border-radius:13px!important;background:rgba(255,255,255,.78)!important}
 @media(max-width:700px){.block-container{padding:4.5rem .85rem 4rem}.app-hero{padding:17px}.status-pill{display:none}[data-testid="stTabs"] [data-testid="stTab"]{padding:8px 10px;font-size:.75rem}.flow-strip{overflow-x:auto}.flow-step{white-space:nowrap}.page-intro p{font-size:.82rem}}
 </style>
 <div class="app-hero"><div class="brand-row"><div class="brand-mark">1×</div><div><div class="brand">Project <span>Oneshot</span></div><div class="subtitle">One record. Every operations report.</div></div></div><div class="status-pill"><span class="status-dot"></span>WORKSPACE READY</div></div>
