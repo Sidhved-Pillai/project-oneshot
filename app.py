@@ -268,8 +268,8 @@ def trip_payload(v, files, invoice_filename=None):
     repairs_maintenance = number(v.get("repairs_maintenance"))
     transporter_freight = float(applicable_transporter_freight(v["ownership_type"], v["transporter_freight"]))
     if v.get("simplified"):
-        total = sum(payments.values())
-        balance = number(v["revenue"]) - total - repairs_maintenance
+        total = sum(payments.values()) + repairs_maintenance
+        balance = number(v["revenue"]) - total
     else:
         summary = advance_summary(transporter_freight, *payments.values(), billtee)
         total, balance = float(summary["total_advance"]), float(summary["balance_payable"])
@@ -416,6 +416,8 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         v["billtee"] = 0.0
         v["repairs_maintenance"] = deduction_columns[-1].number_input("Repairs & Maintenance (₹)", min_value=0.0, value=None, placeholder="e.g., 1,000", key=f"{prefix}_repairs_maintenance")
         v["repair_reason"] = st.text_input("Reason", key=f"{prefix}_repair_reason", placeholder="e.g., Tyre puncture repair") if number(v["repairs_maintenance"]) > 0 else ""
+        if number(v["repairs_maintenance"]) > 0 and not clean_text(v["repair_reason"]):
+            st.caption("Reason is required when Repairs & Maintenance has an amount.")
     else:
         v["billtee"] = deduction_columns[-1].number_input("Billtee (₹)", min_value=0.0, value=None, placeholder="e.g., 1,000", key=f"{prefix}_billtee")
         v["repairs_maintenance"], v["repair_reason"] = 0.0, ""
@@ -426,8 +428,8 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     else:
         v["diesel_pump_name"], v["card_name"] = "", ""
     if simplified:
-        total = sum(number(v[field]) for field in PAYMENT_FIELDS.values())
-        balance = number(v["revenue"]) - total - number(v["repairs_maintenance"])
+        total = sum(number(v[field]) for field in PAYMENT_FIELDS.values()) + number(v["repairs_maintenance"])
+        balance = number(v["revenue"]) - total
     else:
         payment = advance_summary(v["transporter_freight"], *(v[f] for f in PAYMENT_FIELDS.values()), v["billtee"])
         total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
@@ -436,7 +438,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     if not simplified:
         summary[0].metric("Transporter freight", f"₹{number(v['transporter_freight']):,.2f}")
         metric_offset = 1
-    summary[metric_offset].metric("Total advance", f"₹{total:,.2f}")
+    summary[metric_offset].metric("Total expense" if simplified else "Total advance", f"₹{total:,.2f}")
     if simplified:
         loss_class = " negative" if balance < 0 else ""
         summary[metric_offset + 1].markdown(f'<div class="profit-loss-card{loss_class}"><span>Profit / Loss</span><strong>₹{balance:,.2f}</strong></div>', unsafe_allow_html=True)
@@ -527,8 +529,12 @@ def view_record(row):
                 "Open invoice evidence", row["source_image"], row.get("source_filename", "invoice.pdf"),
                 row.get("source_mime_type"),
             )
-    if st.button("Save record changes", type="primary", key=f"save_record_{row['request_number']}"):
-        item = edited.iloc[0].to_dict()
+    edited_item = edited.iloc[0].to_dict()
+    repair_reason_missing = is_manish_record and number(edited_item.get("Repairs & Maintenance")) > 0 and not clean_text(edited_item.get("Reason"))
+    if repair_reason_missing:
+        st.caption("Reason is required before repair and maintenance changes can be saved.")
+    if st.button("Save record changes", type="primary", key=f"save_record_{row['request_number']}", disabled=repair_reason_missing):
+        item = edited_item
         ownership_type = clean_text(item["Own / Outside"])
         transporter_freight = float(applicable_transporter_freight(ownership_type, item["Transporter Freight"]))
         billtee = number(item.get("Billtee"))
@@ -552,8 +558,8 @@ def view_record(row):
             })
         else:
             if is_manish_record:
-                total = sum(number(item[name]) for name in ("RTGS", "Cash", "UPI", "Diesel"))
-                balance = number(item["Revenue"]) - total - repairs_maintenance
+                total = sum(number(item[name]) for name in ("RTGS", "Cash", "UPI", "Diesel")) + repairs_maintenance
+                balance = number(item["Revenue"]) - total
             else:
                 payment = advance_summary(transporter_freight, *(item[name] for name in ("RTGS", "Cash", "UPI", "Diesel")), billtee)
                 total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
@@ -641,7 +647,8 @@ with new_tab:
         autofill(evidence(None, audio), "", "trip")
     with st.container(border=True):
         values = trip_form("trip", business_memory, allowed_entry_branches, simplified=current_user == "Manish")
-        if st.button("Save and Another Entry", type="primary", disabled=not values["branch"] or not values["vehicle_number"], key="save_trip"):
+        repair_reason_missing = current_user == "Manish" and number(values["repairs_maintenance"]) > 0 and not clean_text(values["repair_reason"])
+        if st.button("Save and Another Entry", type="primary", disabled=not values["branch"] or not values["vehicle_number"] or repair_reason_missing, key="save_trip"):
             saved = store.create({**trip_payload(values, files, invoice_filename), "created_by": current_user})
             audit_action("Created trip record", saved, request_label(saved, values["date"]))
             st.session_state["saved_entry_notice"] = f"Saved {request_label(saved, values['date'])}. Ready for another entry."
