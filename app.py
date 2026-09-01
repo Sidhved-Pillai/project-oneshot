@@ -266,9 +266,10 @@ def trip_payload(v, files, invoice_filename=None):
     payments = {name: number(v[field]) for name, field in PAYMENT_FIELDS.items()}
     billtee = number(v["billtee"])
     repairs_maintenance = number(v.get("repairs_maintenance"))
+    toll_expense = number(v.get("toll_expense"))
     transporter_freight = float(applicable_transporter_freight(v["ownership_type"], v["transporter_freight"]))
     if v.get("simplified"):
-        total = sum(payments.values()) + repairs_maintenance
+        total = sum(payments.values()) + toll_expense + repairs_maintenance
         balance = number(v["revenue"]) - total
     else:
         summary = advance_summary(transporter_freight, *payments.values(), billtee)
@@ -279,7 +280,7 @@ def trip_payload(v, files, invoice_filename=None):
         "To": v["to_location"], "LR No.": v["lr_number"], "Invoice No.": v["invoice_number"],
         "Revenue": v["revenue"], "Transporter Freight": transporter_freight, "RTGS ADVANCE": v["rtgs_advance"],
         "Cash Adv.": v["cash_advance"], "UPI": v["upi"], "Diesel Adv.": v["diesel_advance"], "Billtee": billtee, "Total Adv.": total,
-        "Balance Amt.": balance, "Repairs & Maintenance": repairs_maintenance,
+        "Balance Amt.": balance, "Toll Expense": toll_expense, "Repairs & Maintenance": repairs_maintenance,
         "Repair Reason": clean_text(v.get("repair_reason")), "Benificiary Name": v["beneficiary_name"],
         "Diesel Pump Name": v["diesel_pump_name"], "Card Name": v["card_name"],
         "Transporter Name": v["transporter_name"], "Veh Placed by": v["vehicle_placed_by"], "Remark": v["remarks"],
@@ -409,18 +410,25 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         if own_vehicle:
             c2.caption("Not applicable for an own vehicle.")
     st.caption("Enter amounts in every payment mode used. Repairs and maintenance are deducted from Profit / Loss." if simplified else "Enter amounts in every payment mode used. Billtee is also deducted before calculating the balance payable.")
-    deduction_columns = st.columns(5)
-    for col, (label, field) in zip(deduction_columns, PAYMENT_FIELDS.items()):
-        v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 2,000", key=f"{prefix}_{field}")
     if simplified:
+        deduction_columns = st.columns(6)
+        simplified_fields = [
+            ("UPI", "upi"), ("Diesel", "diesel_advance"), ("Cash", "cash_advance"),
+            ("Toll Expense", "toll_expense"), ("RTGS", "rtgs_advance"),
+        ]
+        for col, (label, field) in zip(deduction_columns, simplified_fields):
+            v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 2,000", key=f"{prefix}_{field}")
         v["billtee"] = 0.0
         v["repairs_maintenance"] = deduction_columns[-1].number_input("Repairs & Maintenance (₹)", min_value=0.0, value=None, placeholder="e.g., 1,000", key=f"{prefix}_repairs_maintenance")
         v["repair_reason"] = st.text_input("Reason", key=f"{prefix}_repair_reason", placeholder="e.g., Tyre puncture repair") if number(v["repairs_maintenance"]) > 0 else ""
         if number(v["repairs_maintenance"]) > 0 and not clean_text(v["repair_reason"]):
             st.caption("Reason is required when Repairs & Maintenance has an amount.")
     else:
+        deduction_columns = st.columns(5)
+        for col, (label, field) in zip(deduction_columns, PAYMENT_FIELDS.items()):
+            v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 2,000", key=f"{prefix}_{field}")
         v["billtee"] = deduction_columns[-1].number_input("Billtee (₹)", min_value=0.0, value=None, placeholder="e.g., 1,000", key=f"{prefix}_billtee")
-        v["repairs_maintenance"], v["repair_reason"] = 0.0, ""
+        v["toll_expense"], v["repairs_maintenance"], v["repair_reason"] = 0.0, 0.0, ""
     if number(v["diesel_advance"]) > 0:
         pump_col, card_col = st.columns(2)
         v["diesel_pump_name"] = pump_col.text_input("Add Pumps", key=f"{prefix}_diesel_pump_name", placeholder="e.g., HP Petrol Pump")
@@ -428,7 +436,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     else:
         v["diesel_pump_name"], v["card_name"] = "", ""
     if simplified:
-        total = sum(number(v[field]) for field in PAYMENT_FIELDS.values()) + number(v["repairs_maintenance"])
+        total = sum(number(v[field]) for field in PAYMENT_FIELDS.values()) + number(v["toll_expense"]) + number(v["repairs_maintenance"])
         balance = number(v["revenue"]) - total
     else:
         payment = advance_summary(v["transporter_freight"], *(v[f] for f in PAYMENT_FIELDS.values()), v["billtee"])
@@ -510,6 +518,7 @@ def view_record(row):
     if is_manish_record:
         display.pop("Billtee", None)
         display.update({
+            "Toll Expense": number(raw.get("Toll Expense")),
             "Repairs & Maintenance": number(raw.get("Repairs & Maintenance")),
             "Reason": raw.get("Repair Reason", ""), "Profit / Loss": number(row.get("balance_amount")),
         })
@@ -539,6 +548,7 @@ def view_record(row):
         transporter_freight = float(applicable_transporter_freight(ownership_type, item["Transporter Freight"]))
         billtee = number(item.get("Billtee"))
         repairs_maintenance = number(item.get("Repairs & Maintenance"))
+        toll_expense = number(item.get("Toll Expense"))
         update_values = {
             "trip_date": as_date(item["Date"]), "branch": clean_text(item["Branch"]),
             "company_name": clean_text(item["Company"]), "vehicle_number": clean_text(item["Vehicle"]),
@@ -558,7 +568,7 @@ def view_record(row):
             })
         else:
             if is_manish_record:
-                total = sum(number(item[name]) for name in ("RTGS", "Cash", "UPI", "Diesel")) + repairs_maintenance
+                total = sum(number(item[name]) for name in ("RTGS", "Cash", "UPI", "Diesel")) + toll_expense + repairs_maintenance
                 balance = number(item["Revenue"]) - total
             else:
                 payment = advance_summary(transporter_freight, *(item[name] for name in ("RTGS", "Cash", "UPI", "Diesel")), billtee)
@@ -571,7 +581,7 @@ def view_record(row):
                 "Transporter Freight": transporter_freight, "RTGS ADVANCE": item["RTGS"], "Cash Adv.": item["Cash"],
                 "UPI": item["UPI"], "Diesel Adv.": item["Diesel"], "Diesel Pump Name": clean_text(item["Add Pumps"]),
                 "Card Name": clean_text(item["Card Name"]), "Billtee": billtee, "Total Adv.": total,
-                "Balance Amt.": balance, "Repairs & Maintenance": repairs_maintenance,
+                "Balance Amt.": balance, "Toll Expense": toll_expense, "Repairs & Maintenance": repairs_maintenance,
                 "Repair Reason": clean_text(item.get("Reason")), "Benificiary Name": item["Beneficiary"],
                 "Veh Placed by": item["Vehicle Placed By"], "Remark": item["Remarks"],
             }
