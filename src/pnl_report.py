@@ -10,7 +10,7 @@ from openpyxl.utils import get_column_letter
 DIRECT_EXPENSE_COLUMNS = [
     "Route expense", "Bill discounting", "Salary", "Driver's salary", "Rent",
     "Office & General expenses", "Conveyance", "EMI", "Insurance", "Vehicle Tax",
-    "Repair and maintenance", "Interest",
+    "Repair and maintenance", "Interest", "Extra Expense",
 ]
 REPORT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense"]
 BRANCH_PNL_COLUMNS = [
@@ -70,6 +70,11 @@ def _category_total(expense_rows, *names):
     )
 
 
+def _trip_amount(row, field, dtr_field):
+    stored = _amount(row, field)
+    return stored if stored else _amount(row.get("dtr_data", {}), dtr_field)
+
+
 def branch_pnl_summary(trip_rows, expense_rows):
     """Build the horizontal, branch-wise P&L used by the Both report."""
     vehicle_branches = defaultdict(Counter)
@@ -104,8 +109,8 @@ def branch_pnl_summary(trip_rows, expense_rows):
         revenue_own = sum(_amount(row, "revenue") for row in own)
         revenue_outside = sum(_amount(row, "revenue") for row in outside)
         transporter = sum(_amount(row, "transporter_freight") for row in outside)
-        upi = sum(_amount(row, "upi") for row in own)
-        diesel = sum(_amount(row, "diesel_advance") for row in own)
+        upi = sum(_trip_amount(row, "upi", "UPI") for row in own)
+        diesel = sum(_trip_amount(row, "diesel_advance", "Diesel Adv.") for row in own)
         toll = sum(_amount(row.get("dtr_data", {}), "Toll Expense") for row in own)
         repairs = categories["Repair and maintenance"] + sum(
             _amount(row.get("dtr_data", {}), "Repairs & Maintenance") for row in own
@@ -116,7 +121,7 @@ def branch_pnl_summary(trip_rows, expense_rows):
             "Revenue OS": revenue_outside,
             "Total Revenue": revenue_own + revenue_outside,
             "Transporter Freight": transporter,
-            "Extra Exp": categories["Route expense"],
+            "Extra Exp": categories["Route expense"] + categories["Extra Expense"],
             "Passing Exp": categories["Passing expense"],
             "Bill Discounting": categories["Bill discounting"],
             "UPI": upi,
@@ -157,9 +162,9 @@ def vehicle_pnl_summary(trip_rows, expense_rows, ownership):
 
     def own_rows():
         revenue = sum(_amount(row, "revenue") for row in own_trips)
-        route = sum(_amount(row, "upi") for row in own_trips)
+        route = sum(_trip_amount(row, "upi", "UPI") for row in own_trips)
         toll = sum(_amount(row.get("dtr_data", {}), "Toll Expense") for row in own_trips)
-        diesel = sum(_amount(row, "diesel_advance") for row in own_trips)
+        diesel = sum(_trip_amount(row, "diesel_advance", "Diesel Adv.") for row in own_trips)
         driver_salary = _category_total(own_expenses, "Driver's salary")
         emi = _category_total(own_expenses, "EMI")
         insurance = _category_total(own_expenses, "Insurance")

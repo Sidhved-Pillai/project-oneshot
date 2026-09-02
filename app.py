@@ -26,7 +26,7 @@ PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advanc
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 MANISH_DIRECT_EXPENSE_COLUMNS = [
     "Driver's salary", "Office & General expenses", "EMI", "Conveyance",
-    "Insurance", "Vehicle Tax", "Passing expense",
+    "Insurance", "Vehicle Tax", "Passing expense", "Extra Expense",
 ]
 ALL_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense"]
 BRANCHES = ["Wada", "Baroda", "Pune"]
@@ -822,12 +822,12 @@ with records_tab:
         labels = {record_select_label(row): row for row in rows}
         st.markdown("#### Live records")
         with st.container(height=420, border=True):
-            header = st.columns([1.35, .8, .9, 1.1, 1.15, 1, .85])
-            for column, title in zip(header, ("Record", "Date", "Branch", "Vehicle", "Placed by", "Revenue", "")):
+            header = st.columns([1.35, .8, .9, 1.1, 1.15, 1, .85, .65])
+            for column, title in zip(header, ("Record", "Date", "Branch", "Vehicle", "Placed by", "Revenue", "", "")):
                 column.markdown(f"**{title}**")
             for record in rows:
                 raw = unpack(record.get("dtr_data"))
-                columns = st.columns([1.35, .8, .9, 1.1, 1.15, 1, .85], vertical_alignment="center")
+                columns = st.columns([1.35, .8, .9, 1.1, 1.15, 1, .85, .65], vertical_alignment="center")
                 columns[0].write(request_label(record))
                 columns[1].write(f"{as_date(record.get('trip_date')):%d/%m/%y}")
                 columns[2].write(clean_text(record.get("branch")) or "—")
@@ -836,6 +836,12 @@ with records_tab:
                 columns[5].write(f"₹{number(record.get('revenue')):,.0f}")
                 if columns[6].button("View Evidence", key=f"view_record_{record['request_number']}", use_container_width=True):
                     view_record(record)
+                if columns[7].button("Delete", key=f"delete_record_{record['request_number']}", use_container_width=True):
+                    request_number = record["request_number"]
+                    if store.delete_request(request_number):
+                        audit_action("Deleted record", request_number, request_label(record))
+                        st.toast(f"Deleted {request_label(record)}.", icon="🗑️")
+                        st.rerun()
         with st.expander("Delete records"):
             select_all = st.checkbox("Select all", key="records_delete_all")
             chosen = list(labels) if select_all else st.multiselect("Select records", list(labels), key="records_delete_selection")

@@ -494,7 +494,7 @@ def test_pnl_uses_trip_margin_and_direct_expense_categories():
     assert values["Net Profit / (Loss)"] == 19000
     workbook = load_workbook(BytesIO(export_pnl(trips, expenses, dt.date(2026, 8, 1), dt.date(2026, 8, 31))))
     assert workbook["P&L"]["A1"].value.startswith("Profit & Loss")
-    assert len(DIRECT_EXPENSE_COLUMNS) == 12
+    assert len(DIRECT_EXPENSE_COLUMNS) == 13
 
 
 def test_pnl_includes_manish_passing_expense():
@@ -525,6 +525,16 @@ def test_own_vehicle_pnl_uses_requested_expenses():
     assert values["Net Profit / (Loss)"] == 26500
 
 
+def test_own_vehicle_pnl_recovers_upi_from_embedded_dtr_data():
+    trips = [{
+        "ownership_type": "Own", "revenue": 10000, "upi": 0,
+        "dtr_data": '{"UPI": 2750}',
+    }]
+    values = {row["Particular"]: row["Amount"] for row in vehicle_pnl_summary(trips, [], "Own")}
+    assert values["Route expenses (UPI)"] == -2750
+    assert values["Net Profit / (Loss)"] == 7250
+
+
 def test_outside_vehicle_pnl_uses_transporter_and_additional_expenses():
     trips = [{"ownership_type": "Outside", "revenue": 50000, "transporter_freight": 35000}]
     expenses = [{"amount": 2000, "categories": {"Office & General expenses": 2000}}]
@@ -544,16 +554,20 @@ def test_both_vehicle_pnl_is_horizontal_and_branch_wise():
         {"branch": "Wada", "ownership_type": "Outside", "vehicle_number": "OUT-1", "revenue": 30000,
          "transporter_freight": 22000},
     ]
-    expenses = [{"vehicle_number": "OWN-1", "amount": 2000, "categories": {"Driver's salary": 2000}}]
+    expenses = [{
+        "vehicle_number": "OWN-1", "amount": 2300,
+        "categories": {"Driver's salary": 2000, "Extra Expense": 300},
+    }]
     rows = branch_pnl_summary(trips, expenses)
     assert list(rows[0]) == BRANCH_PNL_COLUMNS
     assert [row["Branch"] for row in rows] == ["Pune", "Wada", "Total"]
     pune, wada, total = rows
     assert (pune["Revenue-Own"], pune["UPI"], pune["Diesel"], pune["Toll"]) == (20000, 1000, 4000, 500)
     assert pune["Driver's Salary"] == 2000
-    assert (pune["Expense"], pune["Profit"]) == (7500, 12500)
+    assert pune["Extra Exp"] == 300
+    assert (pune["Expense"], pune["Profit"]) == (7800, 12200)
     assert (wada["Revenue OS"], wada["Transporter Freight"], wada["Profit"]) == (30000, 22000, 8000)
-    assert (total["Total Revenue"], total["Expense"], total["Profit"]) == (50000, 29500, 20500)
+    assert (total["Total Revenue"], total["Expense"], total["Profit"]) == (50000, 29800, 20200)
 
 
 def test_business_memory_uses_repeated_verified_records_without_guessing():
