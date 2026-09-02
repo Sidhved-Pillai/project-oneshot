@@ -532,6 +532,23 @@ def test_outside_vehicle_pnl_uses_transporter_and_additional_expenses():
     ]
 
 
+def test_combined_vehicle_pnl_has_one_consolidated_result():
+    trips = [
+        {"ownership_type": "Own", "vehicle_number": "OWN-1", "revenue": 20000, "upi": 1000, "diesel_advance": 4000},
+        {"ownership_type": "Outside", "vehicle_number": "OUT-1", "revenue": 30000, "transporter_freight": 22000},
+    ]
+    expenses = [{"vehicle_number": "OWN-1", "amount": 2000, "categories": {"Driver's salary": 2000}}]
+    rows = vehicle_pnl_summary(trips, expenses, "Both")
+    assert [row["Particular"] for row in rows] == [
+        "Revenue freight", "Route expenses (UPI)", "Toll charges", "Diesel amount",
+        "Driver's salary", "EMI", "Insurance", "Vehicle Tax", "Repair and maintenance",
+        "Transporter Freight", "Additional expenses", "Net Profit / (Loss)",
+    ]
+    values = {row["Particular"]: row["Amount"] for row in rows}
+    assert values["Revenue freight"] == 50000
+    assert values["Net Profit / (Loss)"] == 21000
+
+
 def test_business_memory_uses_repeated_verified_records_without_guessing():
     rows = [
         {"status": "Verified", "report_scope": "Both", "vehicle_number": "MH14JL9818",

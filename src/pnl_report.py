@@ -61,18 +61,25 @@ def vehicle_pnl_summary(trip_rows, expense_rows, ownership):
     ownership = str(ownership or "Both")
     own_trips = [row for row in trip_rows if str(row.get("ownership_type") or "").strip().lower().startswith("own")]
     outside_trips = [row for row in trip_rows if str(row.get("ownership_type") or "").strip().lower().startswith("outside")]
+    own_vehicles = {str(row.get("vehicle_number") or "").strip().casefold() for row in own_trips} - {""}
+    outside_vehicles = {str(row.get("vehicle_number") or "").strip().casefold() for row in outside_trips} - {""}
+    if own_trips and outside_trips:
+        own_expenses = [row for row in expense_rows if str(row.get("vehicle_number") or "").strip().casefold() in own_vehicles]
+        outside_expenses = [row for row in expense_rows if str(row.get("vehicle_number") or "").strip().casefold() in outside_vehicles]
+    else:
+        own_expenses = outside_expenses = expense_rows
 
     def own_rows():
         revenue = sum(_amount(row, "revenue") for row in own_trips)
         route = sum(_amount(row, "upi") for row in own_trips)
         toll = sum(_amount(row.get("dtr_data", {}), "Toll Expense") for row in own_trips)
         diesel = sum(_amount(row, "diesel_advance") for row in own_trips)
-        driver_salary = _category_total(expense_rows, "Driver's salary")
-        emi = _category_total(expense_rows, "EMI")
-        insurance = _category_total(expense_rows, "Insurance")
-        vehicle_tax = _category_total(expense_rows, "Vehicle Tax")
+        driver_salary = _category_total(own_expenses, "Driver's salary")
+        emi = _category_total(own_expenses, "EMI")
+        insurance = _category_total(own_expenses, "Insurance")
+        vehicle_tax = _category_total(own_expenses, "Vehicle Tax")
         repairs = sum(_amount(row.get("dtr_data", {}), "Repairs & Maintenance") for row in own_trips)
-        repairs += _category_total(expense_rows, "Repair and maintenance")
+        repairs += _category_total(own_expenses, "Repair and maintenance")
         expenses = route + toll + diesel + driver_salary + emi + insurance + vehicle_tax + repairs
         return [
             {"Particular": "Revenue freight", "Amount": revenue},
@@ -90,7 +97,7 @@ def vehicle_pnl_summary(trip_rows, expense_rows, ownership):
     def outside_rows():
         revenue = sum(_amount(row, "revenue") for row in outside_trips)
         transporter = sum(_amount(row, "transporter_freight") for row in outside_trips)
-        additional = sum(_amount(row, "amount") for row in expense_rows)
+        additional = sum(_amount(row, "amount") for row in outside_expenses)
         return [
             {"Particular": "Revenue", "Amount": revenue},
             {"Particular": "Transporter Freight", "Amount": -transporter},
@@ -98,13 +105,23 @@ def vehicle_pnl_summary(trip_rows, expense_rows, ownership):
             {"Particular": "Net Profit / (Loss)", "Amount": revenue - transporter - additional},
         ]
 
+    own = own_rows()
+    outside = outside_rows()
     if ownership == "Own":
-        return own_rows()
+        return own
     if ownership == "Outside":
-        return outside_rows()
+        return outside
+    own_values = {row["Particular"]: row["Amount"] for row in own}
+    outside_values = {row["Particular"]: row["Amount"] for row in outside}
     return [
-        {"Particular": "OWN VEHICLES", "Amount": None}, *own_rows(),
-        {"Particular": "OUTSIDE VEHICLES", "Amount": None}, *outside_rows(),
+        {"Particular": "Revenue freight", "Amount": own_values["Revenue freight"] + outside_values["Revenue"]},
+        *own[1:-1],
+        {"Particular": "Transporter Freight", "Amount": outside_values["Transporter Freight"]},
+        {"Particular": "Additional expenses", "Amount": outside_values["Additional expenses"]},
+        {
+            "Particular": "Net Profit / (Loss)",
+            "Amount": own_values["Net Profit / (Loss)"] + outside_values["Net Profit / (Loss)"],
+        },
     ]
 
 
