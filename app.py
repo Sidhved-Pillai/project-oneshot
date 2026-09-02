@@ -3,6 +3,8 @@ import hashlib
 import hmac
 import json
 import os
+import re
+from difflib import SequenceMatcher
 
 import pandas as pd
 import streamlit as st
@@ -44,6 +46,7 @@ SPECIAL_MEMBERS = {"Sid", "Ajit", "Vinod", "Nikhil", "Shyam", "Nikhat"}
 PNL_MEMBERS = {"Sid", "Ajit", "Vinod", "Nikhil"}
 AUDITED_MEMBERS = {"Ajit", "Nikhat", "Shyam"}
 LIMITED_RECORD_BRANCH = {"Nitish": "Pune", "Gopal": "Pune", "Manish": "Wada"}
+CANONICAL_VEHICLE_PLACERS = ("Nitish Jha", "Ajit Thakur", "Manish Jha")
 ASCII_BOLD = str.maketrans(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
     "𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝗮𝗯𝗰𝗱𝗲𝗳𝗴𝗵𝗶𝗷𝗸𝗹𝗺𝗻𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝟬𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵",
@@ -73,6 +76,31 @@ def number(value):
         return float(value or 0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def canonical_vehicle_placer(value):
+    original = clean_text(value)
+    normalized = " ".join(re.findall(r"[a-z]+", original.casefold()))
+    if not normalized:
+        return original
+    words = normalized.split()
+    for canonical in CANONICAL_VEHICLE_PLACERS:
+        target = canonical.casefold()
+        if normalized == target:
+            return canonical
+        target_words = target.split()
+        full_score = SequenceMatcher(None, normalized, target).ratio()
+        word_match = len(words) == 2 and all(
+            SequenceMatcher(None, word, target_word).ratio() >= 0.78
+            for word, target_word in zip(words, target_words)
+        )
+        if full_score >= 0.82 or word_match:
+            return canonical
+    return original
+
+
+def canonicalize_placer_state(key):
+    st.session_state[key] = canonical_vehicle_placer(st.session_state.get(key, ""))
 
 
 def is_own_vehicle(ownership_type):
@@ -162,7 +190,7 @@ def request_label(row_or_number, date=None):
 
 def record_select_label(row):
     dtr = unpack(row.get("dtr_data"))
-    placed_by = clean_text(dtr.get("Veh Placed by")) or "Not specified"
+    placed_by = canonical_vehicle_placer(dtr.get("Veh Placed by")) or "Not specified"
     billtee = number(dtr.get("Billtee"))
     billtee_text = f"{billtee:,.0f}" if billtee.is_integer() else f"{billtee:,.2f}"
     details = f"{placed_by}, Billtee Amt: {billtee_text}".translate(ASCII_BOLD)
@@ -175,7 +203,7 @@ def trip_leaderboard(rows):
         if row.get("report_scope") == "Expense":
             continue
         dtr = unpack(row.get("dtr_data"))
-        name = clean_text(dtr.get("Veh Placed by")) or "Not specified"
+        name = canonical_vehicle_placer(dtr.get("Veh Placed by")) or "Not specified"
         trip_count, revenue = totals.get(name, (0, 0.0))
         totals[name] = (trip_count + 1, revenue + number(row.get("revenue")))
     return sorted(
@@ -289,7 +317,7 @@ def trip_payload(v, files, invoice_filename=None):
         "Balance Amt.": balance, "Toll Expense": toll_expense, "Repairs & Maintenance": repairs_maintenance,
         "Repair Reason": clean_text(v.get("repair_reason")), "Benificiary Name": v["beneficiary_name"],
         "Diesel Pump Name": v["diesel_pump_name"], "Card Name": v["card_name"],
-        "Transporter Name": v["transporter_name"], "Veh Placed by": v["vehicle_placed_by"], "Remark": v["remarks"],
+        "Transporter Name": v["transporter_name"], "Veh Placed by": canonical_vehicle_placer(v["vehicle_placed_by"]), "Remark": v["remarks"],
     }
     rtgs = {"BNF_NAME": v["beneficiary_name"], "BENE_ACC_NO": v["beneficiary_account_number"], "BENE_IFSC": v["beneficiary_ifsc_code"], "AMOUNT": v["rtgs_advance"], "REMARK": v["remarks"], "Origin Area": v["branch"]}
     return {
@@ -387,7 +415,11 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     choices = ["", "Own", "Outside"]
     current = st.session_state.get(f"{prefix}_ownership_type", "")
     v["ownership_type"] = c3.selectbox("Own or outside", choices, index=choices.index(current) if current in choices else 0, key=f"{prefix}_ownership_type")
-    v["vehicle_placed_by"] = st.text_input("Vehicle placed by", key=f"{prefix}_vehicle_placed_by", placeholder="e.g., Ajit Thakur")
+    placer_key = f"{prefix}_vehicle_placed_by"
+    v["vehicle_placed_by"] = st.text_input(
+        "Vehicle placed by", key=placer_key, placeholder="e.g., Ajit Thakur",
+        on_change=canonicalize_placer_state, args=(placer_key,),
+    )
     memory_prompt(prefix, f"Known setup for {v['vehicle_number']}", f"vehicle_{v['vehicle_number']}", recall(memory, "vehicles", v["vehicle_number"]), ["vehicle_capacity", "transporter_name", "ownership_type", "vehicle_placed_by"])
     memory_prompt(prefix, f"Known branch for {v['company_name']}", f"company_{v['company_name']}", recall(memory, "companies", v["company_name"]), ["branch"])
     if simplified:
@@ -608,7 +640,7 @@ def view_record(row):
                 "Card Name": clean_text(item["Card Name"]), "Billtee": billtee, "Total Adv.": total,
                 "Balance Amt.": balance, "Toll Expense": toll_expense, "Repairs & Maintenance": repairs_maintenance,
                 "Repair Reason": clean_text(item.get("Reason")), "Benificiary Name": item["Beneficiary"],
-                "Veh Placed by": item["Vehicle Placed By"], "Remark": item["Remarks"],
+                "Veh Placed by": canonical_vehicle_placer(item["Vehicle Placed By"]), "Remark": item["Remarks"],
             }
             updated_rtgs = {
                 **rtgs_raw, "BNF_NAME": item["Beneficiary"], "BENE_ACC_NO": item["Account Number"],
@@ -757,7 +789,7 @@ with records_tab:
         st.caption(f"Your account can access {record_branch_scope} records only.")
     if rows:
         record_dates = [as_date(row.get("trip_date")) for row in rows]
-        placed_by_options = sorted({clean_text(unpack(row.get("dtr_data")).get("Veh Placed by")) for row in rows} - {""}, key=str.casefold)
+        placed_by_options = sorted({canonical_vehicle_placer(unpack(row.get("dtr_data")).get("Veh Placed by")) for row in rows} - {""}, key=str.casefold)
         vehicle_options = sorted({clean_text(row.get("vehicle_number")) for row in rows} - {""}, key=str.casefold)
         st.markdown("#### Filter records")
         c1, c2, c3, c4, c5 = st.columns(5)
@@ -769,7 +801,7 @@ with records_tab:
         date_filtered_rows = [row for row in rows if filter_from <= as_date(row.get("trip_date")) <= filter_to]
         rows = [
             row for row in date_filtered_rows
-            if (placed_by_filter == "All" or clean_text(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter)
+            if (placed_by_filter == "All" or canonical_vehicle_placer(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter)
             and (vehicle_filter == "All" or clean_text(row.get("vehicle_number")) == vehicle_filter)
             and ownership_matches(row.get("ownership_type"), ownership_filter)
         ]
@@ -798,7 +830,7 @@ with records_tab:
                 columns[1].write(f"{as_date(record.get('trip_date')):%d/%m/%y}")
                 columns[2].write(clean_text(record.get("branch")) or "—")
                 columns[3].write(clean_text(record.get("vehicle_number")) or "—")
-                columns[4].write(clean_text(raw.get("Veh Placed by")) or "—")
+                columns[4].write(canonical_vehicle_placer(raw.get("Veh Placed by")) or "—")
                 columns[5].write(f"₹{number(record.get('revenue')):,.0f}")
                 if columns[6].button("View Evidence", key=f"view_record_{record['request_number']}", use_container_width=True):
                     view_record(record)
