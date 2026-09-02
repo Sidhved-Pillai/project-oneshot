@@ -8,7 +8,7 @@ from .ai_intake import DTR_REVIEW_COLUMNS
 
 
 OPERATIONAL_DTR_COLUMNS = [column for column in DTR_REVIEW_COLUMNS if column != "Review Notes"]
-EXPORT_NAMES = {"UPI": "UPI "}
+EXPORT_NAMES = {"Compnay Name": "Company Name", "UPI": "UPI "}
 
 
 def export_operational_dtr(df):

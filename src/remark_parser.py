@@ -1,6 +1,8 @@
 import re
 import pandas as pd
 
+from .text_normalization import canonical_vehicle_capacity
+
 
 def normalize_vehicle(value):
     return re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
@@ -12,8 +14,8 @@ def last_four(value):
 
 
 def normalize_vehicle_type(value):
-    match = re.search(r"\b0?(\d{1,2})\s*[- ]?MT\b", str(value or ""), re.I)
-    return f"{int(match.group(1))}MT" if match else ""
+    normalized = canonical_vehicle_capacity(value)
+    return normalized if re.fullmatch(r"\d+ MT", normalized) else ""
 
 
 def all_dates(text):

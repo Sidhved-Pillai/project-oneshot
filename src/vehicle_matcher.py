@@ -1,4 +1,4 @@
-from .remark_parser import normalize_vehicle
+from .remark_parser import normalize_vehicle, normalize_vehicle_type
 
 
 def _active(master):
@@ -35,7 +35,7 @@ def resolve_vehicle(identifiers, master):
 
 
 def choose_vehicle_type(remark_type, master_type):
-    remark_type, master_type = str(remark_type or ""), str(master_type or "")
+    remark_type = normalize_vehicle_type(remark_type)
+    master_type = normalize_vehicle_type(master_type)
     if remark_type: return remark_type, bool(master_type and master_type != remark_type)
     return master_type, False
-

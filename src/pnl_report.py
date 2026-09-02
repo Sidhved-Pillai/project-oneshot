@@ -205,8 +205,41 @@ def vehicle_pnl_summary(trip_rows, expense_rows, ownership):
     return pnl_summary(trip_rows, expense_rows)
 
 
+def branch_vehicle_pnl_summary(trip_rows, expense_rows, ownership):
+    """Transpose the existing Own/Outside P&L fields into branch-wise rows."""
+    selected = [
+        row for row in trip_rows
+        if str(row.get("ownership_type") or "").strip().lower().startswith(ownership.lower())
+    ]
+    trips_by_branch = defaultdict(list)
+    vehicle_branch = {}
+    for row in selected:
+        branch = str(row.get("branch") or "").strip() or "Not specified"
+        trips_by_branch[branch].append(row)
+        vehicle = str(row.get("vehicle_number") or "").strip().casefold()
+        if vehicle:
+            vehicle_branch[vehicle] = branch
+    expenses_by_branch = defaultdict(list)
+    for row in expense_rows:
+        vehicle = str(row.get("vehicle_number") or "").strip().casefold()
+        branch = str(row.get("branch") or "").strip() or vehicle_branch.get(vehicle)
+        if branch in trips_by_branch:
+            expenses_by_branch[branch].append(row)
+    rows = []
+    for branch in sorted(trips_by_branch, key=str.casefold):
+        vertical = vehicle_pnl_summary(trips_by_branch[branch], expenses_by_branch[branch], ownership)
+        rows.append({"Branch": branch, **{item["Particular"]: item["Amount"] for item in vertical}})
+    if rows:
+        total = {"Branch": "Total"}
+        for column in rows[0]:
+            if column != "Branch":
+                total[column] = sum(float(row.get(column) or 0) for row in rows)
+        rows.append(total)
+    return rows
+
+
 def export_pnl(trip_rows, expense_rows, start_date, end_date, ownership=None):
-    rows = vehicle_pnl_summary(trip_rows, expense_rows, ownership) if ownership in {"Own", "Outside"} else branch_pnl_summary(trip_rows, expense_rows)
+    rows = branch_vehicle_pnl_summary(trip_rows, expense_rows, ownership) if ownership in {"Own", "Outside"} else branch_pnl_summary(trip_rows, expense_rows)
     frame = pd.DataFrame(rows)
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -221,7 +254,7 @@ def export_pnl(trip_rows, expense_rows, start_date, end_date, ownership=None):
             cell.font = Font(color="FFFFFF", bold=True)
             cell.fill = fill
             cell.alignment = Alignment(horizontal="center")
-        ws.column_dimensions[get_column_letter(1)].width = 20 if ownership not in {"Own", "Outside"} else 32
+        ws.column_dimensions[get_column_letter(1)].width = 20
         for column_index in range(2, final_column + 1):
             ws.column_dimensions[get_column_letter(column_index)].width = 18
             for row_index in range(4, ws.max_row + 1):

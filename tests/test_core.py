@@ -17,7 +17,8 @@ from src.entry_finance import advance_summary, financial_values
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
 from src.operational_dtr_export import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
-from src.pnl_report import BRANCH_PNL_COLUMNS, DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, export_pnl, pnl_summary, vehicle_pnl_summary
+from src.pnl_report import BRANCH_PNL_COLUMNS, DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, export_pnl, pnl_summary, vehicle_pnl_summary
+from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
 from src.business_memory import build_business_memory, recall
 from src.workflow_ai import convert_rtgs_to_dtr as workflow_convert_rtgs_to_dtr
 from src.workflow_store import RequestStore as WorkflowRequestStore
@@ -58,6 +59,17 @@ def test_vehicle_normalization_and_last_four():
     assert last_four("MH14JL9818") == "9818"
 
 
+def test_operational_text_normalization_is_conservative():
+    assert canonical_company("saint gobin") == "Saint-Gobain India Private Limited"
+    assert canonical_company("saint gobain gyproc") == "Saint-Gobain India Private Limited - Gyproc"
+    assert canonical_location("talegoan") == "Talegaon"
+    assert canonical_location("PUNE") == "Pune"
+    assert canonical_vehicle_capacity("03 tons") == "3 MT"
+    assert canonical_vehicle_capacity("10 ton") == "10 MT"
+    assert canonical_vehicle_capacity("12mt") == "12 MT"
+    assert plain_remark("1234", "Pune-to-Wada", "10 MT", "TA") == "1234 Pune to Wada 10 MT TA"
+
+
 def test_duplicate_suffix_and_inactive_filtering():
     assert len(find_vehicle("9818", vehicle_master())) == 2
     assert find_vehicle("0001", vehicle_master()) == []
@@ -91,8 +103,8 @@ def test_vehicle_conflicts_are_not_silently_resolved():
 
 
 @pytest.mark.parametrize("remark,master,expected,conflict", [
-    ("25MT", "", "25MT", False), ("", "21MT", "21MT", False),
-    ("25MT", "25MT", "25MT", False), ("25MT", "21MT", "25MT", True),
+    ("25MT", "", "25 MT", False), ("", "21MT", "21 MT", False),
+    ("25MT", "25MT", "25 MT", False), ("25MT", "21MT", "25 MT", True),
 ])
 def test_vehicle_type_precedence(remark, master, expected, conflict):
     assert choose_vehicle_type(remark, master) == (expected, conflict)
@@ -132,11 +144,11 @@ def test_classification_regressions(remark, expected):
 
 @pytest.mark.parametrize("remark,vehicle,origin,destination,kind,date", [
     ("7348 Wagholi to Kamshet 07 08 2026 TA", "7348", "Wagholi", "Kamshet", "", "07-08-2026"),
-    ("9416 Jhagadia to Indore 09MT 31 07 2026 TA", "9416", "Jhagadia", "Indore", "9MT", "31-07-2026"),
+    ("9416 Jhagadia to Indore 09MT 31 07 2026 TA", "9416", "Jhagadia", "Indore", "9 MT", "31-07-2026"),
     ("6765 Talegaon to Pimpri 30 07 2026 TA", "6765", "Talegaon", "Pimpri", "", "30-07-2026"),
     ("6305 Bhiwandi to Pune Balance Payment 2LR TP", "6305", "Bhiwandi", "Pune", "", None),
-    ("3946 Talegaon to Hinjewadi 5k card diesal 25MT 26 07 2026 TA", "3946", "Talegaon", "Hinjewadi", "25MT", "26-07-2026"),
-    ("0272 Wagholi to Kamshet 20MT 27 07 2026 TA", "0272", "Wagholi", "Kamshet", "20MT", "27-07-2026"),
+    ("3946 Talegaon to Hinjewadi 5k card diesal 25MT 26 07 2026 TA", "3946", "Talegaon", "Hinjewadi", "25 MT", "26-07-2026"),
+    ("0272 Wagholi to Kamshet 20MT 27 07 2026 TA", "0272", "Wagholi", "Kamshet", "20 MT", "27-07-2026"),
 ])
 def test_actual_style_route_parsing(remark, vehicle, origin, destination, kind, date):
     parsed = parse_remark(remark)
@@ -149,7 +161,7 @@ def test_actual_style_route_parsing(remark, vehicle, origin, destination, kind, 
 def test_unusual_adjacent_days_best_effort():
     parsed = parse_remark("6789 7890 Shriwal to Bhiwandi 12MT 29 30 07 2026 TA")
     assert parsed["from_location"] == "Shriwal" and parsed["to_location"] == "Bhiwandi"
-    assert parsed["vehicle_type"] == "12MT" and parsed["date"].strftime("%d-%m-%Y") == "30-07-2026"
+    assert parsed["vehicle_type"] == "12 MT" and parsed["date"].strftime("%d-%m-%Y") == "30-07-2026"
 
 
 @pytest.mark.parametrize("value", ["30 07 2026", "30/07/2026", "30.07.26"])
@@ -161,7 +173,7 @@ def test_pipe_format_extracts_company_and_fields():
     parsed = parse_remark("9818 | SG | Talegaon to Bhiwandi | 10MT | 30 07 2026 | INV 0012345 | TA")
     assert parsed["vehicle_identifiers"] == ["9818"]
     assert parsed["company_name"] == "SG" and parsed["from_location"] == "Talegaon" and parsed["to_location"] == "Bhiwandi"
-    assert parsed["vehicle_type"] == "10MT" and parsed["date"].strftime("%d-%m-%Y") == "30-07-2026"
+    assert parsed["vehicle_type"] == "10 MT" and parsed["date"].strftime("%d-%m-%Y") == "30-07-2026"
     assert parsed["invoice_number"] == "0012345"
 
 
@@ -184,7 +196,7 @@ def test_invoice_markers_and_leading_zero(marker):
 def test_generator_account_priority_and_remark_type_conflict():
     confirmed, potential, non_trip = generate_dtr(source(["8172 Jhagadia to Indore 25MT 31 07 2026 TA"]), vehicle_master(), beneficiary_master())
     row = confirmed.iloc[0]
-    assert row["Vehicle No."] == "MH04AA8172" and row["Vehicle Type"] == "25MT" and bool(row["_needs_review"]) and bool(row["_type_conflict"])
+    assert row["Vehicle No."] == "MH04AA8172" and row["Vehicle Type"] == "25 MT" and bool(row["_needs_review"]) and bool(row["_type_conflict"])
     assert row["Transporter Name"] == "Account Carrier"
 
 
@@ -563,6 +575,26 @@ def test_outside_vehicle_pnl_uses_transporter_and_additional_expenses():
     ]
 
 
+def test_own_and_outside_pnl_are_horizontal_and_branch_wise():
+    trips = [
+        {"branch": "Pune", "ownership_type": "Own", "vehicle_number": "OWN-1", "revenue": 10000, "upi": 1000},
+        {"branch": "Wada", "ownership_type": "Own", "vehicle_number": "OWN-2", "revenue": 8000, "diesel_advance": 2000},
+        {"branch": "Pune", "ownership_type": "Outside", "vehicle_number": "OUT-1", "revenue": 20000, "transporter_freight": 15000},
+    ]
+    expenses = [
+        {"vehicle_number": "OWN-1", "categories": {"Driver's salary": 500}},
+        {"vehicle_number": "OUT-1", "amount": 750, "categories": {"Extra Expense": 750}},
+    ]
+    own = branch_vehicle_pnl_summary(trips, expenses, "Own")
+    outside = branch_vehicle_pnl_summary(trips, expenses, "Outside")
+    assert [row["Branch"] for row in own] == ["Pune", "Wada", "Total"]
+    assert own[0]["Revenue freight"] == 10000 and own[0]["Driver's salary"] == -500
+    assert own[-1]["Net Profit / (Loss)"] == 14500
+    assert [row["Branch"] for row in outside] == ["Pune", "Total"]
+    assert outside[0]["Transporter Freight"] == -15000
+    assert outside[0]["Additional expenses"] == -750
+
+
 def test_both_vehicle_pnl_is_horizontal_and_branch_wise():
     trips = [
         {"branch": "Pune", "ownership_type": "Own", "vehicle_number": "OWN-1", "revenue": 20000,
@@ -611,7 +643,8 @@ def test_operational_dtr_export_uses_full_reference_shape():
     frame.loc[0, "LR No."] = "00127"
     ws = load_workbook(BytesIO(export_operational_dtr(frame)))["DTR"]
     headers = [cell.value for cell in ws[1]]
-    assert len(headers) == 35 and "LR No." in headers and "UPI " in headers
+    assert len(headers) == 35 and "Company Name" in headers and "Compnay Name" not in headers
+    assert "LR No." in headers and "UPI " in headers
     assert ws["I2"].value == "00127" and ws["I2"].number_format == "@"
 
 
