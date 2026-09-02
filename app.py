@@ -13,7 +13,7 @@ from src.business_memory import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary
 from src.operational_dtr_export import export_operational_dtr
-from src.pnl_report import DIRECT_EXPENSE_COLUMNS, export_pnl, pnl_summary
+from src.pnl_report import DIRECT_EXPENSE_COLUMNS, export_pnl, pnl_summary, vehicle_pnl_summary
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.workflow_store import RequestStore
 
@@ -825,6 +825,7 @@ with reports_tab:
     report_options = ["DTR", "RTGS", *(["P&L"] if can_generate_pnl else [])]
     report_type = st.segmented_control("Report type", report_options, default="DTR", key="report_type")
     pnl_ownership_filter = "Both"
+    pnl_vehicle_filter = "All"
     if report_type == "P&L":
         pnl_ownership_filter = st.segmented_control(
             "Own or outside vehicle", ["Both", "Own", "Outside"], default="Both", key="pnl_ownership_filter",
@@ -833,7 +834,17 @@ with reports_tab:
     trips = [row for row in selected_rows if row.get("report_scope") != "Expense"]
     if report_type == "P&L":
         trips = [row for row in trips if ownership_matches(row.get("ownership_type"), pnl_ownership_filter)]
+        pnl_vehicle_options = sorted({clean_text(row.get("vehicle_number")) for row in trips} - {""}, key=str.casefold)
+        pnl_vehicle_filter = st.selectbox("Vehicle no.", ["All", *pnl_vehicle_options], key="pnl_vehicle_filter")
+        if pnl_vehicle_filter != "All":
+            trips = [row for row in trips if clean_text(row.get("vehicle_number")) == pnl_vehicle_filter]
     expenses = [row for row in selected_rows if row.get("report_scope") == "Expense"]
+    if report_type == "P&L":
+        selected_vehicle_numbers = {clean_text(row.get("vehicle_number")).casefold() for row in trips} - {""}
+        expenses = [
+            row for row in expenses
+            if clean_text(row.get("vehicle_number")).casefold() in selected_vehicle_numbers
+        ]
     st.caption(f"{len(trips)} trip record(s) and {len(expenses)} direct expense record(s) selected.")
     if report_type == "DTR":
         records = []
@@ -856,9 +867,9 @@ with reports_tab:
         st.download_button("Download bank-format RTGS report", export_rtgs(frame, dt.date.today()), f"RTGS-{start}-{end}.xls", "application/vnd.ms-excel", type="primary", disabled=frame.empty or not can_generate_reports, on_click=audit_action, args=("Downloaded RTGS report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
     else:
         expense_data = [{**row, "categories": unpack(row.get("dtr_data")).get("categories", {})} for row in expenses]
-        frame = pd.DataFrame(pnl_summary(trips, expense_data))
+        frame = pd.DataFrame(vehicle_pnl_summary(trips, expense_data, pnl_ownership_filter))
         st.dataframe(frame, hide_index=True, width="stretch")
-        st.download_button("Download P&L report", export_pnl(trips, expense_data, start, end), f"PNL-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=not can_generate_pnl, on_click=audit_action, args=("Downloaded P&L report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
+        st.download_button("Download P&L report", export_pnl(trips, expense_data, start, end, pnl_ownership_filter), f"PNL-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=not can_generate_pnl, on_click=audit_action, args=("Downloaded P&L report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
 
 with logs_tab:
     page_intro("Restricted audit", "Logs", "Review record changes and report activity across the workspace.", "⌁")

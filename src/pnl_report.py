@@ -1,4 +1,5 @@
 from io import BytesIO
+import json
 
 import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -33,8 +34,83 @@ def pnl_summary(trip_rows, expense_rows):
     ]
 
 
-def export_pnl(trip_rows, expense_rows, start_date, end_date):
-    frame = pd.DataFrame(pnl_summary(trip_rows, expense_rows))
+def _amount(row, field):
+    if isinstance(row, str):
+        try:
+            row = json.loads(row)
+        except (TypeError, ValueError):
+            row = {}
+    if not isinstance(row, dict):
+        row = {}
+    try:
+        return float(row.get(field) or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _category_total(expense_rows, *names):
+    return sum(
+        _amount(row.get("categories", {}), name)
+        for row in expense_rows
+        for name in names
+    )
+
+
+def vehicle_pnl_summary(trip_rows, expense_rows, ownership):
+    """Return the compact operations P&L requested for own/outside vehicles."""
+    ownership = str(ownership or "Both")
+    own_trips = [row for row in trip_rows if str(row.get("ownership_type") or "").strip().lower().startswith("own")]
+    outside_trips = [row for row in trip_rows if str(row.get("ownership_type") or "").strip().lower().startswith("outside")]
+
+    def own_rows():
+        revenue = sum(_amount(row, "revenue") for row in own_trips)
+        route = sum(_amount(row, "upi") for row in own_trips)
+        toll = sum(_amount(row.get("dtr_data", {}), "Toll Expense") for row in own_trips)
+        diesel = sum(_amount(row, "diesel_advance") for row in own_trips)
+        driver_salary = _category_total(expense_rows, "Driver's salary")
+        emi = _category_total(expense_rows, "EMI")
+        insurance = _category_total(expense_rows, "Insurance")
+        vehicle_tax = _category_total(expense_rows, "Vehicle Tax")
+        repairs = sum(_amount(row.get("dtr_data", {}), "Repairs & Maintenance") for row in own_trips)
+        repairs += _category_total(expense_rows, "Repair and maintenance")
+        expenses = route + toll + diesel + driver_salary + emi + insurance + vehicle_tax + repairs
+        return [
+            {"Particular": "Revenue freight", "Amount": revenue},
+            {"Particular": "Route expenses (UPI)", "Amount": -route},
+            {"Particular": "Toll charges", "Amount": -toll},
+            {"Particular": "Diesel amount", "Amount": -diesel},
+            {"Particular": "Driver's salary", "Amount": -driver_salary},
+            {"Particular": "EMI", "Amount": -emi},
+            {"Particular": "Insurance", "Amount": -insurance},
+            {"Particular": "Vehicle Tax", "Amount": -vehicle_tax},
+            {"Particular": "Repair and maintenance", "Amount": -repairs},
+            {"Particular": "Net Profit / (Loss)", "Amount": revenue - expenses},
+        ]
+
+    def outside_rows():
+        revenue = sum(_amount(row, "revenue") for row in outside_trips)
+        transporter = sum(_amount(row, "transporter_freight") for row in outside_trips)
+        additional = sum(_amount(row, "amount") for row in expense_rows)
+        return [
+            {"Particular": "Revenue", "Amount": revenue},
+            {"Particular": "Transporter Freight", "Amount": -transporter},
+            {"Particular": "Additional expenses", "Amount": -additional},
+            {"Particular": "Net Profit / (Loss)", "Amount": revenue - transporter - additional},
+        ]
+
+    if ownership == "Own":
+        return own_rows()
+    if ownership == "Outside":
+        return outside_rows()
+    return [
+        {"Particular": "OWN VEHICLES", "Amount": None}, *own_rows(),
+        {"Particular": "OUTSIDE VEHICLES", "Amount": None}, *outside_rows(),
+    ]
+
+
+def export_pnl(trip_rows, expense_rows, start_date, end_date, ownership=None):
+    rows = vehicle_pnl_summary(trip_rows, expense_rows, ownership) if ownership else pnl_summary(trip_rows, expense_rows)
+    frame = pd.DataFrame(rows)
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         frame.to_excel(writer, index=False, sheet_name="P&L", startrow=2)

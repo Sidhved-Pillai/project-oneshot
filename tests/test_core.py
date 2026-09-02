@@ -17,7 +17,7 @@ from src.entry_finance import advance_summary, financial_values
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
 from src.operational_dtr_export import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
-from src.pnl_report import DIRECT_EXPENSE_COLUMNS, export_pnl, pnl_summary
+from src.pnl_report import DIRECT_EXPENSE_COLUMNS, export_pnl, pnl_summary, vehicle_pnl_summary
 from src.business_memory import build_business_memory, recall
 from src.workflow_ai import convert_rtgs_to_dtr as workflow_convert_rtgs_to_dtr
 from src.workflow_store import RequestStore as WorkflowRequestStore
@@ -498,6 +498,38 @@ def test_pnl_includes_manish_passing_expense():
     assert values["Passing expense"] == -1750
     assert values["Total Direct Expenses"] == -1750
     assert values["Net Profit / (Loss)"] == -1750
+
+
+def test_own_vehicle_pnl_uses_requested_expenses():
+    trips = [{
+        "ownership_type": "Own", "revenue": 50000, "upi": 2500, "diesel_advance": 8000,
+        "dtr_data": '{"Toll Expense": 1000, "Repairs & Maintenance": 1500}',
+    }]
+    expenses = [{"categories": {
+        "Driver's salary": 5000, "EMI": 3000, "Insurance": 2000, "Vehicle Tax": 500,
+    }}]
+    rows = vehicle_pnl_summary(trips, expenses, "Own")
+    values = {row["Particular"]: row["Amount"] for row in rows}
+    assert list(values) == [
+        "Revenue freight", "Route expenses (UPI)", "Toll charges", "Diesel amount",
+        "Driver's salary", "EMI", "Insurance", "Vehicle Tax",
+        "Repair and maintenance", "Net Profit / (Loss)",
+    ]
+    assert values["Route expenses (UPI)"] == -2500
+    assert values["Repair and maintenance"] == -1500
+    assert values["Net Profit / (Loss)"] == 26500
+
+
+def test_outside_vehicle_pnl_uses_transporter_and_additional_expenses():
+    trips = [{"ownership_type": "Outside", "revenue": 50000, "transporter_freight": 35000}]
+    expenses = [{"amount": 2000, "categories": {"Office & General expenses": 2000}}]
+    rows = vehicle_pnl_summary(trips, expenses, "Outside")
+    assert rows == [
+        {"Particular": "Revenue", "Amount": 50000},
+        {"Particular": "Transporter Freight", "Amount": -35000},
+        {"Particular": "Additional expenses", "Amount": -2000},
+        {"Particular": "Net Profit / (Loss)", "Amount": 13000},
+    ]
 
 
 def test_business_memory_uses_repeated_verified_records_without_guessing():
