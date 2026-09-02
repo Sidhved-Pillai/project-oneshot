@@ -15,7 +15,7 @@ from src.business_memory import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary
 from src.operational_dtr_export import export_operational_dtr
-from src.pnl_report import DIRECT_EXPENSE_COLUMNS, export_pnl, pnl_summary, vehicle_pnl_summary
+from src.pnl_report import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, export_pnl, vehicle_pnl_summary
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.workflow_store import RequestStore
 
@@ -901,7 +901,8 @@ with reports_tab:
         st.download_button("Download bank-format RTGS report", export_rtgs(frame, dt.date.today()), f"RTGS-{start}-{end}.xls", "application/vnd.ms-excel", type="primary", disabled=frame.empty or not can_generate_reports, on_click=audit_action, args=("Downloaded RTGS report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
     else:
         expense_data = [{**row, "categories": unpack(row.get("dtr_data")).get("categories", {})} for row in expenses]
-        frame = pd.DataFrame(vehicle_pnl_summary(trips, expense_data, pnl_ownership_filter))
+        pnl_rows = branch_pnl_summary(trips, expense_data) if pnl_ownership_filter == "Both" else vehicle_pnl_summary(trips, expense_data, pnl_ownership_filter)
+        frame = pd.DataFrame(pnl_rows)
         st.dataframe(frame, hide_index=True, width="stretch")
         st.download_button("Download P&L report", export_pnl(trips, expense_data, start, end, pnl_ownership_filter), f"PNL-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=not can_generate_pnl, on_click=audit_action, args=("Downloaded P&L report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
 

@@ -1,5 +1,6 @@
 from io import BytesIO
 import json
+from collections import Counter, defaultdict
 
 import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -12,6 +13,12 @@ DIRECT_EXPENSE_COLUMNS = [
     "Repair and maintenance", "Interest",
 ]
 REPORT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense"]
+BRANCH_PNL_COLUMNS = [
+    "Branch", "Revenue-Own", "Revenue OS", "Total Revenue", "Transporter Freight",
+    "Extra Exp", "Passing Exp", "Bill Discounting", "UPI", "Salary", "Rent",
+    "Office Expense", "Conveyance", "EMI", "Ins/Tax", "R & M", "Toll",
+    "Driver's Salary", "Diesel", "Interest", "Expense", "Profit",
+]
 
 
 def pnl_summary(trip_rows, expense_rows):
@@ -61,6 +68,78 @@ def _category_total(expense_rows, *names):
         for row in expense_rows
         for name in names
     )
+
+
+def branch_pnl_summary(trip_rows, expense_rows):
+    """Build the horizontal, branch-wise P&L used by the Both report."""
+    vehicle_branches = defaultdict(Counter)
+    for row in trip_rows:
+        vehicle = str(row.get("vehicle_number") or "").strip().casefold()
+        branch = str(row.get("branch") or "").strip()
+        if vehicle and branch:
+            vehicle_branches[vehicle][branch] += 1
+
+    expenses_by_branch = defaultdict(list)
+    for row in expense_rows:
+        branch = str(row.get("branch") or "").strip()
+        if not branch:
+            vehicle = str(row.get("vehicle_number") or "").strip().casefold()
+            if vehicle_branches.get(vehicle):
+                branch = vehicle_branches[vehicle].most_common(1)[0][0]
+        expenses_by_branch[branch or "Not specified"].append(row)
+
+    trips_by_branch = defaultdict(list)
+    for row in trip_rows:
+        branch = str(row.get("branch") or "").strip() or "Not specified"
+        trips_by_branch[branch].append(row)
+    branches = sorted(set(trips_by_branch) | set(expenses_by_branch), key=str.casefold)
+
+    rows = []
+    for branch in branches:
+        trips = trips_by_branch[branch]
+        direct = expenses_by_branch[branch]
+        own = [row for row in trips if str(row.get("ownership_type") or "").strip().lower().startswith("own")]
+        outside = [row for row in trips if str(row.get("ownership_type") or "").strip().lower().startswith("outside")]
+        categories = {name: _category_total(direct, name) for name in REPORT_EXPENSE_COLUMNS}
+        revenue_own = sum(_amount(row, "revenue") for row in own)
+        revenue_outside = sum(_amount(row, "revenue") for row in outside)
+        transporter = sum(_amount(row, "transporter_freight") for row in outside)
+        upi = sum(_amount(row, "upi") for row in own)
+        diesel = sum(_amount(row, "diesel_advance") for row in own)
+        toll = sum(_amount(row.get("dtr_data", {}), "Toll Expense") for row in own)
+        repairs = categories["Repair and maintenance"] + sum(
+            _amount(row.get("dtr_data", {}), "Repairs & Maintenance") for row in own
+        )
+        row = {
+            "Branch": branch,
+            "Revenue-Own": revenue_own,
+            "Revenue OS": revenue_outside,
+            "Total Revenue": revenue_own + revenue_outside,
+            "Transporter Freight": transporter,
+            "Extra Exp": categories["Route expense"],
+            "Passing Exp": categories["Passing expense"],
+            "Bill Discounting": categories["Bill discounting"],
+            "UPI": upi,
+            "Salary": categories["Salary"],
+            "Rent": categories["Rent"],
+            "Office Expense": categories["Office & General expenses"],
+            "Conveyance": categories["Conveyance"],
+            "EMI": categories["EMI"],
+            "Ins/Tax": categories["Insurance"] + categories["Vehicle Tax"],
+            "R & M": repairs,
+            "Toll": toll,
+            "Driver's Salary": categories["Driver's salary"],
+            "Diesel": diesel,
+            "Interest": categories["Interest"],
+        }
+        row["Expense"] = sum(row[column] for column in BRANCH_PNL_COLUMNS[4:-2])
+        row["Profit"] = row["Total Revenue"] - row["Expense"]
+        rows.append(row)
+
+    total = {"Branch": "Total"}
+    for column in BRANCH_PNL_COLUMNS[1:]:
+        total[column] = sum(row[column] for row in rows)
+    return [*rows, total] if rows else []
 
 
 def vehicle_pnl_summary(trip_rows, expense_rows, ownership):
@@ -122,7 +201,7 @@ def vehicle_pnl_summary(trip_rows, expense_rows, ownership):
 
 
 def export_pnl(trip_rows, expense_rows, start_date, end_date, ownership=None):
-    rows = vehicle_pnl_summary(trip_rows, expense_rows, ownership) if ownership in {"Own", "Outside"} else pnl_summary(trip_rows, expense_rows)
+    rows = vehicle_pnl_summary(trip_rows, expense_rows, ownership) if ownership in {"Own", "Outside"} else branch_pnl_summary(trip_rows, expense_rows)
     frame = pd.DataFrame(rows)
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -130,14 +209,16 @@ def export_pnl(trip_rows, expense_rows, start_date, end_date, ownership=None):
         ws = writer.book["P&L"]
         ws["A1"] = f"Profit & Loss | {start_date:%d-%m-%Y} to {end_date:%d-%m-%Y}"
         ws["A1"].font = Font(size=14, bold=True, color="17324D")
-        ws.merge_cells("A1:B1")
+        final_column = max(2, len(frame.columns))
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=final_column)
         fill = PatternFill("solid", fgColor="0F766E")
         for cell in ws[3]:
             cell.font = Font(color="FFFFFF", bold=True)
             cell.fill = fill
             cell.alignment = Alignment(horizontal="center")
-        ws.column_dimensions[get_column_letter(1)].width = 32
-        ws.column_dimensions[get_column_letter(2)].width = 18
-        for cell in ws["B"][3:]:
-            cell.number_format = '₹#,##0.00;[Red]-₹#,##0.00'
+        ws.column_dimensions[get_column_letter(1)].width = 20 if ownership not in {"Own", "Outside"} else 32
+        for column_index in range(2, final_column + 1):
+            ws.column_dimensions[get_column_letter(column_index)].width = 18
+            for row_index in range(4, ws.max_row + 1):
+                ws.cell(row=row_index, column=column_index).number_format = '₹#,##0.00;[Red]-₹#,##0.00'
     return output.getvalue()

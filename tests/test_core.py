@@ -17,7 +17,7 @@ from src.entry_finance import advance_summary, financial_values
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
 from src.operational_dtr_export import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
-from src.pnl_report import DIRECT_EXPENSE_COLUMNS, export_pnl, pnl_summary, vehicle_pnl_summary
+from src.pnl_report import BRANCH_PNL_COLUMNS, DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, export_pnl, pnl_summary, vehicle_pnl_summary
 from src.business_memory import build_business_memory, recall
 from src.workflow_ai import convert_rtgs_to_dtr as workflow_convert_rtgs_to_dtr
 from src.workflow_store import RequestStore as WorkflowRequestStore
@@ -537,25 +537,23 @@ def test_outside_vehicle_pnl_uses_transporter_and_additional_expenses():
     ]
 
 
-def test_both_vehicle_pnl_uses_full_direct_expense_breakdown():
+def test_both_vehicle_pnl_is_horizontal_and_branch_wise():
     trips = [
-        {"ownership_type": "Own", "vehicle_number": "OWN-1", "revenue": 20000, "upi": 1000, "diesel_advance": 4000},
-        {"ownership_type": "Outside", "vehicle_number": "OUT-1", "revenue": 30000, "transporter_freight": 22000},
+        {"branch": "Pune", "ownership_type": "Own", "vehicle_number": "OWN-1", "revenue": 20000,
+         "upi": 1000, "diesel_advance": 4000, "dtr_data": '{"Toll Expense": 500}'},
+        {"branch": "Wada", "ownership_type": "Outside", "vehicle_number": "OUT-1", "revenue": 30000,
+         "transporter_freight": 22000},
     ]
     expenses = [{"vehicle_number": "OWN-1", "amount": 2000, "categories": {"Driver's salary": 2000}}]
-    rows = vehicle_pnl_summary(trips, expenses, "Both")
-    particulars = [row["Particular"] for row in rows]
-    assert particulars[:4] == ["Branch", "Revenue", "Transporter Freight", "Gross Contribution"]
-    assert "Additional expenses" in particulars
-    assert "Toll charges" in particulars
-    assert "Diesel" in particulars
-    assert "Conveyance" in particulars
-    assert "Office & General expenses" in particulars
-    assert "Repair and maintenance" in particulars
-    assert particulars[-2:] == ["Total Direct Expenses", "Net Profit / (Loss)"]
-    values = {row["Particular"]: row["Amount"] for row in rows}
-    assert values["Revenue"] == 50000
-    assert values["Net Profit / (Loss)"] == 22000
+    rows = branch_pnl_summary(trips, expenses)
+    assert list(rows[0]) == BRANCH_PNL_COLUMNS
+    assert [row["Branch"] for row in rows] == ["Pune", "Wada", "Total"]
+    pune, wada, total = rows
+    assert (pune["Revenue-Own"], pune["UPI"], pune["Diesel"], pune["Toll"]) == (20000, 1000, 4000, 500)
+    assert pune["Driver's Salary"] == 2000
+    assert (pune["Expense"], pune["Profit"]) == (7500, 12500)
+    assert (wada["Revenue OS"], wada["Transporter Freight"], wada["Profit"]) == (30000, 22000, 8000)
+    assert (total["Total Revenue"], total["Expense"], total["Profit"]) == (50000, 29500, 20500)
 
 
 def test_business_memory_uses_repeated_verified_records_without_guessing():
