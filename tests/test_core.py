@@ -21,6 +21,7 @@ from src.pnl_report import BRANCH_PNL_COLUMNS, DIRECT_EXPENSE_COLUMNS, branch_pn
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
 from src.business_memory import build_business_memory, recall
 from src.workflow_ai import convert_rtgs_to_dtr as workflow_convert_rtgs_to_dtr
+from src.workflow_pnl import branch_vehicle_pnl_summary as workflow_branch_vehicle_pnl_summary
 from src.workflow_store import RequestStore as WorkflowRequestStore
 from src.ai_intake import DTRIntakeResult, DTRIntakeRow, _model_unavailable, _prompt, extract_intake, result_to_records
 
@@ -653,3 +654,4 @@ def test_hot_deploy_modules_expose_current_workflow_contract():
     assert hasattr(WorkflowRequestStore, "list_batches")
     assert hasattr(WorkflowRequestStore, "sync_batch_records")
     assert hasattr(WorkflowRequestStore, "delete_batch")
+    assert callable(workflow_branch_vehicle_pnl_summary)
