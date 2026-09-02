@@ -391,7 +391,7 @@ def memory_prompt(prefix, title, source, suggestion, field_names):
 
 
 def trip_form(prefix, memory, allowed_branches=None, simplified=False):
-    v = {"simplified": simplified}
+    v = {}
     st.markdown("#### 1. Basic information")
     c1, c2 = st.columns(2)
     branch_key = f"{prefix}_branch"
@@ -415,6 +415,8 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     choices = ["", "Own", "Outside"]
     current = st.session_state.get(f"{prefix}_ownership_type", "")
     v["ownership_type"] = c3.selectbox("Own or outside", choices, index=choices.index(current) if current in choices else 0, key=f"{prefix}_ownership_type")
+    own_workflow = simplified or is_own_vehicle(v["ownership_type"])
+    v["simplified"] = own_workflow
     placer_key = f"{prefix}_vehicle_placed_by"
     v["vehicle_placed_by"] = st.text_input(
         "Vehicle placed by", key=placer_key, placeholder="e.g., Ajit Thakur",
@@ -422,7 +424,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     )
     memory_prompt(prefix, f"Known setup for {v['vehicle_number']}", f"vehicle_{v['vehicle_number']}", recall(memory, "vehicles", v["vehicle_number"]), ["vehicle_capacity", "transporter_name", "ownership_type", "vehicle_placed_by"])
     memory_prompt(prefix, f"Known branch for {v['company_name']}", f"company_{v['company_name']}", recall(memory, "companies", v["company_name"]), ["branch"])
-    if simplified:
+    if own_workflow:
         v.update({"beneficiary_name": "", "transporter_name": "", "beneficiary_account_number": "", "beneficiary_ifsc_code": ""})
     else:
         st.markdown("#### 3. Beneficiary details")
@@ -435,8 +437,8 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         beneficiary_memory = recall(memory, "beneficiaries", v["beneficiary_name"])
         beneficiary_memory = {"beneficiary_account_number" if key == "account_number" else "beneficiary_ifsc_code" if key == "ifsc" else key: value for key, value in beneficiary_memory.items()}
         memory_prompt(prefix, f"Known beneficiary details for {v['beneficiary_name']}", f"beneficiary_{v['beneficiary_name']}", beneficiary_memory, ["beneficiary_account_number", "beneficiary_ifsc_code", "transporter_name"])
-    st.markdown(f"#### {'3' if simplified else '4'}. Payment details")
-    if simplified:
+    st.markdown(f"#### {'3' if own_workflow else '4'}. Payment details")
+    if own_workflow:
         v["revenue"] = st.number_input("Revenue freight (₹)", min_value=0.0, value=None, placeholder="e.g., 50,000", key=f"{prefix}_revenue")
         v["transporter_freight"] = 0.0
     else:
@@ -449,8 +451,8 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         v["transporter_freight"] = c2.number_input("Transporter freight (₹)", min_value=0.0, value=None, placeholder="Not applicable for own vehicles" if own_vehicle else "e.g., 38,000", disabled=own_vehicle, key=transporter_freight_key)
         if own_vehicle:
             c2.caption("Not applicable for an own vehicle.")
-    st.caption("Enter amounts in every payment mode used. Repairs and maintenance are deducted from Profit / Loss." if simplified else "Enter amounts in every payment mode used. Billtee is also deducted before calculating the balance payable.")
-    if simplified:
+    st.caption("Enter amounts in every payment mode used. Repairs and maintenance are deducted from Profit / Loss." if own_workflow else "Enter amounts in every payment mode used. Billtee is also deducted before calculating the balance payable.")
+    if own_workflow:
         deduction_columns = st.columns(6)
         simplified_fields = [
             ("Route Expense (UPI)", "upi"), ("Diesel", "diesel_advance"), ("Cash", "cash_advance"),
@@ -475,24 +477,24 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         v["card_name"] = card_col.text_input("Card Name", key=f"{prefix}_card_name", placeholder="e.g., HPCL DriveTrack")
     else:
         v["diesel_pump_name"], v["card_name"] = "", ""
-    if simplified:
+    if own_workflow:
         total = sum(number(v[field]) for field in PAYMENT_FIELDS.values()) + number(v["toll_expense"]) + number(v["repairs_maintenance"])
         balance = number(v["revenue"]) - total
     else:
         payment = advance_summary(v["transporter_freight"], *(v[f] for f in PAYMENT_FIELDS.values()), v["billtee"])
         total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
-    summary = st.columns(2 if simplified else 3)
+    summary = st.columns(2 if own_workflow else 3)
     metric_offset = 0
-    if not simplified:
+    if not own_workflow:
         summary[0].metric("Transporter freight", f"₹{number(v['transporter_freight']):,.2f}")
         metric_offset = 1
-    summary[metric_offset].metric("Total expense" if simplified else "Total advance", f"₹{total:,.2f}")
-    if simplified:
+    summary[metric_offset].metric("Total expense" if own_workflow else "Total advance", f"₹{total:,.2f}")
+    if own_workflow:
         loss_class = " negative" if balance < 0 else ""
         summary[metric_offset + 1].markdown(f'<div class="profit-loss-card{loss_class}"><span>Profit / Loss</span><strong>₹{balance:,.2f}</strong></div>', unsafe_allow_html=True)
     else:
         summary[metric_offset + 1].metric("Balance payable", f"₹{balance:,.2f}", help="Transporter freight minus RTGS, Cash, UPI, Diesel and Billtee deductions. A negative amount indicates an overpayment.")
-    if balance < 0 and not simplified:
+    if balance < 0 and not own_workflow:
         st.warning(f"Advance exceeds transporter freight by ₹{abs(balance):,.2f}. Please review the payment amounts.")
     remark_key = f"{prefix}_remarks"
     generated_remark = trip_auto_remark(v["vehicle_number"], v["from_location"], v["to_location"], v["vehicle_capacity"], v["date"])
@@ -537,7 +539,7 @@ def audit_action(action, request_number="", details=""):
 def view_record(row):
     raw, is_expense = unpack(row.get("dtr_data")), row.get("report_scope") == "Expense"
     is_manish_expense = clean_text(row.get("created_by")) == "Manish" and is_expense
-    is_manish_record = clean_text(row.get("created_by")) == "Manish" and not is_expense
+    is_own_record = is_own_vehicle(row.get("ownership_type")) and not is_expense
     rtgs_raw = unpack(row.get("rtgs_data"))
     display = {
         "Date": row.get("trip_date"), "Type": "Direct expense" if is_expense else "Trip",
@@ -561,7 +563,7 @@ def view_record(row):
                 "Card": number(raw.get("payments", {}).get("Card")),
                 "Cardholders Name": raw.get("Cardholders Name", ""),
             })
-    if is_manish_record:
+    if is_own_record:
         display.pop("Billtee", None)
         display.update({
             "Toll Expense": number(raw.get("Toll Expense")),
@@ -569,7 +571,7 @@ def view_record(row):
             "Reason": raw.get("Repair Reason", ""), "Profit / Loss": number(row.get("balance_amount")),
         })
     locked_columns = ["Type", "Branch"] if record_branch_scope else ["Type"]
-    if is_manish_record:
+    if is_own_record:
         locked_columns.append("Profit / Loss")
     edited = st.data_editor(
         pd.DataFrame([display]), hide_index=True, width="stretch", disabled=locked_columns,
@@ -585,7 +587,7 @@ def view_record(row):
                 row.get("source_mime_type"),
             )
     edited_item = edited.iloc[0].to_dict()
-    repair_reason_missing = is_manish_record and number(edited_item.get("Repairs & Maintenance")) > 0 and not clean_text(edited_item.get("Reason"))
+    repair_reason_missing = is_own_record and number(edited_item.get("Repairs & Maintenance")) > 0 and not clean_text(edited_item.get("Reason"))
     if repair_reason_missing:
         st.caption("Reason is required before repair and maintenance changes can be saved.")
     if st.button("Save record changes", type="primary", key=f"save_record_{row['request_number']}", disabled=repair_reason_missing):
@@ -624,7 +626,7 @@ def view_record(row):
                 },
             })
         else:
-            if is_manish_record:
+            if is_own_record:
                 total = sum(number(item[name]) for name in ("RTGS", "Cash", "UPI", "Diesel")) + toll_expense + repairs_maintenance
                 balance = number(item["Revenue"]) - total
             else:
@@ -714,7 +716,7 @@ with new_tab:
         autofill(evidence(None, audio), "", "trip")
     with st.container(border=True):
         values = trip_form("trip", business_memory, allowed_entry_branches, simplified=current_user == "Manish")
-        repair_reason_missing = current_user == "Manish" and number(values["repairs_maintenance"]) > 0 and not clean_text(values["repair_reason"])
+        repair_reason_missing = values["simplified"] and number(values["repairs_maintenance"]) > 0 and not clean_text(values["repair_reason"])
         if st.button("Save and Another Entry", type="primary", disabled=not values["branch"] or not values["vehicle_number"] or repair_reason_missing, key="save_trip"):
             saved = store.create({**trip_payload(values, files, invoice_filename), "created_by": current_user})
             audit_action("Created trip record", saved, request_label(saved, values["date"]))
