@@ -480,13 +480,18 @@ def test_activity_log_is_persistent_and_newest_first(tmp_path):
 
 
 def test_pnl_uses_trip_margin_and_direct_expense_categories():
-    trips = [{"revenue": 100000, "transporter_freight": 70000}]
+    trips = [{"revenue": 100000, "transporter_freight": 70000, "branch": "Pune", "diesel_advance": 2500,
+              "dtr_data": '{"Toll Expense": 500}'}]
     expenses = [{"categories": {"Salary": 5000, "Rent": 3000}}]
     rows = pnl_summary(trips, expenses)
     values = {row["Particular"]: row["Amount"] for row in rows}
     assert values["Gross Contribution"] == 30000
+    assert values["Branch"] == "Pune"
+    assert values["Toll charges"] == -500
+    assert values["Diesel"] == -2500
+    assert values["Additional expenses"] == -8000
     assert values["Total Direct Expenses"] == -8000
-    assert values["Net Profit / (Loss)"] == 22000
+    assert values["Net Profit / (Loss)"] == 19000
     workbook = load_workbook(BytesIO(export_pnl(trips, expenses, dt.date(2026, 8, 1), dt.date(2026, 8, 31))))
     assert workbook["P&L"]["A1"].value.startswith("Profit & Loss")
     assert len(DIRECT_EXPENSE_COLUMNS) == 12
@@ -540,14 +545,17 @@ def test_both_vehicle_pnl_uses_full_direct_expense_breakdown():
     expenses = [{"vehicle_number": "OWN-1", "amount": 2000, "categories": {"Driver's salary": 2000}}]
     rows = vehicle_pnl_summary(trips, expenses, "Both")
     particulars = [row["Particular"] for row in rows]
-    assert particulars[:3] == ["Revenue", "Transporter Freight", "Gross Contribution"]
+    assert particulars[:4] == ["Branch", "Revenue", "Transporter Freight", "Gross Contribution"]
+    assert "Additional expenses" in particulars
+    assert "Toll charges" in particulars
+    assert "Diesel" in particulars
     assert "Conveyance" in particulars
     assert "Office & General expenses" in particulars
     assert "Repair and maintenance" in particulars
     assert particulars[-2:] == ["Total Direct Expenses", "Net Profit / (Loss)"]
     values = {row["Particular"]: row["Amount"] for row in rows}
     assert values["Revenue"] == 50000
-    assert values["Net Profit / (Loss)"] == 26000
+    assert values["Net Profit / (Loss)"] == 22000
 
 
 def test_business_memory_uses_repeated_verified_records_without_guessing():

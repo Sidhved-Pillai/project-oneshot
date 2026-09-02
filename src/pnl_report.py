@@ -17,6 +17,9 @@ REPORT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense"]
 def pnl_summary(trip_rows, expense_rows):
     revenue = sum(float(row.get("revenue") or 0) for row in trip_rows)
     transporter = sum(float(row.get("transporter_freight") or 0) for row in trip_rows)
+    branches = sorted({str(row.get("branch") or "").strip() for row in trip_rows} - {""}, key=str.casefold)
+    toll = sum(_amount(row.get("dtr_data", {}), "Toll Expense") for row in trip_rows)
+    diesel = sum(_amount(row, "diesel_advance") for row in trip_rows)
     categories = {name: 0.0 for name in REPORT_EXPENSE_COLUMNS}
     for row in expense_rows:
         for name, value in row.get("categories", {}).items():
@@ -25,12 +28,16 @@ def pnl_summary(trip_rows, expense_rows):
     direct_total = sum(categories.values())
     gross = revenue - transporter
     return [
+        {"Particular": "Branch", "Amount": ", ".join(branches) or "—"},
         {"Particular": "Revenue", "Amount": revenue},
         {"Particular": "Transporter Freight", "Amount": -transporter},
         {"Particular": "Gross Contribution", "Amount": gross},
+        {"Particular": "Toll charges", "Amount": -toll},
+        {"Particular": "Diesel", "Amount": -diesel},
         *({"Particular": name, "Amount": -amount} for name, amount in categories.items()),
+        {"Particular": "Additional expenses", "Amount": -direct_total},
         {"Particular": "Total Direct Expenses", "Amount": -direct_total},
-        {"Particular": "Net Profit / (Loss)", "Amount": gross - direct_total},
+        {"Particular": "Net Profit / (Loss)", "Amount": gross - toll - diesel - direct_total},
     ]
 
 
