@@ -492,6 +492,14 @@ def test_pnl_uses_trip_margin_and_direct_expense_categories():
     assert len(DIRECT_EXPENSE_COLUMNS) == 12
 
 
+def test_pnl_includes_manish_passing_expense():
+    rows = pnl_summary([], [{"categories": {"Passing expense": 1750}}])
+    values = {row["Particular"]: row["Amount"] for row in rows}
+    assert values["Passing expense"] == -1750
+    assert values["Total Direct Expenses"] == -1750
+    assert values["Net Profit / (Loss)"] == -1750
+
+
 def test_business_memory_uses_repeated_verified_records_without_guessing():
     rows = [
         {"status": "Verified", "report_scope": "Both", "vehicle_number": "MH14JL9818",

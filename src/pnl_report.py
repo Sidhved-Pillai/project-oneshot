@@ -10,12 +10,13 @@ DIRECT_EXPENSE_COLUMNS = [
     "Office & General expenses", "Conveyance", "EMI", "Insurance", "Vehicle Tax",
     "Repair and maintenance", "Interest",
 ]
+REPORT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense"]
 
 
 def pnl_summary(trip_rows, expense_rows):
     revenue = sum(float(row.get("revenue") or 0) for row in trip_rows)
     transporter = sum(float(row.get("transporter_freight") or 0) for row in trip_rows)
-    categories = {name: 0.0 for name in DIRECT_EXPENSE_COLUMNS}
+    categories = {name: 0.0 for name in REPORT_EXPENSE_COLUMNS}
     for row in expense_rows:
         for name, value in row.get("categories", {}).items():
             if name in categories:

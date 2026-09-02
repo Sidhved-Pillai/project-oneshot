@@ -21,6 +21,12 @@ load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
 STORE_INTERFACE_VERSION = 7
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
+STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
+MANISH_DIRECT_EXPENSE_COLUMNS = [
+    "Driver's salary", "Office & General expenses", "EMI", "Conveyance",
+    "Insurance", "Vehicle Tax", "Passing expense",
+]
+ALL_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense"]
 BRANCHES = ["Wada", "Baroda", "Pune"]
 SPECIAL_CODE_SALT = bytes.fromhex("28d7f0e0dfb9b32fecf4f4656d309042")
 SPECIAL_CODE_HASH = bytes.fromhex("b17d745a7cfdb8fad453e479e3950b905f0505478fe8268461ae74fdbc2248fb")
@@ -301,16 +307,18 @@ def trip_payload(v, files, invoice_filename=None):
 
 def expense_payload(v, files):
     payments = {name: number(v[field]) for name, field in PAYMENT_FIELDS.items()}
-    categories = {name: number(v[name]) for name in DIRECT_EXPENSE_COLUMNS}
+    card = number(v.get("card"))
+    categories = {name: number(v.get(name)) for name in ALL_DIRECT_EXPENSE_COLUMNS}
     return {
         "report_scope": "Expense", "trip_date": v["date"], "vehicle_number": v["vehicle_number"],
         "beneficiary_name": v["beneficiary_name"], "expense_type": ", ".join(k for k, val in categories.items() if val),
-        "amount": sum(categories.values()), "payment_mode": ", ".join(k for k, val in payments.items() if val),
+        "amount": sum(categories.values()), "payment_mode": ", ".join([*(k for k, val in payments.items() if val), *(["Card"] if card else [])]),
         "rtgs_advance": payments["RTGS"], "cash_advance": payments["Cash"], "upi": payments["UPI"],
-        "diesel_advance": payments["Diesel"], "total_advance": sum(payments.values()), "notes": v["remarks"],
+        "diesel_advance": payments["Diesel"], "total_advance": sum(payments.values()) + card, "notes": v["remarks"],
         "status": "Verified", "dtr_data": {
-            "categories": categories, "payments": payments,
+            "categories": categories, "payments": {**payments, "Card": card},
             "Diesel Pump Name": v["diesel_pump_name"], "Card Name": v["card_name"],
+            "Cardholders Name": clean_text(v.get("cardholders_name")),
         }, **file_values(files),
     }
 
@@ -413,7 +421,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     if simplified:
         deduction_columns = st.columns(6)
         simplified_fields = [
-            ("UPI", "upi"), ("Diesel", "diesel_advance"), ("Cash", "cash_advance"),
+            ("Route Expense (UPI)", "upi"), ("Diesel", "diesel_advance"), ("Cash", "cash_advance"),
             ("Toll Expense", "toll_expense"), ("RTGS", "rtgs_advance"),
         ]
         for col, (label, field) in zip(deduction_columns, simplified_fields):
@@ -496,6 +504,7 @@ def audit_action(action, request_number="", details=""):
 @st.dialog("View evidence and edit record", width="large")
 def view_record(row):
     raw, is_expense = unpack(row.get("dtr_data")), row.get("report_scope") == "Expense"
+    is_manish_expense = clean_text(row.get("created_by")) == "Manish" and is_expense
     is_manish_record = clean_text(row.get("created_by")) == "Manish" and not is_expense
     rtgs_raw = unpack(row.get("rtgs_data"))
     display = {
@@ -515,6 +524,11 @@ def view_record(row):
     }
     if is_expense:
         display.update(raw.get("categories", {}))
+        if is_manish_expense:
+            display.update({
+                "Card": number(raw.get("payments", {}).get("Card")),
+                "Cardholders Name": raw.get("Cardholders Name", ""),
+            })
     if is_manish_record:
         display.pop("Billtee", None)
         display.update({
@@ -561,10 +575,21 @@ def view_record(row):
             "notes": clean_text(item["Remarks"]),
         }
         if is_expense:
-            categories = {name: number(item.get(name)) for name in DIRECT_EXPENSE_COLUMNS}
+            categories = {name: number(item.get(name)) for name in ALL_DIRECT_EXPENSE_COLUMNS}
+            card = number(item.get("Card")) if is_manish_expense else number(raw.get("payments", {}).get("Card"))
+            payments = {
+                "UPI": number(item["UPI"]), "Diesel": number(item["Diesel"]),
+                "Cash": number(item["Cash"]), "RTGS": number(item["RTGS"]), "Card": card,
+            }
             update_values.update({
                 "amount": sum(categories.values()),
-                "dtr_data": {**raw, "categories": categories, "Diesel Pump Name": clean_text(item["Add Pumps"]), "Card Name": clean_text(item["Card Name"])},
+                "payment_mode": ", ".join(name for name, value in payments.items() if value),
+                "total_advance": sum(payments.values()),
+                "dtr_data": {
+                    **raw, "categories": categories, "payments": payments,
+                    "Diesel Pump Name": clean_text(item["Add Pumps"]), "Card Name": clean_text(item["Card Name"]),
+                    "Cardholders Name": clean_text(item.get("Cardholders Name")),
+                },
             })
         else:
             if is_manish_record:
@@ -680,29 +705,40 @@ with expense_tab:
     if expense_voice_autofill:
         autofill(evidence(None, expense_audio), "", "expense", "EXPENSE")
     with st.container(border=True):
+        is_manish = current_user == "Manish"
         c1, c2, c3 = st.columns(3)
         v = {"date": c1.date_input("Date *", format="DD/MM/YYYY", key="expense_date"), "beneficiary_name": c2.text_input("Beneficiary name", key="expense_beneficiary", placeholder="e.g., Rajesh Kumar"), "vehicle_number": c3.text_input("Vehicle name / number", key="expense_vehicle", placeholder="e.g., MH14JL9818")}
         st.markdown("#### Expense breakdown")
         cols = st.columns(3)
-        for i, category in enumerate(DIRECT_EXPENSE_COLUMNS):
-            v[category] = cols[i % 3].number_input(f"{category} (₹)", min_value=0.0, value=None, placeholder="e.g., 5,000", key=f"expense_category_{i}")
-        expense_categories = [category for category in DIRECT_EXPENSE_COLUMNS if number(v[category])]
+        visible_expense_columns = MANISH_DIRECT_EXPENSE_COLUMNS if is_manish else STANDARD_DIRECT_EXPENSE_COLUMNS
+        for category in ALL_DIRECT_EXPENSE_COLUMNS:
+            v[category] = 0.0
+        for i, category in enumerate(visible_expense_columns):
+            category_key = DIRECT_EXPENSE_COLUMNS.index(category) if category in DIRECT_EXPENSE_COLUMNS else "passing_expense"
+            v[category] = cols[i % 3].number_input(f"{category} (₹)", min_value=0.0, value=None, placeholder="e.g., 5,000", key=f"expense_category_{category_key}")
+        expense_categories = [category for category in visible_expense_columns if number(v[category])]
         expense_generated_remark = expense_auto_remark(v["vehicle_number"], v["beneficiary_name"], expense_categories, v["date"])
         if clean_text(v["vehicle_number"]) or clean_text(v["beneficiary_name"]) or expense_categories:
             sync_auto_remark("expense_remarks", expense_generated_remark)
         v["remarks"] = st.text_area("Remarks", key="expense_remarks", placeholder="Auto-filled from the expense details")
         st.markdown("#### Mode of payment")
         st.caption("Fill every mode used for this expense.")
-        for col, (label, field) in zip(st.columns(4), PAYMENT_FIELDS.items()):
+        payment_columns = st.columns(5 if is_manish else 4)
+        for col, (label, field) in zip(payment_columns, PAYMENT_FIELDS.items()):
             v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 5,000", key=f"expense_{field}")
+        if is_manish:
+            v["card"] = payment_columns[-1].number_input("Card (₹)", min_value=0.0, value=None, placeholder="e.g., 5,000", key="expense_card")
+            v["cardholders_name"] = st.text_input("Cardholders Name", key="expense_cardholders_name", placeholder="e.g., Manish Jha")
+        else:
+            v["card"], v["cardholders_name"] = 0.0, ""
         if number(v["diesel_advance"]) > 0:
             pump_col, card_col = st.columns(2)
             v["diesel_pump_name"] = pump_col.text_input("Add Pumps", key="expense_diesel_pump_name", placeholder="e.g., HP Petrol Pump")
             v["card_name"] = card_col.text_input("Card Name", key="expense_card_name", placeholder="e.g., HPCL DriveTrack")
         else:
             v["diesel_pump_name"], v["card_name"] = "", ""
-        expense_total = sum(number(v[name]) for name in DIRECT_EXPENSE_COLUMNS)
-        paid_total = sum(number(v[field]) for field in PAYMENT_FIELDS.values())
+        expense_total = sum(number(v[name]) for name in ALL_DIRECT_EXPENSE_COLUMNS)
+        paid_total = sum(number(v[field]) for field in PAYMENT_FIELDS.values()) + number(v["card"])
         c1, c2 = st.columns(2)
         c1.metric("Total direct expense", f"₹{expense_total:,.2f}")
         c2.metric("Payment modes total", f"₹{paid_total:,.2f}")
