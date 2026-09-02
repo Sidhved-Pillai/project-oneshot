@@ -111,22 +111,11 @@ def vehicle_pnl_summary(trip_rows, expense_rows, ownership):
         return own
     if ownership == "Outside":
         return outside
-    own_values = {row["Particular"]: row["Amount"] for row in own}
-    outside_values = {row["Particular"]: row["Amount"] for row in outside}
-    return [
-        {"Particular": "Revenue freight", "Amount": own_values["Revenue freight"] + outside_values["Revenue"]},
-        *own[1:-1],
-        {"Particular": "Transporter Freight", "Amount": outside_values["Transporter Freight"]},
-        {"Particular": "Additional expenses", "Amount": outside_values["Additional expenses"]},
-        {
-            "Particular": "Net Profit / (Loss)",
-            "Amount": own_values["Net Profit / (Loss)"] + outside_values["Net Profit / (Loss)"],
-        },
-    ]
+    return pnl_summary(trip_rows, expense_rows)
 
 
 def export_pnl(trip_rows, expense_rows, start_date, end_date, ownership=None):
-    rows = vehicle_pnl_summary(trip_rows, expense_rows, ownership) if ownership else pnl_summary(trip_rows, expense_rows)
+    rows = vehicle_pnl_summary(trip_rows, expense_rows, ownership) if ownership in {"Own", "Outside"} else pnl_summary(trip_rows, expense_rows)
     frame = pd.DataFrame(rows)
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
