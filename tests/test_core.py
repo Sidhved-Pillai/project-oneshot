@@ -467,6 +467,22 @@ def test_unified_record_can_be_edited_and_deleted_with_revision_history(tmp_path
     assert store.get(number) is None
 
 
+def test_rtgs_done_status_is_persistent(tmp_path):
+    store = WorkflowRequestStore(f"sqlite:///{tmp_path / 'rtgs-status.db'}")
+    first = store.create({
+        "report_scope": "Both", "trip_date": dt.date(2026, 9, 2),
+        "vehicle_number": "MH14AB1234", "rtgs_advance": 1200,
+    })
+    second = store.create({
+        "report_scope": "Both", "trip_date": dt.date(2026, 9, 2),
+        "vehicle_number": "MH14AB5678", "rtgs_advance": 800,
+    })
+    assert store.get(first)["rtgs_done"] is False
+    assert store.mark_rtgs_done([first]) == 1
+    assert store.get(first)["rtgs_done"] is True
+    assert store.get(second)["rtgs_done"] is False
+
+
 def test_activity_log_is_persistent_and_newest_first(tmp_path):
     database = f"sqlite:///{tmp_path / 'activity.db'}"
     store = WorkflowRequestStore(database)

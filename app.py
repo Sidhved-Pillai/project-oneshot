@@ -21,7 +21,7 @@ from src.workflow_store import RequestStore
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
-STORE_INTERFACE_VERSION = 7
+STORE_INTERFACE_VERSION = 8
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 MANISH_DIRECT_EXPENSE_COLUMNS = [
@@ -237,9 +237,7 @@ def sync_auto_remark(widget_key, generated):
 
 
 def rtgs_remark(row):
-    existing = unpack(row.get("rtgs_data")).get("REMARK") or row.get("notes")
-    if clean_text(existing):
-        return clean_text(existing)
+    """Build the standard bank remark: vehicle, route, capacity, date, TA."""
     return trip_auto_remark(
         row.get("vehicle_number"), row.get("from_location"), row.get("to_location"),
         row.get("vehicle_type"), row.get("trip_date"),
@@ -535,6 +533,14 @@ def audit_action(action, request_number="", details=""):
         store.log_action(current_user, action, request_number, details)
 
 
+def complete_rtgs_download(request_numbers, start, end):
+    updated = store.mark_rtgs_done(request_numbers)
+    audit_action(
+        "Downloaded RTGS report", "",
+        f"{start:%d/%m/%Y} to {end:%d/%m/%Y} · {updated} record(s)",
+    )
+
+
 @st.dialog("View evidence and edit record", width="large")
 def view_record(row):
     raw, is_expense = unpack(row.get("dtr_data")), row.get("report_scope") == "Expense"
@@ -675,7 +681,7 @@ html,body,[class*="css"]{font-family:'DM Sans',sans-serif}.stApp,[data-testid="s
 .billtee-board{width:100%;margin:6px 0 18px;border-collapse:separate;border-spacing:0;overflow:hidden;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.82)}.billtee-board th,.billtee-board td{padding:11px 15px;text-align:left;border-bottom:1px solid #edf1f5;font-weight:800}.billtee-board th{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.05em}.billtee-board td:last-child,.billtee-board th:last-child{text-align:right}.billtee-board tr:last-child td{border-bottom:0}
 div[data-testid="stVerticalBlockBorderWrapper"]{background:rgba(255,255,255,.92);border:1px solid rgba(215,228,224,.95)!important;border-radius:20px;box-shadow:0 12px 36px rgba(34,63,68,.075);transition:transform .2s ease,box-shadow .2s ease}div[data-testid="stVerticalBlockBorderWrapper"]:hover{box-shadow:0 16px 42px rgba(34,63,68,.1)}h4{font:800 1rem 'Manrope'!important;color:#214047!important;padding:10px 0 7px!important;border-bottom:1px solid #edf2f1}
 [data-testid="stFileUploader"]{padding:13px;border-radius:17px;background:rgba(255,255,255,.78);border:1px solid var(--line)}[data-testid="stFileUploaderDropzone"]{border:1.5px dashed #8bbdec;background:linear-gradient(145deg,#f7fbff,#edf6ff);border-radius:13px;transition:all .2s ease}[data-testid="stFileUploaderDropzone"]:hover{border-color:var(--teal);transform:translateY(-1px);box-shadow:0 8px 20px rgba(0,113,227,.1)}[data-testid="stAudioInput"]{padding:13px;border:1px solid var(--line);border-radius:17px;background:rgba(255,255,255,.78)}[data-testid="stAudioInput"] button{color:#fff!important;background:#0071e3!important;border:2px solid #0071e3!important;border-radius:999px!important;box-shadow:0 3px 10px rgba(0,113,227,.25)!important}
-[data-baseweb="input"]>div,[data-baseweb="select"]>div,textarea{border-color:#dce3eb!important;border-radius:12px!important;background:#fff!important;transition:border .18s ease,box-shadow .18s ease!important}[data-baseweb="input"]>div:focus-within,[data-baseweb="select"]>div:focus-within,textarea:focus{border-color:#0071e3!important;box-shadow:0 0 0 3px rgba(0,113,227,.1)!important}[data-testid="InputInstructions"]{display:none!important}[data-testid="stNumberInput"] button{display:none!important}.stButton>button,.stDownloadButton>button{border-radius:999px;font-weight:700;min-height:42px;padding-left:20px;padding-right:20px;transition:transform .18s ease,box-shadow .18s ease}.stButton>button[kind="primary"],.stDownloadButton>button[kind="primary"]{position:relative;overflow:hidden;border:0;color:#fff;background:#0071e3;box-shadow:0 7px 18px rgba(0,113,227,.22)}.stButton>button:hover,.stDownloadButton>button:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(0,113,227,.28)}.st-key-trip_voice_autofill button,.st-key-expense_voice_autofill button{color:#fff!important;background:linear-gradient(135deg,#1f9d60,#27b974)!important;box-shadow:0 8px 20px rgba(31,157,96,.22)!important}.st-key-trip_voice_autofill button:disabled,.st-key-expense_voice_autofill button:disabled{color:#fff!important;background:#8fd5ae!important;opacity:.72!important}
+[data-baseweb="input"]>div,[data-baseweb="select"]>div,textarea{border-color:#dce3eb!important;border-radius:12px!important;background:#fff!important;transition:border .18s ease,box-shadow .18s ease!important}[data-baseweb="input"]>div:focus-within,[data-baseweb="select"]>div:focus-within,textarea:focus{border-color:#0071e3!important;box-shadow:0 0 0 3px rgba(0,113,227,.1)!important}[data-testid="InputInstructions"]{display:none!important}[data-testid="stNumberInput"] button{display:none!important}.stButton>button,.stDownloadButton>button{border-radius:999px;font-weight:700;min-height:42px;padding-left:20px;padding-right:20px;transition:transform .18s ease,box-shadow .18s ease}.stButton>button[kind="primary"],.stDownloadButton>button[kind="primary"]{position:relative;overflow:hidden;border:0;color:#fff;background:#0071e3;box-shadow:0 7px 18px rgba(0,113,227,.22)}.stButton>button:hover,.stDownloadButton>button:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(0,113,227,.28)}[class*="st-key-delete_record_"] button{min-width:46px!important;padding:0!important;border:0!important;color:#fff!important;background:#e11d2e!important;box-shadow:0 7px 18px rgba(225,29,46,.22)!important}[class*="st-key-delete_record_"] button p{font-size:0!important}[class*="st-key-delete_record_"] button span{color:#fff!important;font-size:1.25rem!important}[class*="st-key-delete_record_"] button:hover{background:#c8102e!important;box-shadow:0 10px 24px rgba(225,29,46,.3)!important}.st-key-trip_voice_autofill button,.st-key-expense_voice_autofill button{color:#fff!important;background:linear-gradient(135deg,#1f9d60,#27b974)!important;box-shadow:0 8px 20px rgba(31,157,96,.22)!important}.st-key-trip_voice_autofill button:disabled,.st-key-expense_voice_autofill button:disabled{color:#fff!important;background:#8fd5ae!important;opacity:.72!important}
 div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);border:1px solid #d6e7f7;border-radius:16px;padding:13px 16px;box-shadow:0 5px 16px rgba(0,80,160,.05)}[data-testid="stMetricLabel"]{color:#6e7781;font-weight:700}[data-testid="stMetricValue"]{font:800 1.28rem 'Manrope';color:#0066cc}.profit-loss-card{min-height:91px;padding:13px 16px;border:1px solid #d6e7f7;border-radius:16px;background:linear-gradient(145deg,#f8fbff,#eef6ff);box-shadow:0 5px 16px rgba(0,80,160,.05)}.profit-loss-card span{display:block;color:#6e7781;font-weight:700}.profit-loss-card strong{display:block;margin-top:4px;color:#0066cc;font:800 1.28rem 'Manrope'}.profit-loss-card.negative strong{color:#d70015}[data-testid="stDataFrame"]{border:1px solid var(--line);border-radius:15px;overflow:hidden;box-shadow:0 8px 24px rgba(34,63,68,.06)}[data-testid="stAlert"]{border-radius:14px}details{border:1px solid var(--line)!important;border-radius:13px!important;background:rgba(255,255,255,.78)!important}
 @media(max-width:700px){.block-container{padding:4.5rem .85rem 4rem}.app-hero{padding:17px}.status-pill{display:none}[data-testid="stTabs"] [data-testid="stTab"]{padding:8px 10px;font-size:.75rem}.flow-strip{overflow-x:auto}.flow-step{white-space:nowrap}.page-intro p{font-size:.82rem}}
 </style>
@@ -836,7 +842,7 @@ with records_tab:
                 columns[5].write(f"₹{number(record.get('revenue')):,.0f}")
                 if columns[6].button("View Evidence", key=f"view_record_{record['request_number']}", use_container_width=True):
                     view_record(record)
-                if columns[7].button("Delete", key=f"delete_record_{record['request_number']}", use_container_width=True):
+                if columns[7].button("Delete", icon=":material/delete:", key=f"delete_record_{record['request_number']}", help="Delete record", use_container_width=True):
                     request_number = record["request_number"]
                     if store.delete_request(request_number):
                         audit_action("Deleted record", request_number, request_label(record))
@@ -895,8 +901,52 @@ with reports_tab:
         st.dataframe(frame, hide_index=True, width="stretch")
         st.download_button("Download DTR report", export_operational_dtr(frame), f"DTR-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=frame.empty or not can_generate_reports, on_click=audit_action, args=("Downloaded DTR report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
     elif report_type == "RTGS":
+        rtgs_candidates = list(reversed([item for item in trips if number(item.get("rtgs_advance")) > 0]))
+        select_all_rtgs = st.checkbox("Select all", key="rtgs_select_all")
+        selection_frame = pd.DataFrame([
+            {
+                "Select": select_all_rtgs or not bool(row.get("rtgs_done")),
+                "Record": request_label(row),
+                "Date": f"{as_date(row.get('trip_date')):%d/%m/%y}",
+                "Beneficiary": clean_text(row.get("beneficiary_name")) or "—",
+                "Amount": number(row.get("rtgs_advance")),
+                "Remarks": rtgs_remark(row),
+                "RTGS Status": "RTGS Done" if row.get("rtgs_done") else "Pending",
+                "_request_number": row.get("request_number"),
+            }
+            for row in rtgs_candidates
+        ])
+        if selection_frame.empty:
+            st.info("No RTGS records are available in the selected date range.")
+            selected_request_numbers = []
+        else:
+            edited_selection = st.data_editor(
+                selection_frame.drop(columns=["_request_number"]),
+                hide_index=True, width="stretch", key="rtgs_record_selection",
+                disabled=["Record", "Date", "Beneficiary", "Amount", "Remarks", "RTGS Status"],
+                column_config={
+                    "Select": st.column_config.CheckboxColumn("Select", required=True),
+                    "Amount": st.column_config.NumberColumn("Amount", format="₹%.2f"),
+                },
+            )
+            selected_request_numbers = [
+                selection_frame.iloc[index]["_request_number"]
+                for index, selected in enumerate(edited_selection["Select"].tolist()) if selected
+            ]
+        selected_rtgs_rows = [
+            row for row in rtgs_candidates if row.get("request_number") in selected_request_numbers
+        ]
+        mark_col, _ = st.columns([1, 3])
+        if mark_col.button(
+            "Mark selected as RTGS Done", disabled=not selected_request_numbers,
+            key="mark_selected_rtgs_done", use_container_width=True,
+        ):
+            updated = store.mark_rtgs_done(selected_request_numbers)
+            audit_action("Marked RTGS Done", "", f"{updated} record(s)")
+            st.toast(f"Marked {updated} record(s) as RTGS Done.", icon="✅")
+            st.rerun()
         records = []
-        for row in reversed([item for item in trips if number(item.get("rtgs_advance")) > 0]):
+        for row in selected_rtgs_rows:
             data = unpack(row.get("rtgs_data"))
             data["AMOUNT"], data["BNF_NAME"] = data.get("AMOUNT") or row.get("rtgs_advance"), data.get("BNF_NAME") or row.get("beneficiary_name")
             data["REMARK"] = rtgs_remark(row)
@@ -904,7 +954,13 @@ with reports_tab:
         records = normalize_rtgs_records(records, dt.date.today())
         frame = pd.DataFrame(records, columns=RTGS_REVIEW_COLUMNS)
         st.dataframe(frame, hide_index=True, width="stretch")
-        st.download_button("Download bank-format RTGS report", export_rtgs(frame, dt.date.today()), f"RTGS-{start}-{end}.xls", "application/vnd.ms-excel", type="primary", disabled=frame.empty or not can_generate_reports, on_click=audit_action, args=("Downloaded RTGS report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
+        st.download_button(
+            "Download selected RTGS report", export_rtgs(frame, dt.date.today()),
+            f"RTGS-{start}-{end}.xls", "application/vnd.ms-excel", type="primary",
+            disabled=frame.empty or not can_generate_reports,
+            on_click=complete_rtgs_download,
+            args=(selected_request_numbers, start, end),
+        )
     else:
         expense_data = [{**row, "categories": unpack(row.get("dtr_data")).get("categories", {})} for row in expenses]
         pnl_rows = branch_pnl_summary(trips, expense_data) if pnl_ownership_filter == "Both" else vehicle_pnl_summary(trips, expense_data, pnl_ownership_filter)

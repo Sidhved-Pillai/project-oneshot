@@ -42,6 +42,7 @@ requests = Table(
     Column("revenue", Numeric(14, 2), default=0),
     Column("transporter_freight", Numeric(14, 2), default=0),
     Column("rtgs_advance", Numeric(14, 2), default=0),
+    Column("rtgs_done", Boolean, nullable=False, default=False, server_default=false(), index=True),
     Column("cash_advance", Numeric(14, 2), default=0),
     Column("upi", Numeric(14, 2), default=0),
     Column("diesel_advance", Numeric(14, 2), default=0),
@@ -134,11 +135,17 @@ class RequestStore:
             "rtgs_data": "TEXT NOT NULL DEFAULT '{}'",
             "dtr_data": "TEXT NOT NULL DEFAULT '{}'",
             "batch_id": "VARCHAR(40)",
+            "rtgs_done": "BOOLEAN NOT NULL DEFAULT FALSE",
         }
         with self.engine.begin() as conn:
             for name, definition in additions.items():
                 if name not in columns:
                     conn.execute(text(f"ALTER TABLE dtr_requests ADD COLUMN {name} {definition}"))
+                    if name == "rtgs_done":
+                        conn.execute(text(
+                            "UPDATE dtr_requests SET rtgs_done = TRUE "
+                            "WHERE COALESCE(rtgs_advance, 0) > 0 AND report_scope != 'Expense'"
+                        ))
         batch_columns = {column["name"] for column in inspect(self.engine).get_columns("intake_batches")}
         batch_additions = {
             "ai_draft": "TEXT NOT NULL DEFAULT '[]'",
@@ -255,6 +262,19 @@ class RequestStore:
         with self.engine.begin() as conn:
             conn.execute(delete(record_revisions).where(record_revisions.c.request_number == request_number))
             return conn.execute(delete(requests).where(requests.c.request_number == request_number)).rowcount
+
+    def mark_rtgs_done(self, request_numbers, done=True):
+        """Persist the RTGS download status for the selected trip records."""
+        request_numbers = [number for number in request_numbers if number]
+        if not request_numbers:
+            return 0
+        with self.engine.begin() as conn:
+            result = conn.execute(
+                update(requests)
+                .where(requests.c.request_number.in_(request_numbers))
+                .values(rtgs_done=bool(done), updated_at=dt.datetime.now())
+            )
+        return result.rowcount
 
     def log_action(self, user_name, action, request_number="", details=""):
         """Append one immutable audit event."""
