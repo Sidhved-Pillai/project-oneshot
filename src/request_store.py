@@ -106,6 +106,18 @@ activity_logs = Table(
     Column("created_at", DateTime, nullable=False, server_default=func.now(), index=True),
 )
 
+# Shared record reads deliberately exclude the invoice blob. Evidence is fetched
+# only through ``get_evidence`` after an authorized user asks to view it.
+REQUEST_METADATA_COLUMNS = tuple(
+    column for column in requests.c if column.name != "source_image"
+)
+ATTACHMENT_METADATA_COLUMNS = (
+    request_attachments.c.id,
+    request_attachments.c.batch_id,
+    request_attachments.c.filename,
+    request_attachments.c.mime_type,
+)
+
 
 def database_url():
     """Use a durable hosted database when configured; SQLite is local-only."""
@@ -199,7 +211,7 @@ class RequestStore:
         numbers = []
         with self.engine.begin() as conn:
             existing = [dict(row) for row in conn.execute(
-                select(requests).where(
+                select(*REQUEST_METADATA_COLUMNS).where(
                     requests.c.batch_id == batch_id, requests.c.report_scope == report_scope,
                     requests.c.status != "Cancelled",
                 ).order_by(requests.c.id)
@@ -210,14 +222,14 @@ class RequestStore:
                 if index < len(existing):
                     number = existing[index]["request_number"]
                     conn.execute(update(requests).where(requests.c.request_number == number).values(**clean))
-                    row = conn.execute(select(requests).where(requests.c.request_number == number)).mappings().first()
+                    row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(requests.c.request_number == number)).mappings().first()
                     self._insert_revision(conn, number, dict(row), change_source, edited_by)
                 else:
                     result = conn.execute(insert(requests).values(**clean))
                     row_id = result.inserted_primary_key[0]
                     number = f"REQ-{values['trip_date']:%Y%m}-{row_id:06d}"
                     conn.execute(update(requests).where(requests.c.id == row_id).values(request_number=number))
-                    row = conn.execute(select(requests).where(requests.c.id == row_id)).mappings().first()
+                    row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(requests.c.id == row_id)).mappings().first()
                     self._insert_revision(conn, number, dict(row), change_source, edited_by)
                 numbers.append(number)
             for old in existing[len(values_list):]:
@@ -236,7 +248,7 @@ class RequestStore:
         clean["updated_at"] = dt.datetime.now()
         with self.engine.begin() as conn:
             conn.execute(update(requests).where(requests.c.request_number == request_number).values(**clean))
-            row = conn.execute(select(requests).where(requests.c.request_number == request_number)).mappings().first()
+            row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(requests.c.request_number == request_number)).mappings().first()
             if row:
                 self._insert_revision(conn, request_number, dict(row), change_source, edited_by or clean.get("created_by", ""))
 
@@ -254,7 +266,24 @@ class RequestStore:
 
     def get(self, request_number):
         with self.engine.connect() as conn:
-            row = conn.execute(select(requests).where(requests.c.request_number == request_number)).mappings().first()
+            row = conn.execute(
+                select(*REQUEST_METADATA_COLUMNS)
+                .where(requests.c.request_number == request_number)
+            ).mappings().first()
+        return dict(row) if row else None
+
+    def get_evidence(self, request_number):
+        """Load the evidence bytes for exactly one record, on demand."""
+        if not request_number:
+            return None
+        with self.engine.connect() as conn:
+            row = conn.execute(
+                select(
+                    requests.c.source_filename,
+                    requests.c.source_mime_type,
+                    requests.c.source_image,
+                ).where(requests.c.request_number == request_number)
+            ).mappings().first()
         return dict(row) if row else None
 
     def delete_request(self, request_number):
@@ -347,7 +376,9 @@ class RequestStore:
         return batches
 
     def get_batch_requests(self, batch_id, report_scope, include_cancelled=False):
-        query = select(requests).where(requests.c.batch_id == batch_id, requests.c.report_scope == report_scope)
+        query = select(*REQUEST_METADATA_COLUMNS).where(
+            requests.c.batch_id == batch_id, requests.c.report_scope == report_scope
+        )
         if not include_cancelled:
             query = query.where(requests.c.status != "Cancelled")
         query = query.order_by(requests.c.id)
@@ -370,11 +401,24 @@ class RequestStore:
         return {"requests": deleted_rows, "batches": deleted_batch}
 
     def get_attachments(self, batch_id):
+        """Load attachment bytes for AI extraction or explicit evidence use only."""
         if not batch_id:
             return []
         with self.engine.connect() as conn:
             rows = conn.execute(
                 select(request_attachments).where(request_attachments.c.batch_id == batch_id)
+                .order_by(request_attachments.c.id)
+            ).mappings()
+            return [dict(row) for row in rows]
+
+    def list_attachment_metadata(self, batch_id):
+        """List batch attachments without transferring their payloads."""
+        if not batch_id:
+            return []
+        with self.engine.connect() as conn:
+            rows = conn.execute(
+                select(*ATTACHMENT_METADATA_COLUMNS)
+                .where(request_attachments.c.batch_id == batch_id)
                 .order_by(request_attachments.c.id)
             ).mappings()
             return [dict(row) for row in rows]
@@ -389,7 +433,7 @@ class RequestStore:
             return conn.execute(select(requests.c.request_number).where(*conditions).limit(1)).scalar()
 
     def list(self, start_date=None, end_date=None, status=None, include_archived=False, report_kind=None):
-        query = select(requests)
+        query = select(*REQUEST_METADATA_COLUMNS)
         if start_date:
             query = query.where(requests.c.trip_date >= start_date)
         if end_date:

@@ -3,6 +3,7 @@ import datetime as dt
 import pandas as pd
 from openpyxl import Workbook, load_workbook
 import pytest
+from sqlalchemy import event
 from src.excel_reader import detect_header_row
 from src.column_mapping import resolve_columns, DTR_ALIASES, CONSOLIDATED_ALIASES
 from src.remark_classifier import classify_remark
@@ -269,9 +270,119 @@ def test_financial_mapping_and_persistent_request_roundtrip(tmp_path):
     assert number.startswith("REQ-202608-")
     reopened = RequestStore(f"sqlite:///{tmp_path / 'requests.db'}")
     rows = reopened.list(dt.date(2026, 8, 1), dt.date(2026, 8, 31))
-    assert len(rows) == 1 and rows[0]["source_image"] == b"proof"
+    assert len(rows) == 1 and "source_image" not in rows[0]
+    assert reopened.get_evidence(number) == {
+        "source_filename": "proof.jpg", "source_mime_type": "image/jpeg", "source_image": b"proof",
+    }
     dtr = rows_to_dtr(rows)
     assert dtr.iloc[0]["UPI"] == 1250 and dtr.iloc[0]["Invoice No."] == "INV-7"
+
+
+def test_record_listing_never_selects_or_returns_evidence_bytes(tmp_path):
+    store = RequestStore(f"sqlite:///{tmp_path / 'lightweight-list.db'}")
+    evidence = b"invoice" * 750_000
+    number = store.create({
+        "trip_date": dt.date(2026, 9, 3), "vehicle_number": "MH01AA0001",
+        "source_filename": "large-invoice.pdf", "source_mime_type": "application/pdf",
+        "source_image": evidence,
+    })
+    statements = []
+
+    def capture_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement)
+
+    event.listen(store.engine, "before_cursor_execute", capture_statement)
+    try:
+        listed = store.list()
+    finally:
+        event.remove(store.engine, "before_cursor_execute", capture_statement)
+
+    assert len(listed) == 1
+    assert "source_image" not in listed[0]
+    assert all("source_image" not in statement.lower() for statement in statements)
+    assert store.get_evidence(number)["source_image"] == evidence
+
+
+def test_evidence_is_scoped_to_one_record_and_missing_evidence_is_safe(tmp_path):
+    store = RequestStore(f"sqlite:///{tmp_path / 'evidence.db'}")
+    first = store.create({
+        "trip_date": dt.date(2026, 9, 3), "vehicle_number": "MH01AA0001",
+        "source_filename": "first.jpg", "source_mime_type": "image/jpeg", "source_image": b"first",
+    })
+    second = store.create({
+        "trip_date": dt.date(2026, 9, 3), "vehicle_number": "MH01AA0002",
+        "source_filename": "", "source_mime_type": "", "source_image": None,
+    })
+    statements = []
+
+    def capture_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement)
+
+    event.listen(store.engine, "before_cursor_execute", capture_statement)
+    try:
+        evidence = store.get_evidence(first)
+    finally:
+        event.remove(store.engine, "before_cursor_execute", capture_statement)
+
+    assert evidence == {
+        "source_filename": "first.jpg", "source_mime_type": "image/jpeg", "source_image": b"first",
+    }
+    assert len(statements) == 1
+    assert "source_image" in statements[0].lower() and "request_number" in statements[0].lower()
+    assert store.get_evidence(second) == {
+        "source_filename": "", "source_mime_type": "", "source_image": None,
+    }
+    assert store.get_evidence("REQ-DOES-NOT-EXIST") is None
+
+
+def test_metadata_update_preserves_existing_evidence_and_revision_excludes_it(tmp_path):
+    store = RequestStore(f"sqlite:///{tmp_path / 'preserve-evidence.db'}")
+    number = store.create({
+        "trip_date": dt.date(2026, 9, 3), "vehicle_number": "MH01AA0001", "branch": "Pune",
+        "source_filename": "invoice.pdf", "source_mime_type": "application/pdf", "source_image": b"original",
+    })
+    store.update(number, {"branch": "Wada"}, "records_tab", "Sid")
+
+    assert store.get(number)["branch"] == "Wada"
+    assert "source_image" not in store.get(number)
+    assert store.get_evidence(number)["source_image"] == b"original"
+    with store.engine.connect() as conn:
+        snapshots = conn.exec_driver_sql(
+            "SELECT snapshot FROM record_revisions WHERE request_number = ?", (number,)
+        ).scalars().all()
+    assert snapshots and all("source_image" not in snapshot for snapshot in snapshots)
+
+
+def test_batch_metadata_listing_does_not_load_payloads(tmp_path):
+    store = RequestStore(f"sqlite:///{tmp_path / 'attachment-metadata.db'}")
+    batch_id = store.create_batch("DTR", "Sid", "", [
+        {"filename": "invoice.pdf", "mime_type": "application/pdf", "data": b"large-payload"},
+    ])
+    metadata_rows = store.list_attachment_metadata(batch_id)
+    assert metadata_rows[0]["filename"] == "invoice.pdf"
+    assert "payload" not in metadata_rows[0]
+
+
+def test_duplicate_lookup_is_unchanged_and_never_selects_evidence(tmp_path):
+    store = RequestStore(f"sqlite:///{tmp_path / 'duplicate-query.db'}")
+    trip_date = dt.date(2026, 9, 3)
+    number = store.create({
+        "trip_date": trip_date, "vehicle_number": "MH01AA0001", "invoice_number": "INV-42",
+        "amount": 1200, "source_image": b"large-evidence" * 100_000,
+    })
+    statements = []
+
+    def capture_statement(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement)
+
+    event.listen(store.engine, "before_cursor_execute", capture_statement)
+    try:
+        duplicate = store.find_duplicate(trip_date, "MH01AA0001", "INV-42", 1200)
+    finally:
+        event.remove(store.engine, "before_cursor_execute", capture_statement)
+
+    assert duplicate == number
+    assert statements and all("source_image" not in statement.lower() for statement in statements)
 
 
 def test_advance_summary_uses_all_modes_and_preserves_overpayment():

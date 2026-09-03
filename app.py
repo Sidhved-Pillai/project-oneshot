@@ -22,7 +22,7 @@ from src.workflow_store import RequestStore
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
-STORE_INTERFACE_VERSION = 8
+STORE_INTERFACE_VERSION = 9
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 MANISH_DIRECT_EXPENSE_COLUMNS = [
@@ -548,8 +548,8 @@ except Exception as exc:
     st.error(f"Database connection failed: {exc}")
     st.stop()
 
-business_memory = build_business_memory(store.list(status="All active"))
 normalization_rows = store.list(status="All active")
+business_memory = build_business_memory(normalization_rows)
 KNOWN_COMPANIES = sorted({clean_text(row.get("company_name")) for row in normalization_rows} - {""}, key=str.casefold)
 KNOWN_LOCATIONS = sorted({
     clean_text(row.get(field))
@@ -585,6 +585,14 @@ def complete_rtgs_download(request_numbers, start, end):
 
 @st.dialog("View evidence and edit record", width="large")
 def view_record(row):
+    if record_branch_scope and clean_text(row.get("branch")).casefold() != record_branch_scope.casefold():
+        st.error("You are not authorized to view this record.")
+        return
+    request_number = row["request_number"]
+    if st.session_state.get("evidence_request_number") != request_number:
+        st.session_state["evidence_request_number"] = request_number
+        st.session_state["evidence_record"] = store.get_evidence(request_number)
+    evidence = st.session_state.get("evidence_record") or {}
     raw, is_expense = unpack(row.get("dtr_data")), row.get("report_scope") == "Expense"
     is_manish_expense = clean_text(row.get("created_by")) == "Manish" and is_expense
     is_own_record = is_own_vehicle(row.get("ownership_type")) and not is_expense
@@ -625,15 +633,17 @@ def view_record(row):
         pd.DataFrame([display]), hide_index=True, width="stretch", disabled=locked_columns,
         key=f"record_editor_{row['request_number']}",
     )
-    if row.get("source_image"):
+    if evidence.get("source_image"):
         st.markdown("#### Invoice evidence")
-        if clean_text(row.get("source_mime_type")).startswith("image/"):
-            st.image(row["source_image"], caption=row.get("source_filename", "Invoice evidence"), width=500)
+        if clean_text(evidence.get("source_mime_type")).startswith("image/"):
+            st.image(evidence["source_image"], caption=evidence.get("source_filename", "Invoice evidence"), width=500)
         else:
             st.download_button(
-                "Open invoice evidence", row["source_image"], row.get("source_filename", "invoice.pdf"),
-                row.get("source_mime_type"),
+                "Open invoice evidence", evidence["source_image"], evidence.get("source_filename", "invoice.pdf"),
+                evidence.get("source_mime_type"),
             )
+    else:
+        st.caption("No invoice evidence is attached to this record.")
     edited_item = edited.iloc[0].to_dict()
     repair_reason_missing = is_own_record and number(edited_item.get("Repairs & Maintenance")) > 0 and not clean_text(edited_item.get("Reason"))
     if repair_reason_missing:
@@ -898,21 +908,22 @@ with records_tab:
                         audit_action("Deleted record", request_number, request_label(record))
                         st.toast(f"Deleted {request_label(record)}.", icon="🗑️")
                         st.rerun()
-        duplicate_rows = duplicate_records(scoped_rows)
-        duplicate_labels = {record_select_label(row): row for row in duplicate_rows}
-        with st.expander("Delete Duplicate records"):
-            if not duplicate_labels:
-                st.info("No duplicate records found.")
-            select_all = st.checkbox("Select all duplicates", key="records_delete_all", disabled=not duplicate_labels)
-            chosen = list(duplicate_labels) if select_all else st.multiselect("Select duplicate records", list(duplicate_labels), key="records_delete_selection", disabled=not duplicate_labels)
-            acknowledged = st.checkbox("I understand this permanently deletes the selected duplicate records.", key="records_delete_ack", disabled=not duplicate_labels)
-            if st.button("Delete selected duplicates", disabled=not chosen or not acknowledged, key="records_delete"):
-                for label in chosen:
-                    request_number = duplicate_labels[label]["request_number"]
-                    if store.delete_request(request_number):
-                        audit_action("Deleted record", request_number, label)
-                st.success(f"Deleted {len(chosen)} record(s).")
-                st.rerun()
+        if current_user == "Sid":
+            duplicate_rows = duplicate_records(scoped_rows)
+            duplicate_labels = {record_select_label(row): row for row in duplicate_rows}
+            with st.expander("Delete Duplicate records"):
+                if not duplicate_labels:
+                    st.info("No duplicate records found.")
+                select_all = st.checkbox("Select all duplicates", key="records_delete_all", disabled=not duplicate_labels)
+                chosen = list(duplicate_labels) if select_all else st.multiselect("Select duplicate records", list(duplicate_labels), key="records_delete_selection", disabled=not duplicate_labels)
+                acknowledged = st.checkbox("I understand this permanently deletes the selected duplicate records.", key="records_delete_ack", disabled=not duplicate_labels)
+                if st.button("Delete selected duplicates", disabled=not chosen or not acknowledged, key="records_delete"):
+                    for label in chosen:
+                        request_number = duplicate_labels[label]["request_number"]
+                        if store.delete_request(request_number):
+                            audit_action("Deleted record", request_number, label)
+                    st.success(f"Deleted {len(chosen)} record(s).")
+                    st.rerun()
 
 with reports_tab:
     if not can_generate_reports:
