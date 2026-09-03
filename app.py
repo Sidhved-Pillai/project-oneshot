@@ -566,8 +566,7 @@ if st.session_state.pop("reset_trip_form", False):
     for state_key in list(st.session_state):
         if state_key.startswith("trip_"):
             del st.session_state[state_key]
-if saved_entry_notice := st.session_state.pop("saved_entry_notice", None):
-    st.toast(saved_entry_notice, icon="✅")
+saved_entry_notice = st.session_state.pop("saved_entry_notice", None)
 
 
 def audit_action(action, request_number="", details=""):
@@ -739,7 +738,7 @@ html,body,[class*="css"]{font-family:'DM Sans',sans-serif}.stApp,[data-testid="s
 .billtee-board{width:100%;margin:6px 0 18px;border-collapse:separate;border-spacing:0;overflow:hidden;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.82)}.billtee-board th,.billtee-board td{padding:11px 15px;text-align:left;border-bottom:1px solid #edf1f5;font-weight:800}.billtee-board th{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.05em}.billtee-board td:last-child,.billtee-board th:last-child{text-align:right}.billtee-board tr:last-child td{border-bottom:0}
 div[data-testid="stVerticalBlockBorderWrapper"]{background:rgba(255,255,255,.92);border:1px solid rgba(215,228,224,.95)!important;border-radius:20px;box-shadow:0 12px 36px rgba(34,63,68,.075);transition:transform .2s ease,box-shadow .2s ease}div[data-testid="stVerticalBlockBorderWrapper"]:hover{box-shadow:0 16px 42px rgba(34,63,68,.1)}h4{font:800 1rem 'Manrope'!important;color:#214047!important;padding:10px 0 7px!important;border-bottom:1px solid #edf2f1}
 [data-testid="stFileUploader"]{padding:13px;border-radius:17px;background:rgba(255,255,255,.78);border:1px solid var(--line)}[data-testid="stFileUploaderDropzone"]{border:1.5px dashed #8bbdec;background:linear-gradient(145deg,#f7fbff,#edf6ff);border-radius:13px;transition:all .2s ease}[data-testid="stFileUploaderDropzone"]:hover{border-color:var(--teal);transform:translateY(-1px);box-shadow:0 8px 20px rgba(0,113,227,.1)}[data-testid="stAudioInput"]{padding:13px;border:1px solid var(--line);border-radius:17px;background:rgba(255,255,255,.78)}[data-testid="stAudioInput"] button{color:#fff!important;background:#0071e3!important;border:2px solid #0071e3!important;border-radius:999px!important;box-shadow:0 3px 10px rgba(0,113,227,.25)!important}
-[data-baseweb="input"]>div,[data-baseweb="select"]>div,textarea{border-color:#dce3eb!important;border-radius:12px!important;background:#fff!important;transition:border .18s ease,box-shadow .18s ease!important}[data-baseweb="input"]>div:focus-within,[data-baseweb="select"]>div:focus-within,textarea:focus{border-color:#0071e3!important;box-shadow:0 0 0 3px rgba(0,113,227,.1)!important}[data-testid="InputInstructions"]{display:none!important}[data-testid="stNumberInput"] button{display:none!important}.stButton>button,.stDownloadButton>button{border-radius:999px;font-weight:700;min-height:42px;padding-left:20px;padding-right:20px;transition:transform .18s ease,box-shadow .18s ease}.stButton>button[kind="primary"],.stDownloadButton>button[kind="primary"]{position:relative;overflow:hidden;border:0;color:#fff;background:#0071e3;box-shadow:0 7px 18px rgba(0,113,227,.22)}.stButton>button:hover,.stDownloadButton>button:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(0,113,227,.28)}[class*="st-key-delete_record_"] button{min-width:46px!important;padding:0!important;border:0!important;color:#fff!important;background:#e11d2e!important;box-shadow:0 7px 18px rgba(225,29,46,.22)!important}[class*="st-key-delete_record_"] button p{font-size:0!important}[class*="st-key-delete_record_"] button span{color:#fff!important;font-size:1.25rem!important}[class*="st-key-delete_record_"] button:hover{background:#c8102e!important;box-shadow:0 10px 24px rgba(225,29,46,.3)!important}.st-key-trip_voice_autofill button,.st-key-expense_voice_autofill button{color:#fff!important;background:linear-gradient(135deg,#1f9d60,#27b974)!important;box-shadow:0 8px 20px rgba(31,157,96,.22)!important}.st-key-trip_voice_autofill button:disabled,.st-key-expense_voice_autofill button:disabled{color:#fff!important;background:#8fd5ae!important;opacity:.72!important}
+[data-baseweb="input"]>div,[data-baseweb="select"]>div,textarea{border-color:#dce3eb!important;border-radius:12px!important;background:#fff!important;transition:border .18s ease,box-shadow .18s ease!important}[data-baseweb="input"]>div:focus-within,[data-baseweb="select"]>div:focus-within,textarea:focus{border-color:#0071e3!important;box-shadow:0 0 0 3px rgba(0,113,227,.1)!important}[data-testid="InputInstructions"]{display:none!important}[data-testid="stNumberInput"] button{display:none!important}.stButton>button,.stDownloadButton>button{border-radius:999px;font-weight:700;min-height:42px;padding-left:20px;padding-right:20px;transition:transform .18s ease,box-shadow .18s ease}.stButton>button[kind="primary"],.stDownloadButton>button[kind="primary"]{position:relative;overflow:hidden;border:0;color:#fff;background:#0071e3;box-shadow:0 7px 18px rgba(0,113,227,.22)}.stButton>button:hover,.stDownloadButton>button:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(0,113,227,.28)}[class*="st-key-delete_record_"] button{min-width:46px!important;padding:0!important;border:0!important;color:#fff!important;background:#e11d2e!important;box-shadow:0 7px 18px rgba(225,29,46,.22)!important}[class*="st-key-delete_record_"] button p{font-size:0!important}[class*="st-key-delete_record_"] button span{color:#fff!important;font-size:1.25rem!important}[class*="st-key-delete_record_"] button:hover{background:#c8102e!important;box-shadow:0 10px 24px rgba(225,29,46,.3)!important}[class*="st-key-trip_voice_autofill"] button,.st-key-expense_voice_autofill button{color:#fff!important;background:linear-gradient(135deg,#1f9d60,#27b974)!important;box-shadow:0 8px 20px rgba(31,157,96,.22)!important}[class*="st-key-trip_voice_autofill"] button:disabled,.st-key-expense_voice_autofill button:disabled{color:#fff!important;background:#8fd5ae!important;opacity:.72!important}
 div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);border:1px solid #d6e7f7;border-radius:16px;padding:13px 16px;box-shadow:0 5px 16px rgba(0,80,160,.05)}[data-testid="stMetricLabel"]{color:#6e7781;font-weight:700}[data-testid="stMetricValue"]{font:800 1.28rem 'Manrope';color:#0066cc}.profit-loss-card{min-height:91px;padding:13px 16px;border:1px solid #d6e7f7;border-radius:16px;background:linear-gradient(145deg,#f8fbff,#eef6ff);box-shadow:0 5px 16px rgba(0,80,160,.05)}.profit-loss-card span{display:block;color:#6e7781;font-weight:700}.profit-loss-card strong{display:block;margin-top:4px;color:#0066cc;font:800 1.28rem 'Manrope'}.profit-loss-card.negative strong{color:#d70015}[data-testid="stDataFrame"]{border:1px solid var(--line);border-radius:15px;overflow:hidden;box-shadow:0 8px 24px rgba(34,63,68,.06)}[data-testid="stAlert"]{border-radius:14px}details{border:1px solid var(--line)!important;border-radius:13px!important;background:rgba(255,255,255,.78)!important}
 @media(max-width:700px){.block-container{padding:4.5rem .85rem 4rem}.app-hero{padding:17px}.status-pill{display:none}[data-testid="stTabs"] [data-testid="stTab"]{padding:8px 10px;font-size:.75rem}.flow-strip{overflow-x:auto}.flow-step{white-space:nowrap}.page-intro p{font-size:.82rem}}
 </style>
@@ -763,17 +762,20 @@ new_tab, expense_tab, records_tab, reports_tab, logs_tab = st.tabs(["New Entry",
 with new_tab:
     page_intro("Smart capture", "New trip entry", "Add evidence once, review the details, and keep every report in sync.", "✦")
     workflow_steps(["Add evidence", "Review details", "Save and add another"], 0)
+    if saved_entry_notice:
+        st.success(saved_entry_notice, icon="✅")
     st.session_state.setdefault("trip_vehicle_placed_by", LOGIN_VEHICLE_PLACERS.get(current_user, current_user))
+    entry_generation = st.session_state.setdefault("new_entry_generation", 0)
     c1, c2 = st.columns(2)
-    upload = c1.file_uploader("Upload photos or PDFs", type=["jpg", "jpeg", "png", "webp", "pdf"], accept_multiple_files=True, key="trip_upload", help="Upload the cheque, invoice, and any supporting evidence together.")
+    upload = c1.file_uploader("Upload photos or PDFs", type=["jpg", "jpeg", "png", "webp", "pdf"], accept_multiple_files=True, key=f"trip_upload_{entry_generation}", help="Upload the cheque, invoice, and any supporting evidence together.")
     invoice_filename = None
     if upload:
         invoice_filename = c1.selectbox(
             "Invoice evidence shown in Records", [item.name for item in upload], index=len(upload) - 1,
-            key="trip_invoice_evidence", help="All files are used for autofill; only this invoice file is displayed in Records.",
+            key=f"trip_invoice_evidence_{entry_generation}", help="All files are used for autofill; only this invoice file is displayed in Records.",
         )
-    audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key="trip_audio")
-    voice_autofill = c2.button("Autofill with Voice Prompt", type="primary", use_container_width=True, disabled=audio is None, key="trip_voice_autofill", icon="🎙️")
+    audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key=f"trip_audio_{entry_generation}")
+    voice_autofill = c2.button("Autofill with Voice Prompt", type="primary", use_container_width=True, disabled=audio is None, key=f"trip_voice_autofill_{entry_generation}", icon="🎙️")
     files = evidence(upload, audio)
     if upload:
         autofill(evidence(upload, None), "", "trip")
@@ -787,6 +789,7 @@ with new_tab:
             audit_action("Created trip record", saved, request_label(saved, values["date"]))
             st.session_state["saved_entry_notice"] = f"Saved {request_label(saved, values['date'])}. Ready for another entry."
             st.session_state["reset_trip_form"] = True
+            st.session_state["new_entry_generation"] = entry_generation + 1
             st.rerun()
 
 with expense_tab:
@@ -861,8 +864,10 @@ with records_tab:
         vehicle_options = sorted({clean_text(row.get("vehicle_number")) for row in rows} - {""}, key=str.casefold)
         st.markdown("#### Filter records")
         c1, c2, c3, c4, c5 = st.columns(5)
-        filter_from = c1.date_input("Records from", value=min(record_dates), format="DD/MM/YYYY", key="records_filter_from")
-        filter_to = c2.date_input("Records to", value=max(record_dates), format="DD/MM/YYYY", key="records_filter_to")
+        today = dt.date.today()
+        month_start = today.replace(day=1)
+        filter_from = c1.date_input("Records from", value=month_start, format="DD/MM/YYYY", key="records_filter_from_v2")
+        filter_to = c2.date_input("Records to", value=today, format="DD/MM/YYYY", key="records_filter_to_v2")
         placed_by_filter = c3.selectbox("Vehicle placed by", ["All", *placed_by_options], key="records_filter_placed_by")
         vehicle_filter = c4.selectbox("Vehicle no.", ["All", *vehicle_options], key="records_filter_vehicle")
         ownership_filter = c5.selectbox("Own or outside", ["Both", "Own", "Outside"], key="records_filter_ownership")
@@ -931,8 +936,9 @@ with reports_tab:
     page_intro("Report studio", "Generate reports", "Choose a period and create a ready-to-use DTR, RTGS, or P&L workbook.", "↗")
     workflow_steps(["Choose dates", "Select format", "Download"], 0)
     c1, c2 = st.columns(2)
-    start = c1.date_input("Records from", value=dt.date.today() - dt.timedelta(days=30), format="DD/MM/YYYY", key="report_from")
-    end = c2.date_input("Records to", value=dt.date.today(), format="DD/MM/YYYY", key="report_to")
+    today = dt.date.today()
+    start = c1.date_input("Records from", value=today.replace(day=1), format="DD/MM/YYYY", key="report_from_v2")
+    end = c2.date_input("Records to", value=today, format="DD/MM/YYYY", key="report_to_v2")
     report_options = ["DTR", "RTGS", *(["P&L"] if can_generate_pnl else [])]
     report_type = st.segmented_control("Report type", report_options, default="DTR", key="report_type")
     pnl_ownership_filter = "Both"
