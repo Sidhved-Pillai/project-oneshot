@@ -376,9 +376,10 @@ def expense_payload(v, files):
 
 
 def page_intro(kicker, title, description, icon):
+    eyebrow = f'<div class="eyebrow">{kicker}</div>' if kicker else ""
     st.markdown(
         f"""<div class="page-intro"><div class="page-icon">{icon}</div><div>
-        <div class="eyebrow">{kicker}</div><h2>{title}</h2><p>{description}</p>
+        {eyebrow}<h2>{title}</h2><p>{description}</p>
         </div></div>""", unsafe_allow_html=True,
     )
 
@@ -852,7 +853,7 @@ with expense_tab:
             st.success(f"Saved {request_label(saved, v['date'])}.")
 
 with records_tab:
-    page_intro("Single source of truth", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
+    page_intro("", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
     rows = store.list(status="All active")
     if record_branch_scope:
         rows = [row for row in rows if clean_text(row.get("branch")).casefold() == record_branch_scope.casefold()]
