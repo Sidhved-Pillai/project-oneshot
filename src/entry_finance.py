@@ -1,6 +1,11 @@
 from decimal import Decimal
 
 
+def diesel_expense(quantity, rate):
+    """Calculate a diesel amount without binary floating-point rounding."""
+    return Decimal(str(quantity or 0)) * Decimal(str(rate or 0))
+
+
 def financial_values(expense_type, payment_mode, amount, diesel_quantity=None):
     """Translate the simple entry controls into the existing DTR financial columns."""
     amount = Decimal(str(amount or 0))

@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from src.ai_intake import DTR_REVIEW_COLUMNS, extract_intake
 from src.business_memory import build_business_memory, recall
 from src.config import ROOT
-from src.entry_finance import advance_summary
+from src.entry_finance import advance_summary, diesel_expense
 from src.operational_dtr_export import export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
@@ -35,7 +35,7 @@ SPECIAL_CODE_SALT = bytes.fromhex("28d7f0e0dfb9b32fecf4f4656d309042")
 SPECIAL_CODE_HASH = bytes.fromhex("b17d745a7cfdb8fad453e479e3950b905f0505478fe8268461ae74fdbc2248fb")
 MEMBER_CODE_HASHES = {
     "Ajit": "a25be184e5abecae4f87eef475fbecf9b2b51c9dc3e11a9022a0196798b1e88f",
-    "Nikhat": "f4931443e89ce4e103cdcee1a82c297b3bbf26bdbc31fccf36b8de2b193e8845",
+    "Nikhat": "e94e52a5680d444dafa229a26b9f7abb3f8672074febc3926c8449b11884d0f3",
     "Nitish": "ea565453a2706b0e72df78364c854e9aaaf62848ef6b292efe341dea3b207177",
     "Gopal": "8422d601483b1cda8d20f11b17b482c756fb005912c2ac6f83baca98d6554e5c",
     "Shyam": "37d9997a10e64c52c8dfa34f66ffb078531f04cd9af2f6f455d45a3125068dba",
@@ -338,6 +338,7 @@ def trip_payload(v, files, invoice_filename=None):
         "To": destination, "LR No.": v["lr_number"], "Invoice No.": v["invoice_number"],
         "Revenue": v["revenue"], "Transporter Freight": transporter_freight, "RTGS ADVANCE": v["rtgs_advance"],
         "Cash Adv.": v["cash_advance"], "UPI": v["upi"], "Diesel Adv.": v["diesel_advance"], "Billtee": billtee, "Total Adv.": total,
+        "Diesel Qty": number(v.get("diesel_quantity")), "Diesel Rate": number(v.get("diesel_rate")),
         "Balance Amt.": balance, "Toll Expense": toll_expense, "Repairs & Maintenance": repairs_maintenance,
         "Repair Reason": clean_text(v.get("repair_reason")), "Benificiary Name": v["beneficiary_name"],
         "Diesel Pump Name": v["diesel_pump_name"], "Card Name": v["card_name"],
@@ -351,7 +352,8 @@ def trip_payload(v, files, invoice_filename=None):
         "beneficiary_name": v["beneficiary_name"], "transporter_name": v["transporter_name"], "amount": total,
         "payment_mode": ", ".join(name for name, amount in payments.items() if amount), "revenue": v["revenue"],
         "transporter_freight": transporter_freight, "rtgs_advance": v["rtgs_advance"], "cash_advance": v["cash_advance"],
-        "upi": v["upi"], "diesel_advance": v["diesel_advance"], "total_advance": total,
+        "upi": v["upi"], "diesel_quantity": number(v.get("diesel_quantity")) or None,
+        "diesel_advance": v["diesel_advance"], "total_advance": total,
         "balance_amount": balance, "status": "Verified", "notes": remarks,
         "dtr_data": dtr, "rtgs_data": rtgs, **file_values(files, invoice_filename),
     }
@@ -487,7 +489,40 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         if own_vehicle:
             c2.caption("Not applicable for an own vehicle.")
     st.caption("Enter amounts in every payment mode used. Repairs and maintenance are deducted from Profit / Loss." if own_workflow else "Enter amounts in every payment mode used. Billtee is also deducted before calculating the balance payable.")
-    if own_workflow:
+    if simplified:
+        deduction_columns = st.columns(6)
+        v["upi"] = deduction_columns[0].number_input(
+            "Route Expense (UPI) (₹)", min_value=0.0, value=None,
+            placeholder="e.g., 2,000", key=f"{prefix}_upi",
+        )
+        v["diesel_quantity"] = deduction_columns[1].number_input(
+            "Diesel Qty", min_value=0.0, value=None, placeholder="e.g., 100",
+            key=f"{prefix}_diesel_quantity",
+        )
+        v["diesel_rate"] = deduction_columns[2].number_input(
+            "Diesel Rate (₹)", min_value=0.0, value=None, placeholder="e.g., 90",
+            key=f"{prefix}_diesel_rate",
+        )
+        diesel_total = float(diesel_expense(v["diesel_quantity"], v["diesel_rate"]))
+        calculated_key = f"{prefix}_diesel_calculated"
+        st.session_state[calculated_key] = diesel_total
+        v["diesel_advance"] = deduction_columns[3].number_input(
+            "Diesel (₹)", min_value=0.0, disabled=True, key=calculated_key,
+            help="Automatically calculated from Diesel Qty × Diesel Rate.",
+        )
+        v["toll_expense"] = deduction_columns[4].number_input(
+            "Toll Expense (₹)", min_value=0.0, value=None,
+            placeholder="e.g., 2,000", key=f"{prefix}_toll_expense",
+        )
+        v["repairs_maintenance"] = deduction_columns[5].number_input(
+            "Repairs & Maintenance (₹)", min_value=0.0, value=None,
+            placeholder="e.g., 1,000", key=f"{prefix}_repairs_maintenance",
+        )
+        v["cash_advance"], v["rtgs_advance"], v["billtee"] = 0.0, 0.0, 0.0
+        v["repair_reason"] = st.text_input("Reason", key=f"{prefix}_repair_reason", placeholder="e.g., Tyre puncture repair") if number(v["repairs_maintenance"]) > 0 else ""
+        if number(v["repairs_maintenance"]) > 0 and not clean_text(v["repair_reason"]):
+            st.caption("Reason is required when Repairs & Maintenance has an amount.")
+    elif own_workflow:
         deduction_columns = st.columns(6)
         simplified_fields = [
             ("Route Expense (UPI)", "upi"), ("Diesel", "diesel_advance"), ("Cash", "cash_advance"),
@@ -879,6 +914,21 @@ with records_tab:
             and (vehicle_filter == "All" or clean_text(row.get("vehicle_number")) == vehicle_filter)
             and ownership_matches(row.get("ownership_type"), ownership_filter)
         ]
+        outside_date_rows = []
+        if not rows and vehicle_filter != "All":
+            outside_date_rows = [
+                row for row in scoped_rows
+                if clean_text(row.get("vehicle_number")) == vehicle_filter
+                and (placed_by_filter == "All" or canonical_vehicle_placer(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter)
+                and ownership_matches(row.get("ownership_type"), ownership_filter)
+            ]
+            if outside_date_rows:
+                rows = outside_date_rows
+                saved_dates = ", ".join(sorted({f"{as_date(row.get('trip_date')):%d/%m/%Y}" for row in rows}))
+                st.warning(
+                    f"{vehicle_filter} is saved with date {saved_dates}, outside the selected date range. "
+                    "It is shown below so the record can be reviewed."
+                )
         leaderboard_rows = "".join(
             f"<tr><td>{rank}</td><td>{name}</td><td>{trip_count}</td><td>₹{revenue:,.2f}</td></tr>"
             for rank, (name, trip_count, revenue) in enumerate(trip_leaderboard(rows), 1)
@@ -894,12 +944,14 @@ with records_tab:
         labels = {record_select_label(row): row for row in rows}
         st.markdown("#### Live records")
         with st.container(height=420, border=True):
-            header = st.columns([1.35, .8, .9, 1.1, 1.15, 1, .85, .65])
-            for column, title in zip(header, ("Record", "Date", "Branch", "Vehicle", "Placed by", "Revenue", "", "")):
+            record_widths = [1.35, .8, .9, 1.1, 1.15, 1, .85, .65] if current_user == "Sid" else [1.35, .8, .9, 1.1, 1.15, 1, .85]
+            record_titles = ("Record", "Date", "Branch", "Vehicle", "Placed by", "Revenue", "", "") if current_user == "Sid" else ("Record", "Date", "Branch", "Vehicle", "Placed by", "Revenue", "")
+            header = st.columns(record_widths)
+            for column, title in zip(header, record_titles):
                 column.markdown(f"**{title}**")
             for record in rows:
                 raw = unpack(record.get("dtr_data"))
-                columns = st.columns([1.35, .8, .9, 1.1, 1.15, 1, .85, .65], vertical_alignment="center")
+                columns = st.columns(record_widths, vertical_alignment="center")
                 columns[0].write(request_label(record))
                 columns[1].write(f"{as_date(record.get('trip_date')):%d/%m/%y}")
                 columns[2].write(clean_text(record.get("branch")) or "—")
@@ -908,7 +960,7 @@ with records_tab:
                 columns[5].write(f"₹{number(record.get('revenue')):,.0f}")
                 if columns[6].button("View Evidence", key=f"view_record_{record['request_number']}", use_container_width=True):
                     view_record(record)
-                if columns[7].button("Delete", icon=":material/delete:", key=f"delete_record_{record['request_number']}", help="Delete record", use_container_width=True):
+                if current_user == "Sid" and columns[7].button("Delete", icon=":material/delete:", key=f"delete_record_{record['request_number']}", help="Delete record", use_container_width=True):
                     request_number = record["request_number"]
                     if store.delete_request(request_number):
                         audit_action("Deleted record", request_number, request_label(record))

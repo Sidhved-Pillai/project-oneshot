@@ -1,5 +1,6 @@
 from io import BytesIO
 import datetime as dt
+from decimal import Decimal
 import pandas as pd
 from openpyxl import Workbook, load_workbook
 import pytest
@@ -14,7 +15,7 @@ from src.dtr_generator import generate_dtr, final_review_rows, DTR_COLUMNS, FINA
 from src.excel_exporter import export_dtr
 from src.gemini_parser import parse_with_gemini
 from src.historical_suggester import HistoricalSuggester
-from src.entry_finance import advance_summary, financial_values
+from src.entry_finance import advance_summary, diesel_expense, financial_values
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
 from src.operational_dtr_export import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
@@ -49,6 +50,10 @@ def source(remarks):
 def test_header_detection_with_blank_rows():
     ws = Workbook().active; ws.append([]); ws.append(["report title"]); ws.append(["Remark", "Beneficiary Name"])
     assert detect_header_row(ws, ["Remark", "Beneficiary Name"]) == 3
+
+
+def test_diesel_expense_is_quantity_times_rate():
+    assert diesel_expense(125.5, 89.75) == Decimal("11263.625")
 
 
 def test_column_mappings():
