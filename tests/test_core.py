@@ -16,6 +16,7 @@ from src.excel_exporter import export_dtr
 from src.gemini_parser import parse_with_gemini
 from src.historical_suggester import HistoricalSuggester
 from src.entry_finance import advance_summary, diesel_expense, financial_values
+from src.entry_state import clear_entry_state, entry_state_prefix
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
 from src.operational_dtr_export import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
@@ -59,6 +60,20 @@ def test_new_entry_revenue_is_never_evidence_autofilled():
     prompt = _prompt("ENTRY", "")
     assert "Always return revenue as null" in prompt
     assert "Never substitute a transporter" in prompt
+
+
+def test_completed_entry_gets_a_fresh_widget_namespace_and_full_reset():
+    assert entry_state_prefix(8) != entry_state_prefix(9)
+    state = {
+        "trip_8_company_name": "Previous Company",
+        "trip_8_date": dt.date(2026, 9, 1),
+        "trip_8_upload": b"old invoice",
+        "trip_8_evidence_hash": "old hash",
+        "new_entry_generation": 9,
+        "authenticated_user": "Manish",
+    }
+    clear_entry_state(state)
+    assert state == {"new_entry_generation": 9, "authenticated_user": "Manish"}
 
 
 def test_diesel_expense_is_quantity_times_rate():

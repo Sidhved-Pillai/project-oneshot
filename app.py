@@ -14,6 +14,7 @@ from src.ai_intake import DTR_REVIEW_COLUMNS, extract_intake, should_autofill_fi
 from src.business_memory import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
+from src.entry_state import clear_entry_state, entry_state_prefix
 from src.operational_dtr_export import export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
@@ -599,9 +600,7 @@ can_generate_pnl = current_user in PNL_MEMBERS
 record_branch_scope = LIMITED_RECORD_BRANCH.get(current_user)
 allowed_entry_branches = [record_branch_scope] if record_branch_scope else BRANCHES
 if st.session_state.pop("reset_trip_form", False):
-    for state_key in list(st.session_state):
-        if state_key.startswith("trip_"):
-            del st.session_state[state_key]
+    clear_entry_state(st.session_state)
 saved_entry_notice = st.session_state.pop("saved_entry_notice", None)
 
 
@@ -800,27 +799,28 @@ with new_tab:
     workflow_steps(["Add evidence", "Review details", "Save and add another"], 0)
     if saved_entry_notice:
         st.success(saved_entry_notice, icon="✅")
-    st.session_state.setdefault("trip_vehicle_placed_by", LOGIN_VEHICLE_PLACERS.get(current_user, current_user))
     entry_generation = st.session_state.setdefault("new_entry_generation", 0)
+    entry_prefix = entry_state_prefix(entry_generation)
+    st.session_state.setdefault(f"{entry_prefix}_vehicle_placed_by", LOGIN_VEHICLE_PLACERS.get(current_user, current_user))
     c1, c2 = st.columns(2)
-    upload = c1.file_uploader("Upload photos or PDFs", type=["jpg", "jpeg", "png", "webp", "pdf"], accept_multiple_files=True, key=f"trip_upload_{entry_generation}", help="Upload the cheque, invoice, and any supporting evidence together.")
+    upload = c1.file_uploader("Upload photos or PDFs", type=["jpg", "jpeg", "png", "webp", "pdf"], accept_multiple_files=True, key=f"{entry_prefix}_upload", help="Upload the cheque, invoice, and any supporting evidence together.")
     invoice_filename = None
     if upload:
         invoice_filename = c1.selectbox(
             "Invoice evidence shown in Records", [item.name for item in upload], index=len(upload) - 1,
-            key=f"trip_invoice_evidence_{entry_generation}", help="All files are used for autofill; only this invoice file is displayed in Records.",
+            key=f"{entry_prefix}_invoice_evidence", help="All files are used for autofill; only this invoice file is displayed in Records.",
         )
-    audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key=f"trip_audio_{entry_generation}")
-    voice_autofill = c2.button("Autofill with Voice Prompt", type="primary", use_container_width=True, disabled=audio is None, key=f"trip_voice_autofill_{entry_generation}", icon="🎙️")
+    audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key=f"{entry_prefix}_audio")
+    voice_autofill = c2.button("Autofill with Voice Prompt", type="primary", use_container_width=True, disabled=audio is None, key=f"{entry_prefix}_voice_autofill", icon="🎙️")
     files = evidence(upload, audio)
     if upload:
-        autofill(evidence(upload, None), "", "trip")
+        autofill(evidence(upload, None), "", entry_prefix)
     if voice_autofill:
-        autofill(evidence(None, audio), "", "trip")
+        autofill(evidence(None, audio), "", entry_prefix)
     with st.container(border=True):
-        values = trip_form("trip", business_memory, allowed_entry_branches, simplified=current_user == "Manish")
+        values = trip_form(entry_prefix, business_memory, allowed_entry_branches, simplified=current_user == "Manish")
         repair_reason_missing = values["simplified"] and number(values["repairs_maintenance"]) > 0 and not clean_text(values["repair_reason"])
-        if st.button("Save and Another Entry", type="primary", disabled=not values["branch"] or not values["vehicle_number"] or repair_reason_missing, key="save_trip"):
+        if st.button("Save and Another Entry", type="primary", disabled=not values["branch"] or not values["vehicle_number"] or repair_reason_missing, key=f"{entry_prefix}_save"):
             saved = store.create({**trip_payload(values, files, invoice_filename), "created_by": current_user})
             audit_action("Created trip record", saved, request_label(saved, values["date"]))
             st.session_state["saved_entry_notice"] = f"Saved {request_label(saved, values['date'])}. Ready for another entry."
