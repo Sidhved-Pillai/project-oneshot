@@ -25,7 +25,7 @@ from src.business_memory import build_business_memory, recall
 from src.workflow_ai import convert_rtgs_to_dtr as workflow_convert_rtgs_to_dtr
 from src.workflow_pnl import branch_vehicle_pnl_summary as workflow_branch_vehicle_pnl_summary
 from src.workflow_store import RequestStore as WorkflowRequestStore
-from src.ai_intake import DTRIntakeResult, DTRIntakeRow, _model_unavailable, _prompt, extract_intake, result_to_records
+from src.ai_intake import DTRIntakeResult, DTRIntakeRow, _model_unavailable, _prompt, extract_intake, result_to_records, should_autofill_field
 
 
 def vehicle_master():
@@ -50,6 +50,15 @@ def source(remarks):
 def test_header_detection_with_blank_rows():
     ws = Workbook().active; ws.append([]); ws.append(["report title"]); ws.append(["Remark", "Beneficiary Name"])
     assert detect_header_row(ws, ["Remark", "Beneficiary Name"]) == 3
+
+
+def test_new_entry_revenue_is_never_evidence_autofilled():
+    assert not should_autofill_field("ENTRY", "revenue")
+    assert should_autofill_field("ENTRY", "company_name")
+    assert should_autofill_field("DTR", "revenue")
+    prompt = _prompt("ENTRY", "")
+    assert "Always return revenue as null" in prompt
+    assert "Never substitute a transporter" in prompt
 
 
 def test_diesel_expense_is_quantity_times_rate():

@@ -10,7 +10,7 @@ import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
-from src.ai_intake import DTR_REVIEW_COLUMNS, extract_intake
+from src.ai_intake import DTR_REVIEW_COLUMNS, extract_intake, should_autofill_field
 from src.business_memory import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
@@ -296,7 +296,7 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
             "beneficiary_name": "beneficiary", "vehicle_number": "vehicle",
         }
         for field, value in result.rows[0].model_dump().items():
-            if value not in (None, ""):
+            if value not in (None, "") and should_autofill_field(mode, field):
                 state_field = expense_keys.get(field, field) if mode == "EXPENSE" else field
                 state_key = f"{prefix}_{state_field}"
                 current = st.session_state.get(state_key)

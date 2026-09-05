@@ -159,6 +159,11 @@ class DirectExpenseIntakeResult(BaseModel):
     summary: str = ""
 
 
+def should_autofill_field(mode, field):
+    """Keep fields that are operationally manual out of evidence autofill."""
+    return not (mode == "ENTRY" and field == "revenue")
+
+
 DTR_FIELD_MAP = dict(zip(DTR_REVIEW_COLUMNS[1:], [
     "branch", "company_name", "date", "vehicle_number", "vehicle_type", "ownership_type",
     "from_location", "lr_number", "invoice_number", "customer_name", "to_location",
@@ -212,12 +217,17 @@ Marathi, or mixed. Do not infer a category or payment split that is not explicit
     if mode == "ENTRY":
         return common + """
 Populate one logistics trip-entry form. Extract branch, trip date, company, vehicle number and capacity,
-ownership (Own or Outside), origin, destination, LR/invoice number, revenue, transporter freight,
+ownership (Own or Outside), origin, destination, LR/invoice number, transporter freight,
 payment amounts split across RTGS, cash, UPI and diesel, vehicle placed by, beneficiary banking details,
 transporter, and remarks. Spoken instructions may be English, Hindi, Marathi, or a natural mixture of them;
 follow their meaning but preserve names and identifiers exactly. If several values are stated for different
 payment modes, keep every amount in its matching field. Return the single best combined row. Never invent
 missing values and explain unclear readings in review_notes.
+- Revenue freight is always entered manually by the operator. Always return revenue as null, even if an
+  amount appears in the evidence or spoken instruction.
+- Populate company_name only when the customer or company is explicitly identifiable in the evidence.
+  Never substitute a transporter, vehicle owner, beneficiary, bank-account holder, or a company inferred
+  from the route. If multiple organisations are visible and the customer is ambiguous, leave company_name blank.
 """
     if mode == "DTR":
         return common + """
