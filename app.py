@@ -639,13 +639,19 @@ def view_record(row):
         "To": row.get("to_location", ""), "LR No.": raw.get("LR No.", ""),
         "Invoice No.": raw.get("Invoice No.") or row.get("invoice_number", ""),
         "Beneficiary": row.get("beneficiary_name", ""), "Account Number": rtgs_raw.get("BENE_ACC_NO", ""),
-        "IFSC": rtgs_raw.get("BENE_IFSC", ""), "Vehicle Placed By": raw.get("Veh Placed by", ""),
+        "IFSC": rtgs_raw.get("BENE_IFSC", ""), "Transporter Name": row.get("transporter_name", ""),
+        "Vehicle Placed By": raw.get("Veh Placed by", ""),
         "Revenue": number(row.get("revenue")), "Transporter Freight": number(row.get("transporter_freight")),
         "RTGS": number(row.get("rtgs_advance")), "Cash": number(row.get("cash_advance")),
         "UPI": number(row.get("upi")), "Diesel": number(row.get("diesel_advance")),
         "Add Pumps": raw.get("Diesel Pump Name", ""), "Card Name": raw.get("Card Name", ""),
         "Billtee": number(raw.get("Billtee")), "Remarks": row.get("notes", ""),
     }
+    if not is_expense:
+        display.update({
+            "Diesel Qty": number(row.get("diesel_quantity")),
+            "Diesel Rate": number(raw.get("Diesel Rate")),
+        })
     if is_expense:
         display.update(raw.get("categories", {}))
         if is_manish_expense:
@@ -695,9 +701,11 @@ def view_record(row):
             "vehicle_type": canonical_vehicle_capacity(item["Vehicle Capacity"]), "ownership_type": ownership_type,
             "from_location": canonical_location(item["From"], KNOWN_LOCATIONS), "to_location": canonical_location(item["To"], KNOWN_LOCATIONS),
             "invoice_number": clean_text(item["Invoice No."]), "beneficiary_name": clean_text(item["Beneficiary"]),
+            "transporter_name": clean_text(item["Transporter Name"]),
             "revenue": number(item["Revenue"]), "transporter_freight": transporter_freight,
             "rtgs_advance": number(item["RTGS"]), "cash_advance": number(item["Cash"]),
-            "upi": number(item["UPI"]), "diesel_advance": number(item["Diesel"]),
+            "upi": number(item["UPI"]), "diesel_quantity": number(item.get("Diesel Qty")) or None,
+            "diesel_advance": number(item["Diesel"]),
             "notes": trip_auto_remark(item["Vehicle"], item["From"], item["To"], item["Vehicle Capacity"], as_date(item["Date"])) if not is_expense else plain_remark(item["Remarks"]),
         }
         if is_expense:
@@ -740,6 +748,8 @@ def view_record(row):
                 "Card Name": clean_text(item["Card Name"]), "Billtee": billtee, "Total Adv.": total,
                 "Balance Amt.": balance, "Toll Expense": toll_expense, "Repairs & Maintenance": repairs_maintenance,
                 "Repair Reason": clean_text(item.get("Reason")), "Benificiary Name": item["Beneficiary"],
+                "Transporter Name": clean_text(item["Transporter Name"]),
+                "Diesel Qty": number(item.get("Diesel Qty")), "Diesel Rate": number(item.get("Diesel Rate")),
                 "Veh Placed by": canonical_vehicle_placer(item["Vehicle Placed By"]), "Remark": normalized_remark,
             }
             updated_rtgs = {
@@ -749,6 +759,9 @@ def view_record(row):
             }
             update_values.update({
                 "amount": total, "total_advance": total, "balance_amount": balance,
+                "payment_mode": ", ".join(
+                    name for name in ("RTGS", "Cash", "UPI", "Diesel") if number(item.get(name))
+                ),
                 "dtr_data": updated_dtr, "rtgs_data": updated_rtgs,
             })
         store.update(row["request_number"], update_values, "records_tab", current_user)
