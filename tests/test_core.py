@@ -17,6 +17,7 @@ from src.gemini_parser import parse_with_gemini
 from src.historical_suggester import HistoricalSuggester
 from src.entry_finance import advance_summary, diesel_expense, financial_values
 from src.entry_state import clear_entry_state, entry_state_prefix
+from src.leaderboard import branch_trip_leaderboard
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
 from src.operational_dtr_export import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
@@ -74,6 +75,20 @@ def test_completed_entry_gets_a_fresh_widget_namespace_and_full_reset():
     }
     clear_entry_state(state)
     assert state == {"new_entry_generation": 9, "authenticated_user": "Manish"}
+
+
+def test_trip_leaderboard_aggregates_branch_performance():
+    rows = [
+        {"branch": "Wada", "created_by": "Ajit", "revenue": 12000, "report_scope": "Both"},
+        {"branch": "Wada", "created_by": "Manish", "revenue": 8000, "report_scope": "Both"},
+        {"branch": "Pune", "created_by": "Nitish", "revenue": 15000, "report_scope": "Both"},
+        {"branch": "Pune", "created_by": "Gopal", "revenue": 10000, "report_scope": "Both"},
+        {"branch": "Wada", "revenue": 99999, "report_scope": "Expense"},
+    ]
+    assert branch_trip_leaderboard(rows) == [
+        ("Pune", 2, 25000.0),
+        ("Wada", 2, 20000.0),
+    ]
 
 
 def test_diesel_expense_is_quantity_times_rate():

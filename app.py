@@ -15,6 +15,7 @@ from src.business_memory import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
 from src.entry_state import clear_entry_state, entry_state_prefix
+from src.leaderboard import branch_trip_leaderboard
 from src.operational_dtr_export import export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
@@ -198,21 +199,6 @@ def record_select_label(row):
     billtee_text = f"{billtee:,.0f}" if billtee.is_integer() else f"{billtee:,.2f}"
     details = f"{placed_by}, Billtee Amt: {billtee_text}".translate(ASCII_BOLD)
     return f"{request_label(row)} [{details}]"
-
-
-def trip_leaderboard(rows):
-    totals = {}
-    for row in rows:
-        if row.get("report_scope") == "Expense":
-            continue
-        dtr = unpack(row.get("dtr_data"))
-        name = "Ajit Thakur" if clean_text(row.get("created_by")) == "Manish" else canonical_vehicle_placer(dtr.get("Veh Placed by")) or "Not specified"
-        trip_count, revenue = totals.get(name, (0, 0.0))
-        totals[name] = (trip_count + 1, revenue + number(row.get("revenue")))
-    return sorted(
-        ((name, trip_count, revenue) for name, (trip_count, revenue) in totals.items()),
-        key=lambda item: (-item[2], -item[1], item[0].casefold()),
-    )
 
 
 def duplicate_records(rows):
@@ -943,12 +929,12 @@ with records_tab:
                     "It is shown below so the record can be reviewed."
                 )
         leaderboard_rows = "".join(
-            f"<tr><td>{rank}</td><td>{name}</td><td>{trip_count}</td><td>₹{revenue:,.2f}</td></tr>"
-            for rank, (name, trip_count, revenue) in enumerate(trip_leaderboard(rows), 1)
+            f"<tr><td>{rank}</td><td>{branch}</td><td>{trip_count}</td><td>₹{revenue:,.2f}</td></tr>"
+            for rank, (branch, trip_count, revenue) in enumerate(branch_trip_leaderboard(rows), 1)
         )
         st.markdown("#### Trip leaderboard")
         st.markdown(
-            f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Vehicle placed by</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_rows}</tbody></table>',
+            f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_rows}</tbody></table>',
             unsafe_allow_html=True,
         )
     if not rows:
