@@ -10,14 +10,14 @@ import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
-from src.access_control import can_delete_record
-from src.ai_intake import DTR_REVIEW_COLUMNS, extract_intake, should_autofill_field
+from src.access_control import can_delete_record, can_view_record
+from src.ai_intake import extract_intake, should_autofill_field
 from src.business_memory import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
 from src.entry_state import clear_entry_state, entry_state_prefix
 from src.leaderboard import branch_trip_leaderboard
-from src.operational_dtr_export import export_operational_dtr
+from src.trip_dtr_report import DTR_REVIEW_COLUMNS, export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
 from src.workflow_pnl import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, export_pnl
@@ -606,6 +606,9 @@ def complete_rtgs_download(request_numbers, start, end):
 
 @st.dialog("View evidence and edit record", width="large")
 def view_record(row):
+    if not can_view_record(current_user, row):
+        st.error("You are not authorized to view this record.")
+        return
     if record_branch_scope and clean_text(row.get("branch")).casefold() != record_branch_scope.casefold():
         st.error("You are not authorized to view this record.")
         return
@@ -893,6 +896,9 @@ with records_tab:
     if record_branch_scope:
         rows = [row for row in rows if clean_text(row.get("branch")).casefold() == record_branch_scope.casefold()]
         st.caption(f"Your account can access {record_branch_scope} records only.")
+    if current_user == "Manish":
+        rows = [row for row in rows if can_view_record(current_user, row)]
+        st.caption("Your account can access records created by Manish only.")
     scoped_rows = list(rows)
     if rows:
         record_dates = [as_date(row.get("trip_date")) for row in rows]
@@ -1026,9 +1032,7 @@ with reports_tab:
             data["From"] = canonical_location(data.get("From") or row.get("from_location"), KNOWN_LOCATIONS)
             data["To"] = canonical_location(data.get("To") or row.get("to_location"), KNOWN_LOCATIONS)
             data["Toll Expense"] = data.get("Toll Expense", "")
-            data["Repairs and Maintenance"] = data.get(
-                "Repairs and Maintenance", data.get("Repairs & Maintenance", "")
-            )
+            data["Repairs & Maintenance"] = data.get("Repairs & Maintenance", "")
             data["Remark"] = trip_auto_remark(
                 data.get("Vehicle No.") or row.get("vehicle_number"), data["From"], data["To"],
                 data["Vehicle Type"], data.get("Date") or row.get("trip_date"),

@@ -5,7 +5,7 @@ import pandas as pd
 from openpyxl import Workbook, load_workbook
 import pytest
 from sqlalchemy import event
-from src.access_control import can_delete_record
+from src.access_control import can_delete_record, can_view_record
 from src.excel_reader import detect_header_row
 from src.column_mapping import resolve_columns, DTR_ALIASES, CONSOLIDATED_ALIASES
 from src.remark_classifier import classify_remark
@@ -21,7 +21,7 @@ from src.entry_state import clear_entry_state, entry_state_prefix
 from src.leaderboard import branch_trip_leaderboard
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
-from src.operational_dtr_export import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
+from src.trip_dtr_report import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
 from src.pnl_report import BRANCH_PNL_COLUMNS, DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, export_pnl, pnl_summary, vehicle_pnl_summary
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
 from src.business_memory import build_business_memory, recall
@@ -63,6 +63,9 @@ def test_record_delete_permissions_are_owner_scoped_for_manish():
     assert can_delete_record("Manish", manish_record)
     assert not can_delete_record("Manish", ajit_record)
     assert not can_delete_record("Nitish", manish_record)
+    assert can_view_record("Manish", manish_record)
+    assert not can_view_record("Manish", ajit_record)
+    assert can_view_record("Sid", ajit_record)
 
 
 def test_new_entry_revenue_is_never_evidence_autofilled():
@@ -809,14 +812,14 @@ def test_operational_dtr_export_uses_full_reference_shape():
     frame = pd.DataFrame([{column: "" for column in OPERATIONAL_DTR_COLUMNS}])
     frame.loc[0, "LR No."] = "00127"
     frame.loc[0, "Toll Expense"] = 750
-    frame.loc[0, "Repairs and Maintenance"] = 1250
+    frame.loc[0, "Repairs & Maintenance"] = 1250
     ws = load_workbook(BytesIO(export_operational_dtr(frame)))["DTR"]
     headers = [cell.value for cell in ws[1]]
     assert len(headers) == 37 and "Company Name" in headers and "Compnay Name" not in headers
     assert "LR No." in headers and "UPI " in headers
     payment_index = headers.index("Payment")
     assert headers[payment_index + 1:payment_index + 4] == [
-        "Toll Expense", "Repairs and Maintenance", "Diesel Pump Name",
+        "Toll Expense", "Repairs & Maintenance", "Diesel Pump Name",
     ]
     assert ws.cell(2, payment_index + 2).value == 750
     assert ws.cell(2, payment_index + 3).value == 1250

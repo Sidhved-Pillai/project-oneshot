@@ -4,18 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-
-DTR_REVIEW_COLUMNS = [
-    "Sr No.", "Branch", "Compnay Name", "Date", "Vehicle No.", "Vehicle Type",
-    "Own/Outside Veh.", "From", "LR No.", "Invoice No.", "Customer Name", "To",
-    "Company Freight", "Bill No.", "Revenue", "Transporter Freight",
-    "Loading & Unloading", "RTGS ADVANCE", "Cash Adv.", "UPI", "Diesel Qty",
-    "Diesel Adv.", "Billtee", "Total Adv.", "Balance Amt.", "Payment",
-    "Toll Expense", "Repairs and Maintenance", "Diesel Pump Name",
-    "Benificiary Name", "Transporter Name", "Veh Placed by",
-    "LR Status", "Received Date", "SG & Bisleri Damages", "Remark", "Debit Amt.",
-    "Review Notes",
-]
+from .trip_dtr_report import DTR_REVIEW_COLUMNS
 
 
 class DTRIntakeRow(BaseModel):
