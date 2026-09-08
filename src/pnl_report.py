@@ -6,7 +6,7 @@ import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from .text_normalization import canonical_vehicle_number
+from .vehicle_normalization import canonical_vehicle_number
 
 
 DIRECT_EXPENSE_COLUMNS = [

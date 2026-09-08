@@ -1,7 +1,8 @@
 import re
 import pandas as pd
 
-from .text_normalization import canonical_vehicle_capacity, canonical_vehicle_number
+from .text_normalization import canonical_vehicle_capacity
+from .vehicle_normalization import canonical_vehicle_number
 
 
 def normalize_vehicle(value):

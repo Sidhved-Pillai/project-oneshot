@@ -54,11 +54,6 @@ def canonical_vehicle_capacity(value):
     return f"{int(match.group(1))} MT" if match else original.upper()
 
 
-def canonical_vehicle_number(value):
-    """Store and compare vehicle numbers in compact uppercase form."""
-    return re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
-
-
 def plain_remark(*parts):
     text = " ".join(str(part or "") for part in parts)
     return re.sub(r"\s+", " ", re.sub(r"[^A-Za-z0-9 ]", " ", text)).strip()

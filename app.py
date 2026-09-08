@@ -20,8 +20,10 @@ from src.leaderboard import branch_trip_leaderboard
 from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, filter_record_type, sort_records_by_date
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
-from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, canonical_vehicle_number, plain_remark
-from src.workflow_pnl import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
+from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
+from src.vehicle_normalization import canonical_vehicle_number
+from src.workflow_pnl import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary
+from src.vehicle_pnl_report import vehicle_number_pnl_summary, export_pnl
 from src.workflow_store import RequestStore
 
 load_dotenv(ROOT / ".env")
