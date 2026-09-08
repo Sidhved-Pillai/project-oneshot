@@ -187,11 +187,14 @@ def unpack(value):
 
 
 def request_label(row_or_number, date=None):
+    prefix = "Request"
     if isinstance(row_or_number, dict):
+        if row_or_number.get("report_scope") == "Expense":
+            prefix = "Expense Request"
         date = row_or_number.get("trip_date")
         row_or_number = row_or_number.get("request_number", "")
     suffix = clean_text(row_or_number).split("-")[-1].lstrip("0") or "1"
-    return f"Request - {as_date(date):%d/%m/%y} · {suffix}"
+    return f"{prefix} - {as_date(date):%d/%m/%y} · {suffix}"
 
 
 def record_select_label(row):
