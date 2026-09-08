@@ -1,11 +1,11 @@
 import re
 import pandas as pd
 
-from .text_normalization import canonical_vehicle_capacity
+from .text_normalization import canonical_vehicle_capacity, canonical_vehicle_number
 
 
 def normalize_vehicle(value):
-    return re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
+    return canonical_vehicle_number(value)
 
 
 def last_four(value):

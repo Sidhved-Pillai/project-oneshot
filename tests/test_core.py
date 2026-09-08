@@ -23,8 +23,8 @@ from src.record_filters import DIRECT_EXPENSES, TRIP_RECORDS, filter_record_type
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
 from src.trip_dtr_report import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
-from src.pnl_report import BRANCH_PNL_COLUMNS, DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, export_pnl, pnl_summary, vehicle_pnl_summary
-from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
+from src.pnl_report import BRANCH_PNL_COLUMNS, DIRECT_EXPENSE_COLUMNS, VEHICLE_NO_PNL_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl, pnl_summary, vehicle_pnl_summary
+from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, canonical_vehicle_number, plain_remark
 from src.business_memory import build_business_memory, recall
 from src.workflow_ai import convert_rtgs_to_dtr as workflow_convert_rtgs_to_dtr
 from src.workflow_pnl import branch_vehicle_pnl_summary as workflow_branch_vehicle_pnl_summary
@@ -130,6 +130,7 @@ def test_column_mappings():
 def test_vehicle_normalization_and_last_four():
     assert normalize_vehicle("mh 14-jl 9818") == "MH14JL9818"
     assert last_four("MH14JL9818") == "9818"
+    assert canonical_vehicle_number("Mh 04-le 8409") == "MH04LE8409"
 
 
 def test_operational_text_normalization_is_conservative():
@@ -799,6 +800,30 @@ def test_both_vehicle_pnl_is_horizontal_and_branch_wise():
     assert (pune["Expense"], pune["Profit"]) == (7800, 12200)
     assert (wada["Revenue OS"], wada["Transporter Freight"], wada["Profit"]) == (30000, 22000, 8000)
     assert (total["Total Revenue"], total["Expense"], total["Profit"]) == (50000, 29800, 20200)
+
+
+def test_vehicle_number_wise_pnl_groups_normalized_numbers_and_reconciles_total():
+    trips = [
+        {"branch": "Pune", "ownership_type": "Own", "vehicle_number": "MH 04 LE 8409", "revenue": 20000,
+         "upi": 1000, "diesel_advance": 4000, "dtr_data": '{"Toll Expense": 500}'},
+        {"branch": "Pune", "ownership_type": "Own", "vehicle_number": "mh04le8409", "revenue": 10000,
+         "upi": 500},
+        {"branch": "Wada", "ownership_type": "Outside", "vehicle_number": "MH14AB1234", "revenue": 30000,
+         "transporter_freight": 22000},
+    ]
+    expenses = [{"vehicle_number": "MH-04-LE-8409", "amount": 2000, "categories": {"Driver's salary": 2000}}]
+    rows = vehicle_number_pnl_summary(trips, expenses)
+    assert list(rows[0]) == VEHICLE_NO_PNL_COLUMNS
+    assert [row["Vehicle No."] for row in rows] == ["MH04LE8409", "MH14AB1234", "Total"]
+    assert rows[0]["Total Revenue"] == 30000
+    assert rows[0]["Driver's Salary"] == 2000
+    assert rows[0]["Profit"] == 22000
+    assert rows[-1]["Total Revenue"] == 60000
+    assert rows[-1]["Profit"] == 30000
+    workbook = load_workbook(BytesIO(export_pnl(
+        trips, expenses, dt.date(2026, 9, 1), dt.date(2026, 9, 30), "Vehicle No. Wise",
+    )))
+    assert [cell.value for cell in workbook["P&L"][3]] == VEHICLE_NO_PNL_COLUMNS
 
 
 def test_business_memory_uses_repeated_verified_records_without_guessing():

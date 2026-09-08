@@ -6,6 +6,8 @@ import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
+from .text_normalization import canonical_vehicle_number
+
 
 DIRECT_EXPENSE_COLUMNS = [
     "Route expense", "Bill discounting", "Salary", "Driver's salary", "Rent",
@@ -19,6 +21,7 @@ BRANCH_PNL_COLUMNS = [
     "Office Expense", "Conveyance", "EMI", "Ins/Tax", "R & M", "Toll",
     "Driver's Salary", "Diesel", "Interest", "Expense", "Profit",
 ]
+VEHICLE_NO_PNL_COLUMNS = ["Vehicle No.", "Branch", "Ownership", *BRANCH_PNL_COLUMNS[1:]]
 
 
 def pnl_summary(trip_rows, expense_rows):
@@ -79,7 +82,7 @@ def branch_pnl_summary(trip_rows, expense_rows):
     """Build the horizontal, branch-wise P&L used by the Both report."""
     vehicle_branches = defaultdict(Counter)
     for row in trip_rows:
-        vehicle = str(row.get("vehicle_number") or "").strip().casefold()
+        vehicle = canonical_vehicle_number(row.get("vehicle_number"))
         branch = str(row.get("branch") or "").strip()
         if vehicle and branch:
             vehicle_branches[vehicle][branch] += 1
@@ -88,7 +91,7 @@ def branch_pnl_summary(trip_rows, expense_rows):
     for row in expense_rows:
         branch = str(row.get("branch") or "").strip()
         if not branch:
-            vehicle = str(row.get("vehicle_number") or "").strip().casefold()
+            vehicle = canonical_vehicle_number(row.get("vehicle_number"))
             if vehicle_branches.get(vehicle):
                 branch = vehicle_branches[vehicle].most_common(1)[0][0]
         expenses_by_branch[branch or "Not specified"].append(row)
@@ -152,11 +155,11 @@ def vehicle_pnl_summary(trip_rows, expense_rows, ownership):
     ownership = str(ownership or "Both")
     own_trips = [row for row in trip_rows if str(row.get("ownership_type") or "").strip().lower().startswith("own")]
     outside_trips = [row for row in trip_rows if str(row.get("ownership_type") or "").strip().lower().startswith("outside")]
-    own_vehicles = {str(row.get("vehicle_number") or "").strip().casefold() for row in own_trips} - {""}
-    outside_vehicles = {str(row.get("vehicle_number") or "").strip().casefold() for row in outside_trips} - {""}
+    own_vehicles = {canonical_vehicle_number(row.get("vehicle_number")) for row in own_trips} - {""}
+    outside_vehicles = {canonical_vehicle_number(row.get("vehicle_number")) for row in outside_trips} - {""}
     if own_trips and outside_trips:
-        own_expenses = [row for row in expense_rows if str(row.get("vehicle_number") or "").strip().casefold() in own_vehicles]
-        outside_expenses = [row for row in expense_rows if str(row.get("vehicle_number") or "").strip().casefold() in outside_vehicles]
+        own_expenses = [row for row in expense_rows if canonical_vehicle_number(row.get("vehicle_number")) in own_vehicles]
+        outside_expenses = [row for row in expense_rows if canonical_vehicle_number(row.get("vehicle_number")) in outside_vehicles]
     else:
         own_expenses = outside_expenses = expense_rows
 
@@ -216,12 +219,12 @@ def branch_vehicle_pnl_summary(trip_rows, expense_rows, ownership):
     for row in selected:
         branch = str(row.get("branch") or "").strip() or "Not specified"
         trips_by_branch[branch].append(row)
-        vehicle = str(row.get("vehicle_number") or "").strip().casefold()
+        vehicle = canonical_vehicle_number(row.get("vehicle_number"))
         if vehicle:
             vehicle_branch[vehicle] = branch
     expenses_by_branch = defaultdict(list)
     for row in expense_rows:
-        vehicle = str(row.get("vehicle_number") or "").strip().casefold()
+        vehicle = canonical_vehicle_number(row.get("vehicle_number"))
         branch = str(row.get("branch") or "").strip() or vehicle_branch.get(vehicle)
         if branch in trips_by_branch:
             expenses_by_branch[branch].append(row)
@@ -238,8 +241,51 @@ def branch_vehicle_pnl_summary(trip_rows, expense_rows, ownership):
     return rows
 
 
+def vehicle_number_pnl_summary(trip_rows, expense_rows):
+    """Build a horizontal P&L row for every normalized vehicle number."""
+    trips_by_vehicle = defaultdict(list)
+    for row in trip_rows:
+        vehicle = canonical_vehicle_number(row.get("vehicle_number")) or "Not specified"
+        trips_by_vehicle[vehicle].append(row)
+
+    expenses_by_vehicle = defaultdict(list)
+    for row in expense_rows:
+        vehicle = canonical_vehicle_number(row.get("vehicle_number")) or "Not specified"
+        if vehicle in trips_by_vehicle:
+            expenses_by_vehicle[vehicle].append(row)
+
+    rows = []
+    for vehicle in sorted(trips_by_vehicle, key=str.casefold):
+        vehicle_trips = trips_by_vehicle[vehicle]
+        branch_rows = branch_pnl_summary(vehicle_trips, expenses_by_vehicle[vehicle])
+        totals = next((row for row in reversed(branch_rows) if row.get("Branch") == "Total"), {})
+        branches = sorted({str(row.get("branch") or "").strip() for row in vehicle_trips} - {""}, key=str.casefold)
+        ownership = sorted({
+            "Own" if str(row.get("ownership_type") or "").strip().lower().startswith("own") else "Outside"
+            for row in vehicle_trips
+        })
+        rows.append({
+            "Vehicle No.": vehicle,
+            "Branch": ", ".join(branches) or "Not specified",
+            "Ownership": ", ".join(ownership),
+            **{column: totals.get(column, 0) for column in BRANCH_PNL_COLUMNS[1:]},
+        })
+
+    if rows:
+        total = {"Vehicle No.": "Total", "Branch": "", "Ownership": ""}
+        for column in BRANCH_PNL_COLUMNS[1:]:
+            total[column] = sum(float(row.get(column) or 0) for row in rows)
+        rows.append(total)
+    return rows
+
+
 def export_pnl(trip_rows, expense_rows, start_date, end_date, ownership=None):
-    rows = branch_vehicle_pnl_summary(trip_rows, expense_rows, ownership) if ownership in {"Own", "Outside"} else branch_pnl_summary(trip_rows, expense_rows)
+    if ownership == "Vehicle No. Wise":
+        rows = vehicle_number_pnl_summary(trip_rows, expense_rows)
+    elif ownership in {"Own", "Outside"}:
+        rows = branch_vehicle_pnl_summary(trip_rows, expense_rows, ownership)
+    else:
+        rows = branch_pnl_summary(trip_rows, expense_rows)
     frame = pd.DataFrame(rows)
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:

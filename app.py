@@ -20,8 +20,8 @@ from src.leaderboard import branch_trip_leaderboard
 from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, filter_record_type, sort_records_by_date
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
-from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
-from src.workflow_pnl import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, export_pnl
+from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, canonical_vehicle_number, plain_remark
+from src.workflow_pnl import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.workflow_store import RequestStore
 
 load_dotenv(ROOT / ".env")
@@ -312,7 +312,8 @@ def trip_payload(v, files, invoice_filename=None):
     origin = canonical_location(v["from_location"], KNOWN_LOCATIONS)
     destination = canonical_location(v["to_location"], KNOWN_LOCATIONS)
     capacity = canonical_vehicle_capacity(v["vehicle_capacity"])
-    remarks = trip_auto_remark(v["vehicle_number"], origin, destination, capacity, v["date"])
+    vehicle_number = canonical_vehicle_number(v["vehicle_number"])
+    remarks = trip_auto_remark(vehicle_number, origin, destination, capacity, v["date"])
     payments = {name: number(v[field]) for name, field in PAYMENT_FIELDS.items()}
     billtee = number(v["billtee"])
     repairs_maintenance = number(v.get("repairs_maintenance"))
@@ -325,7 +326,7 @@ def trip_payload(v, files, invoice_filename=None):
         summary = advance_summary(transporter_freight, *payments.values(), billtee)
         total, balance = float(summary["total_advance"]), float(summary["balance_payable"])
     dtr = {
-        "Branch": v["branch"], "Compnay Name": company, "Date": v["date"], "Vehicle No.": v["vehicle_number"],
+        "Branch": v["branch"], "Compnay Name": company, "Date": v["date"], "Vehicle No.": vehicle_number,
         "Vehicle Type": capacity, "Own/Outside Veh.": v["ownership_type"], "From": origin,
         "To": destination, "LR No.": v["lr_number"], "Invoice No.": v["invoice_number"],
         "Revenue": v["revenue"], "Transporter Freight": transporter_freight, "RTGS ADVANCE": v["rtgs_advance"],
@@ -338,7 +339,7 @@ def trip_payload(v, files, invoice_filename=None):
     }
     rtgs = {"BNF_NAME": v["beneficiary_name"], "BENE_ACC_NO": v["beneficiary_account_number"], "BENE_IFSC": v["beneficiary_ifsc_code"], "AMOUNT": v["rtgs_advance"], "REMARK": remarks, "Origin Area": v["branch"]}
     return {
-        "report_scope": "Both", "trip_date": v["date"], "vehicle_number": v["vehicle_number"], "vehicle_type": capacity,
+        "report_scope": "Both", "trip_date": v["date"], "vehicle_number": vehicle_number, "vehicle_type": capacity,
         "ownership_type": v["ownership_type"], "from_location": origin, "to_location": destination,
         "company_name": company, "branch": v["branch"], "invoice_number": v["invoice_number"],
         "beneficiary_name": v["beneficiary_name"], "transporter_name": v["transporter_name"], "amount": total,
@@ -356,7 +357,7 @@ def expense_payload(v, files):
     card = number(v.get("card"))
     categories = {name: number(v.get(name)) for name in ALL_DIRECT_EXPENSE_COLUMNS}
     return {
-        "report_scope": "Expense", "trip_date": v["date"], "vehicle_number": v["vehicle_number"],
+        "report_scope": "Expense", "trip_date": v["date"], "vehicle_number": canonical_vehicle_number(v["vehicle_number"]),
         "beneficiary_name": v["beneficiary_name"], "expense_type": ", ".join(k for k, val in categories.items() if val),
         "amount": sum(categories.values()), "payment_mode": ", ".join([*(k for k, val in payments.items() if val), *(["Card"] if card else [])]),
         "rtgs_advance": payments["RTGS"], "cash_advance": payments["Cash"], "upi": payments["UPI"],
@@ -416,6 +417,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         "from_location": lambda value: canonical_location(value, KNOWN_LOCATIONS),
         "to_location": lambda value: canonical_location(value, KNOWN_LOCATIONS),
         "vehicle_capacity": canonical_vehicle_capacity,
+        "vehicle_number": canonical_vehicle_number,
     }
     for field, normalizer in normalization.items():
         key = f"{prefix}_{field}"
@@ -691,7 +693,7 @@ def view_record(row):
         toll_expense = number(item.get("Toll Expense"))
         update_values = {
             "trip_date": as_date(item["Date"]), "branch": clean_text(item["Branch"]),
-            "company_name": canonical_company(item["Company"], KNOWN_COMPANIES), "vehicle_number": clean_text(item["Vehicle"]),
+            "company_name": canonical_company(item["Company"], KNOWN_COMPANIES), "vehicle_number": canonical_vehicle_number(item["Vehicle"]),
             "vehicle_type": canonical_vehicle_capacity(item["Vehicle Capacity"]), "ownership_type": ownership_type,
             "from_location": canonical_location(item["From"], KNOWN_LOCATIONS), "to_location": canonical_location(item["To"], KNOWN_LOCATIONS),
             "invoice_number": clean_text(item["Invoice No."]), "beneficiary_name": clean_text(item["Beneficiary"]),
@@ -730,11 +732,12 @@ def view_record(row):
             normalized_from = canonical_location(item["From"], KNOWN_LOCATIONS)
             normalized_to = canonical_location(item["To"], KNOWN_LOCATIONS)
             normalized_capacity = canonical_vehicle_capacity(item["Vehicle Capacity"])
-            normalized_remark = trip_auto_remark(item["Vehicle"], normalized_from, normalized_to, normalized_capacity, as_date(item["Date"]))
+            normalized_vehicle = canonical_vehicle_number(item["Vehicle"])
+            normalized_remark = trip_auto_remark(normalized_vehicle, normalized_from, normalized_to, normalized_capacity, as_date(item["Date"]))
             update_values["notes"] = normalized_remark
             updated_dtr = {
                 **raw, "Branch": item["Branch"], "Compnay Name": normalized_company, "Date": as_date(item["Date"]),
-                "Vehicle No.": item["Vehicle"], "Vehicle Type": normalized_capacity,
+                "Vehicle No.": normalized_vehicle, "Vehicle Type": normalized_capacity,
                 "Own/Outside Veh.": item["Own / Outside"], "From": normalized_from, "To": normalized_to,
                 "LR No.": item["LR No."], "Invoice No.": item["Invoice No."], "Revenue": item["Revenue"],
                 "Transporter Freight": transporter_freight, "RTGS ADVANCE": item["RTGS"], "Cash Adv.": item["Cash"],
@@ -851,6 +854,8 @@ with expense_tab:
         autofill(evidence(None, expense_audio), "", "expense", "EXPENSE")
     with st.container(border=True):
         is_manish = current_user == "Manish"
+        if clean_text(st.session_state.get("expense_vehicle")):
+            st.session_state["expense_vehicle"] = canonical_vehicle_number(st.session_state["expense_vehicle"])
         c1, c2, c3 = st.columns(3)
         v = {"date": c1.date_input("Date *", format="DD/MM/YYYY", key="expense_date"), "beneficiary_name": c2.text_input("Beneficiary name", key="expense_beneficiary", placeholder="e.g., Rajesh Kumar"), "vehicle_number": c3.text_input("Vehicle name / number", key="expense_vehicle", placeholder="e.g., MH14JL9818")}
         st.markdown("#### Expense breakdown")
@@ -913,7 +918,7 @@ with records_tab:
         filter_to = c2.date_input("Records to", value=today, format="DD/MM/YYYY", key="records_filter_to_v2")
         record_type = c3.selectbox("Record Type", RECORD_TYPES, key="records_filter_type")
         type_rows = filter_record_type(rows, record_type)
-        vehicle_options = sorted({clean_text(row.get("vehicle_number")) for row in type_rows} - {""}, key=str.casefold)
+        vehicle_options = sorted({canonical_vehicle_number(row.get("vehicle_number")) for row in type_rows} - {""}, key=str.casefold)
         if record_type == TRIP_RECORDS:
             placed_by_options = sorted({canonical_vehicle_placer(unpack(row.get("dtr_data")).get("Veh Placed by")) for row in type_rows} - {""}, key=str.casefold)
             c1, c2, c3 = st.columns(3)
@@ -926,13 +931,13 @@ with records_tab:
         date_filtered_rows = [row for row in type_rows if filter_from <= as_date(row.get("trip_date")) <= filter_to]
         rows = [row for row in date_filtered_rows if
                 (placed_by_filter == "All" or canonical_vehicle_placer(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter)
-                and (vehicle_filter == "All" or clean_text(row.get("vehicle_number")) == vehicle_filter)
+                and (vehicle_filter == "All" or canonical_vehicle_number(row.get("vehicle_number")) == vehicle_filter)
                 and ownership_matches(row.get("ownership_type"), ownership_filter)]
         outside_date_rows = []
         if not rows and vehicle_filter != "All":
             outside_date_rows = [
                 row for row in filter_record_type(scoped_rows, record_type)
-                if clean_text(row.get("vehicle_number")) == vehicle_filter
+                if canonical_vehicle_number(row.get("vehicle_number")) == vehicle_filter
                 and (placed_by_filter == "All" or canonical_vehicle_placer(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter)
                 and ownership_matches(row.get("ownership_type"), ownership_filter)
             ]
@@ -977,7 +982,7 @@ with records_tab:
                 columns[0].write(request_label(record))
                 columns[1].write(f"{as_date(record.get('trip_date')):%d/%m/%y}")
                 columns[2].write(clean_text(record.get("branch")) or "—")
-                columns[3].write(clean_text(record.get("vehicle_number")) or "—")
+                columns[3].write(canonical_vehicle_number(record.get("vehicle_number")) or "—")
                 columns[4].write(canonical_vehicle_placer(raw.get("Veh Placed by")) or "—")
                 columns[5].write(f"₹{number(record.get('revenue')):,.0f}")
                 if columns[6].button("View Evidence", key=f"view_record_{record['request_number']}", use_container_width=True):
@@ -1020,22 +1025,23 @@ with reports_tab:
     pnl_vehicle_filter = "All"
     if report_type == "P&L":
         pnl_ownership_filter = st.segmented_control(
-            "Own or outside vehicle", ["Both", "Own", "Outside"], default="Both", key="pnl_ownership_filter",
+            "Own or outside vehicle", ["Both", "Own", "Outside", "Vehicle No. Wise"], default="Both", key="pnl_ownership_filter",
         )
     selected_rows = store.list(start, end, status="All active") if can_generate_reports and start <= end else []
     trips = [row for row in selected_rows if row.get("report_scope") != "Expense"]
     if report_type == "P&L":
-        trips = [row for row in trips if ownership_matches(row.get("ownership_type"), pnl_ownership_filter)]
-        pnl_vehicle_options = sorted({clean_text(row.get("vehicle_number")) for row in trips} - {""}, key=str.casefold)
+        if pnl_ownership_filter != "Vehicle No. Wise":
+            trips = [row for row in trips if ownership_matches(row.get("ownership_type"), pnl_ownership_filter)]
+        pnl_vehicle_options = sorted({canonical_vehicle_number(row.get("vehicle_number")) for row in trips} - {""}, key=str.casefold)
         pnl_vehicle_filter = st.selectbox("Vehicle no.", ["All", *pnl_vehicle_options], key="pnl_vehicle_filter")
         if pnl_vehicle_filter != "All":
-            trips = [row for row in trips if clean_text(row.get("vehicle_number")) == pnl_vehicle_filter]
+            trips = [row for row in trips if canonical_vehicle_number(row.get("vehicle_number")) == pnl_vehicle_filter]
     expenses = [row for row in selected_rows if row.get("report_scope") == "Expense"]
     if report_type == "P&L":
-        selected_vehicle_numbers = {clean_text(row.get("vehicle_number")).casefold() for row in trips} - {""}
+        selected_vehicle_numbers = {canonical_vehicle_number(row.get("vehicle_number")) for row in trips} - {""}
         expenses = [
             row for row in expenses
-            if clean_text(row.get("vehicle_number")).casefold() in selected_vehicle_numbers
+            if canonical_vehicle_number(row.get("vehicle_number")) in selected_vehicle_numbers
         ]
     st.caption(f"{len(trips)} trip record(s) and {len(expenses)} direct expense record(s) selected.")
     if report_type == "DTR":
@@ -1043,6 +1049,7 @@ with reports_tab:
         for i, row in enumerate(reversed(trips), 1):
             data = unpack(row.get("dtr_data"))
             data["Compnay Name"] = canonical_company(data.get("Compnay Name") or row.get("company_name"), KNOWN_COMPANIES)
+            data["Vehicle No."] = canonical_vehicle_number(data.get("Vehicle No.") or row.get("vehicle_number"))
             data["Vehicle Type"] = canonical_vehicle_capacity(data.get("Vehicle Type") or row.get("vehicle_type"))
             data["From"] = canonical_location(data.get("From") or row.get("from_location"), KNOWN_LOCATIONS)
             data["To"] = canonical_location(data.get("To") or row.get("to_location"), KNOWN_LOCATIONS)
@@ -1120,7 +1127,12 @@ with reports_tab:
         )
     else:
         expense_data = [{**row, "categories": unpack(row.get("dtr_data")).get("categories", {})} for row in expenses]
-        pnl_rows = branch_pnl_summary(trips, expense_data) if pnl_ownership_filter == "Both" else branch_vehicle_pnl_summary(trips, expense_data, pnl_ownership_filter)
+        if pnl_ownership_filter == "Both":
+            pnl_rows = branch_pnl_summary(trips, expense_data)
+        elif pnl_ownership_filter == "Vehicle No. Wise":
+            pnl_rows = vehicle_number_pnl_summary(trips, expense_data)
+        else:
+            pnl_rows = branch_vehicle_pnl_summary(trips, expense_data, pnl_ownership_filter)
         frame = pd.DataFrame(pnl_rows)
         st.dataframe(frame, hide_index=True, width="stretch")
         st.download_button("Download P&L report", export_pnl(trips, expense_data, start, end, pnl_ownership_filter), f"PNL-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=not can_generate_pnl, on_click=audit_action, args=("Downloaded P&L report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
