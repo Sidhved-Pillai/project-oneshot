@@ -17,6 +17,7 @@ from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
 from src.entry_state import clear_entry_state, entry_state_prefix
 from src.leaderboard import branch_trip_leaderboard
+from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, SORT_ORDERS, TRIP_RECORDS, filter_record_type, sort_records_by_date
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
@@ -43,7 +44,7 @@ MEMBER_CODE_HASHES = {
     "Gopal": "8422d601483b1cda8d20f11b17b482c756fb005912c2ac6f83baca98d6554e5c",
     "Shyam": "37d9997a10e64c52c8dfa34f66ffb078531f04cd9af2f6f455d45a3125068dba",
     "Nikhil": "40ed3b8fb38df58e9bef001c1bab0d0c9b08a4b13a84a9e7a9b4d549bb2c5e90",
-    "Vinod": "17c4bc70c02f37310d326cff94f608c18de6e14c6df949eb51fbd37d0e7b52cb",
+    "Vinod": "48b3093ec26141bd7b8b150a7669023586f1bd3b53fd6a3a05777aa9e3d76aac",
     "Manish": "a021c3c411a4a3cb971eeb978f3df49f172c31d58a270a7d8c7a4218a2eb24f9",
 }
 SPECIAL_MEMBERS = {"Sid", "Ajit", "Vinod", "Nikhil", "Shyam", "Nikhat"}
@@ -901,29 +902,34 @@ with records_tab:
         st.caption("Your account can access records created by Manish only.")
     scoped_rows = list(rows)
     if rows:
-        record_dates = [as_date(row.get("trip_date")) for row in rows]
-        placed_by_options = sorted({canonical_vehicle_placer(unpack(row.get("dtr_data")).get("Veh Placed by")) for row in rows} - {""}, key=str.casefold)
-        vehicle_options = sorted({clean_text(row.get("vehicle_number")) for row in rows} - {""}, key=str.casefold)
         st.markdown("#### Filter records")
-        c1, c2, c3, c4, c5 = st.columns(5)
+        c1, c2, c3, c4 = st.columns(4)
         today = dt.date.today()
         month_start = today.replace(day=1)
         filter_from = c1.date_input("Records from", value=month_start, format="DD/MM/YYYY", key="records_filter_from_v2")
         filter_to = c2.date_input("Records to", value=today, format="DD/MM/YYYY", key="records_filter_to_v2")
-        placed_by_filter = c3.selectbox("Vehicle placed by", ["All", *placed_by_options], key="records_filter_placed_by")
-        vehicle_filter = c4.selectbox("Vehicle no.", ["All", *vehicle_options], key="records_filter_vehicle")
-        ownership_filter = c5.selectbox("Own or outside", ["Both", "Own", "Outside"], key="records_filter_ownership")
-        date_filtered_rows = [row for row in rows if filter_from <= as_date(row.get("trip_date")) <= filter_to]
-        rows = [
-            row for row in date_filtered_rows
-            if (placed_by_filter == "All" or canonical_vehicle_placer(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter)
-            and (vehicle_filter == "All" or clean_text(row.get("vehicle_number")) == vehicle_filter)
-            and ownership_matches(row.get("ownership_type"), ownership_filter)
-        ]
+        record_type = c3.selectbox("Record Type", RECORD_TYPES, key="records_filter_type")
+        sort_order = c4.selectbox("Sort by date", SORT_ORDERS, key="records_sort_order")
+        type_rows = filter_record_type(rows, record_type)
+        vehicle_options = sorted({clean_text(row.get("vehicle_number")) for row in type_rows} - {""}, key=str.casefold)
+        if record_type == TRIP_RECORDS:
+            placed_by_options = sorted({canonical_vehicle_placer(unpack(row.get("dtr_data")).get("Veh Placed by")) for row in type_rows} - {""}, key=str.casefold)
+            c1, c2, c3 = st.columns(3)
+            placed_by_filter = c1.selectbox("Vehicle placed by", ["All", *placed_by_options], key="records_filter_placed_by")
+            vehicle_filter = c2.selectbox("Vehicle no.", ["All", *vehicle_options], key="records_filter_vehicle")
+            ownership_filter = c3.selectbox("Own or outside", ["Both", "Own", "Outside"], key="records_filter_ownership")
+        else:
+            placed_by_filter, ownership_filter = "All", "Both"
+            vehicle_filter = st.selectbox("Vehicle no.", ["All", *vehicle_options], key="records_filter_expense_vehicle")
+        date_filtered_rows = [row for row in type_rows if filter_from <= as_date(row.get("trip_date")) <= filter_to]
+        rows = [row for row in date_filtered_rows if
+                (placed_by_filter == "All" or canonical_vehicle_placer(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter)
+                and (vehicle_filter == "All" or clean_text(row.get("vehicle_number")) == vehicle_filter)
+                and ownership_matches(row.get("ownership_type"), ownership_filter)]
         outside_date_rows = []
         if not rows and vehicle_filter != "All":
             outside_date_rows = [
-                row for row in scoped_rows
+                row for row in filter_record_type(scoped_rows, record_type)
                 if clean_text(row.get("vehicle_number")) == vehicle_filter
                 and (placed_by_filter == "All" or canonical_vehicle_placer(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter)
                 and ownership_matches(row.get("ownership_type"), ownership_filter)
@@ -935,15 +941,17 @@ with records_tab:
                     f"{vehicle_filter} is saved with date {saved_dates}, outside the selected date range. "
                     "It is shown below so the record can be reviewed."
                 )
-        leaderboard_rows = "".join(
-            f"<tr><td>{rank}</td><td>{branch}</td><td>{trip_count}</td><td>₹{revenue:,.2f}</td></tr>"
-            for rank, (branch, trip_count, revenue) in enumerate(branch_trip_leaderboard(rows), 1)
-        )
-        st.markdown("#### Trip leaderboard")
-        st.markdown(
-            f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_rows}</tbody></table>',
-            unsafe_allow_html=True,
-        )
+        rows = sort_records_by_date(rows, sort_order)
+        if record_type == TRIP_RECORDS:
+            leaderboard_rows = "".join(
+                f"<tr><td>{rank}</td><td>{branch}</td><td>{trip_count}</td><td>₹{revenue:,.2f}</td></tr>"
+                for rank, (branch, trip_count, revenue) in enumerate(branch_trip_leaderboard(rows), 1)
+            )
+            st.markdown("#### Trip leaderboard")
+            st.markdown(
+                f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_rows}</tbody></table>',
+                unsafe_allow_html=True,
+            )
     if not rows:
         st.info("No records match the selected filters.")
     else:

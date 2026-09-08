@@ -19,6 +19,7 @@ from src.historical_suggester import HistoricalSuggester
 from src.entry_finance import advance_summary, diesel_expense, financial_values
 from src.entry_state import clear_entry_state, entry_state_prefix
 from src.leaderboard import branch_trip_leaderboard
+from src.record_filters import DIRECT_EXPENSES, TRIP_RECORDS, filter_record_type, sort_records_by_date
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
 from src.trip_dtr_report import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
@@ -66,6 +67,18 @@ def test_record_delete_permissions_are_owner_scoped_for_manish():
     assert can_view_record("Manish", manish_record)
     assert not can_view_record("Manish", ajit_record)
     assert can_view_record("Sid", ajit_record)
+
+
+def test_records_can_be_filtered_by_type_and_sorted_by_date():
+    rows = [
+        {"id": 3, "trip_date": dt.date(2026, 9, 8), "report_scope": "Both"},
+        {"id": 1, "trip_date": dt.date(2026, 9, 6), "report_scope": "Expense"},
+        {"id": 2, "trip_date": dt.date(2026, 9, 7), "report_scope": "DTR"},
+    ]
+    assert [row["id"] for row in filter_record_type(rows, TRIP_RECORDS)] == [3, 2]
+    assert [row["id"] for row in filter_record_type(rows, DIRECT_EXPENSES)] == [1]
+    assert [row["id"] for row in sort_records_by_date(rows, "Newest first")] == [3, 2, 1]
+    assert [row["id"] for row in sort_records_by_date(rows, "Oldest first")] == [1, 2, 3]
 
 
 def test_new_entry_revenue_is_never_evidence_autofilled():
