@@ -10,6 +10,7 @@ import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
+from src.access_control import can_delete_record
 from src.ai_intake import DTR_REVIEW_COLUMNS, extract_intake, should_autofill_field
 from src.business_memory import build_business_memory, recall
 from src.config import ROOT
@@ -943,8 +944,9 @@ with records_tab:
         labels = {record_select_label(row): row for row in rows}
         st.markdown("#### Live records")
         with st.container(height=420, border=True):
-            record_widths = [1.35, .8, .9, 1.1, 1.15, 1, .85, .65] if current_user == "Sid" else [1.35, .8, .9, 1.1, 1.15, 1, .85]
-            record_titles = ("Record", "Date", "Branch", "Vehicle", "Placed by", "Revenue", "", "") if current_user == "Sid" else ("Record", "Date", "Branch", "Vehicle", "Placed by", "Revenue", "")
+            has_delete_column = current_user in {"Sid", "Manish"}
+            record_widths = [1.35, .8, .9, 1.1, 1.15, 1, .85, .65] if has_delete_column else [1.35, .8, .9, 1.1, 1.15, 1, .85]
+            record_titles = ("Record", "Date", "Branch", "Vehicle", "Placed by", "Revenue", "", "") if has_delete_column else ("Record", "Date", "Branch", "Vehicle", "Placed by", "Revenue", "")
             header = st.columns(record_widths)
             for column, title in zip(header, record_titles):
                 column.markdown(f"**{title}**")
@@ -959,7 +961,7 @@ with records_tab:
                 columns[5].write(f"₹{number(record.get('revenue')):,.0f}")
                 if columns[6].button("View Evidence", key=f"view_record_{record['request_number']}", use_container_width=True):
                     view_record(record)
-                if current_user == "Sid" and columns[7].button("Delete", icon=":material/delete:", key=f"delete_record_{record['request_number']}", help="Delete record", use_container_width=True):
+                if can_delete_record(current_user, record) and columns[7].button("Delete", icon=":material/delete:", key=f"delete_record_{record['request_number']}", help="Delete record", use_container_width=True):
                     request_number = record["request_number"]
                     if store.delete_request(request_number):
                         audit_action("Deleted record", request_number, request_label(record))
@@ -1023,6 +1025,10 @@ with reports_tab:
             data["Vehicle Type"] = canonical_vehicle_capacity(data.get("Vehicle Type") or row.get("vehicle_type"))
             data["From"] = canonical_location(data.get("From") or row.get("from_location"), KNOWN_LOCATIONS)
             data["To"] = canonical_location(data.get("To") or row.get("to_location"), KNOWN_LOCATIONS)
+            data["Toll Expense"] = data.get("Toll Expense", "")
+            data["Repairs and Maintenance"] = data.get(
+                "Repairs and Maintenance", data.get("Repairs & Maintenance", "")
+            )
             data["Remark"] = trip_auto_remark(
                 data.get("Vehicle No.") or row.get("vehicle_number"), data["From"], data["To"],
                 data["Vehicle Type"], data.get("Date") or row.get("trip_date"),

@@ -5,6 +5,7 @@ import pandas as pd
 from openpyxl import Workbook, load_workbook
 import pytest
 from sqlalchemy import event
+from src.access_control import can_delete_record
 from src.excel_reader import detect_header_row
 from src.column_mapping import resolve_columns, DTR_ALIASES, CONSOLIDATED_ALIASES
 from src.remark_classifier import classify_remark
@@ -52,6 +53,16 @@ def source(remarks):
 def test_header_detection_with_blank_rows():
     ws = Workbook().active; ws.append([]); ws.append(["report title"]); ws.append(["Remark", "Beneficiary Name"])
     assert detect_header_row(ws, ["Remark", "Beneficiary Name"]) == 3
+
+
+def test_record_delete_permissions_are_owner_scoped_for_manish():
+    manish_record = {"created_by": "Manish"}
+    ajit_record = {"created_by": "Ajit"}
+    assert can_delete_record("Sid", manish_record)
+    assert can_delete_record("Sid", ajit_record)
+    assert can_delete_record("Manish", manish_record)
+    assert not can_delete_record("Manish", ajit_record)
+    assert not can_delete_record("Nitish", manish_record)
 
 
 def test_new_entry_revenue_is_never_evidence_autofilled():
@@ -797,10 +808,18 @@ def test_business_memory_uses_repeated_verified_records_without_guessing():
 def test_operational_dtr_export_uses_full_reference_shape():
     frame = pd.DataFrame([{column: "" for column in OPERATIONAL_DTR_COLUMNS}])
     frame.loc[0, "LR No."] = "00127"
+    frame.loc[0, "Toll Expense"] = 750
+    frame.loc[0, "Repairs and Maintenance"] = 1250
     ws = load_workbook(BytesIO(export_operational_dtr(frame)))["DTR"]
     headers = [cell.value for cell in ws[1]]
-    assert len(headers) == 35 and "Company Name" in headers and "Compnay Name" not in headers
+    assert len(headers) == 37 and "Company Name" in headers and "Compnay Name" not in headers
     assert "LR No." in headers and "UPI " in headers
+    payment_index = headers.index("Payment")
+    assert headers[payment_index + 1:payment_index + 4] == [
+        "Toll Expense", "Repairs and Maintenance", "Diesel Pump Name",
+    ]
+    assert ws.cell(2, payment_index + 2).value == 750
+    assert ws.cell(2, payment_index + 3).value == 1250
     assert ws["I2"].value == "00127" and ws["I2"].number_format == "@"
 
 

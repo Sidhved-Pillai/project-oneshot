@@ -11,7 +11,8 @@ DTR_REVIEW_COLUMNS = [
     "Company Freight", "Bill No.", "Revenue", "Transporter Freight",
     "Loading & Unloading", "RTGS ADVANCE", "Cash Adv.", "UPI", "Diesel Qty",
     "Diesel Adv.", "Billtee", "Total Adv.", "Balance Amt.", "Payment",
-    "Diesel Pump Name", "Benificiary Name", "Transporter Name", "Veh Placed by",
+    "Toll Expense", "Repairs and Maintenance", "Diesel Pump Name",
+    "Benificiary Name", "Transporter Name", "Veh Placed by",
     "LR Status", "Received Date", "SG & Bisleri Damages", "Remark", "Debit Amt.",
     "Review Notes",
 ]
@@ -43,6 +44,8 @@ class DTRIntakeRow(BaseModel):
     total_advance: Optional[float] = None
     balance_amount: Optional[float] = None
     payment: Optional[float] = None
+    toll_expense: Optional[float] = None
+    repair_maintenance: Optional[float] = None
     diesel_pump_name: str = ""
     beneficiary_name: str = ""
     transporter_name: str = ""
@@ -169,7 +172,8 @@ DTR_FIELD_MAP = dict(zip(DTR_REVIEW_COLUMNS[1:], [
     "from_location", "lr_number", "invoice_number", "customer_name", "to_location",
     "company_freight", "bill_number", "revenue", "transporter_freight", "loading_unloading",
     "rtgs_advance", "cash_advance", "upi", "diesel_quantity", "diesel_advance", "billtee",
-    "total_advance", "balance_amount", "payment", "diesel_pump_name", "beneficiary_name",
+    "total_advance", "balance_amount", "payment", "toll_expense", "repair_maintenance",
+    "diesel_pump_name", "beneficiary_name",
     "transporter_name", "vehicle_placed_by", "lr_status", "received_date", "damages", "remark",
     "debit_amount", "review_notes",
 ]))
