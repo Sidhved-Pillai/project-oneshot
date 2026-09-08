@@ -17,7 +17,7 @@ from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
 from src.entry_state import clear_entry_state, entry_state_prefix
 from src.leaderboard import branch_trip_leaderboard
-from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, SORT_ORDERS, TRIP_RECORDS, filter_record_type, sort_records_by_date
+from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, filter_record_type, sort_records_by_date
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
@@ -903,13 +903,12 @@ with records_tab:
     scoped_rows = list(rows)
     if rows:
         st.markdown("#### Filter records")
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3 = st.columns(3)
         today = dt.date.today()
         month_start = today.replace(day=1)
         filter_from = c1.date_input("Records from", value=month_start, format="DD/MM/YYYY", key="records_filter_from_v2")
         filter_to = c2.date_input("Records to", value=today, format="DD/MM/YYYY", key="records_filter_to_v2")
         record_type = c3.selectbox("Record Type", RECORD_TYPES, key="records_filter_type")
-        sort_order = c4.selectbox("Sort by date", SORT_ORDERS, key="records_sort_order")
         type_rows = filter_record_type(rows, record_type)
         vehicle_options = sorted({clean_text(row.get("vehicle_number")) for row in type_rows} - {""}, key=str.casefold)
         if record_type == TRIP_RECORDS:
@@ -941,7 +940,6 @@ with records_tab:
                     f"{vehicle_filter} is saved with date {saved_dates}, outside the selected date range. "
                     "It is shown below so the record can be reviewed."
                 )
-        rows = sort_records_by_date(rows, sort_order)
         if record_type == TRIP_RECORDS:
             leaderboard_rows = "".join(
                 f"<tr><td>{rank}</td><td>{branch}</td><td>{trip_count}</td><td>₹{revenue:,.2f}</td></tr>"
@@ -956,7 +954,13 @@ with records_tab:
         st.info("No records match the selected filters.")
     else:
         labels = {record_select_label(row): row for row in rows}
-        st.markdown("#### Live records")
+        live_title, live_sort = st.columns([8, 1])
+        live_title.markdown("#### Live records")
+        sort_arrow = live_sort.segmented_control(
+            "Record order", ["↓", "↑"], default="↓", key="records_sort_arrow",
+            label_visibility="collapsed", help="↓ Newest to oldest · ↑ Oldest to newest",
+        )
+        rows = sort_records_by_date(rows, "Oldest first" if sort_arrow == "↑" else "Newest first")
         with st.container(height=420, border=True):
             has_delete_column = current_user in {"Sid", "Manish"}
             record_widths = [1.35, .8, .9, 1.1, 1.15, 1, .85, .65] if has_delete_column else [1.35, .8, .9, 1.1, 1.15, 1, .85]
