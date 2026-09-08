@@ -33,7 +33,7 @@ PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advanc
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 MANISH_DIRECT_EXPENSE_COLUMNS = [
     "Driver's salary", "Office & General expenses", "EMI", "Conveyance",
-    "Insurance", "Vehicle Tax", "Passing expense", "Extra Expense",
+    "Insurance", "Vehicle Tax", "Repair and maintenance", "Passing expense", "Extra Expense",
 ]
 ALL_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense"]
 BRANCHES = ["Wada", "Baroda", "Pune"]
