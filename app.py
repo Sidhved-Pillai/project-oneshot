@@ -16,6 +16,7 @@ from src.business_memory import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
 from src.entry_state import clear_entry_state, entry_state_prefix
+from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
 from src.current_leaderboard import branch_trip_leaderboard
 from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, filter_record_type, sort_records_by_date
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, export_operational_dtr
@@ -360,14 +361,23 @@ def expense_payload(v, files):
     categories = {name: number(v.get(name)) for name in ALL_DIRECT_EXPENSE_COLUMNS}
     return {
         "report_scope": "Expense", "trip_date": v["date"], "vehicle_number": canonical_vehicle_number(v["vehicle_number"]),
+        "vehicle_type": canonical_vehicle_capacity(v["vehicle_capacity"]), "ownership_type": v["ownership_type"],
+        "branch": v["branch"],
         "beneficiary_name": v["beneficiary_name"], "expense_type": ", ".join(k for k, val in categories.items() if val),
         "amount": sum(categories.values()), "payment_mode": ", ".join([*(k for k, val in payments.items() if val), *(["Card"] if card else [])]),
         "rtgs_advance": payments["RTGS"], "cash_advance": payments["Cash"], "upi": payments["UPI"],
         "diesel_advance": payments["Diesel"], "total_advance": sum(payments.values()) + card, "notes": plain_remark(v["remarks"]),
         "status": "Verified", "dtr_data": {
             "categories": categories, "payments": {**payments, "Card": card},
+            "periods": {
+                category: serialize_period(v.get(f"{category}_period"))
+                for category in PERIOD_EXPENSE_CATEGORIES if number(v.get(category))
+            },
             "Diesel Pump Name": v["diesel_pump_name"], "Card Name": v["card_name"],
             "Cardholders Name": clean_text(v.get("cardholders_name")),
+        }, "rtgs_data": {
+            "BENE_ACC_NO": clean_text(v["beneficiary_account_number"]),
+            "BENE_IFSC": clean_text(v["beneficiary_ifsc_code"]),
         }, **file_values(files),
     }
 
@@ -617,7 +627,12 @@ def view_record(row):
     if not can_view_record(current_user, row):
         st.error("You are not authorized to view this record.")
         return
-    if record_branch_scope and clean_text(row.get("branch")).casefold() != record_branch_scope.casefold():
+    legacy_own_expense = (
+        row.get("report_scope") == "Expense"
+        and clean_text(row.get("created_by")) == current_user
+        and not clean_text(row.get("branch"))
+    )
+    if record_branch_scope and clean_text(row.get("branch")).casefold() != record_branch_scope.casefold() and not legacy_own_expense:
         st.error("You are not authorized to view this record.")
         return
     request_number = row["request_number"]
@@ -652,6 +667,12 @@ def view_record(row):
         })
     if is_expense:
         display.update(raw.get("categories", {}))
+        stored_periods = expense_periods(row)
+        for category in PERIOD_EXPENSE_CATEGORIES:
+            period = normalize_period(stored_periods.get(category))
+            if period:
+                display[f"{category} Period Start"] = period[0]
+                display[f"{category} Period End"] = period[1]
         if is_manish_expense:
             display.update({
                 "Card": number(raw.get("payments", {}).get("Card")),
@@ -708,6 +729,13 @@ def view_record(row):
         }
         if is_expense:
             categories = {name: number(item.get(name)) for name in ALL_DIRECT_EXPENSE_COLUMNS}
+            periods = dict(raw.get("periods", {}))
+            for category in PERIOD_EXPENSE_CATEGORIES:
+                start_key, end_key = f"{category} Period Start", f"{category} Period End"
+                if start_key in item and end_key in item and number(item.get(category)):
+                    periods[category] = serialize_period((item[start_key], item[end_key]))
+                elif not number(item.get(category)):
+                    periods.pop(category, None)
             card = number(item.get("Card")) if is_manish_expense else number(raw.get("payments", {}).get("Card"))
             payments = {
                 "UPI": number(item["UPI"]), "Diesel": number(item["Diesel"]),
@@ -718,9 +746,13 @@ def view_record(row):
                 "payment_mode": ", ".join(name for name, value in payments.items() if value),
                 "total_advance": sum(payments.values()),
                 "dtr_data": {
-                    **raw, "categories": categories, "payments": payments,
+                    **raw, "categories": categories, "payments": payments, "periods": periods,
                     "Diesel Pump Name": clean_text(item["Add Pumps"]), "Card Name": clean_text(item["Card Name"]),
                     "Cardholders Name": clean_text(item.get("Cardholders Name")),
+                },
+                "rtgs_data": {
+                    **rtgs_raw, "BENE_ACC_NO": clean_text(item["Account Number"]),
+                    "BENE_IFSC": clean_text(item["IFSC"]),
                 },
             })
         else:
@@ -860,6 +892,25 @@ with expense_tab:
             st.session_state["expense_vehicle"] = canonical_vehicle_number(st.session_state["expense_vehicle"])
         c1, c2, c3 = st.columns(3)
         v = {"date": c1.date_input("Date *", format="DD/MM/YYYY", key="expense_date"), "beneficiary_name": c2.text_input("Beneficiary name", key="expense_beneficiary", placeholder="e.g., Rajesh Kumar"), "vehicle_number": c3.text_input("Vehicle name / number", key="expense_vehicle", placeholder="e.g., MH14JL9818")}
+        branch_choices = allowed_entry_branches
+        expense_branch_key = "expense_branch"
+        if len(branch_choices) == 1:
+            st.session_state[expense_branch_key] = branch_choices[0]
+        current_expense_branch = clean_text(st.session_state.get(expense_branch_key))
+        if current_expense_branch not in branch_choices:
+            current_expense_branch = branch_choices[0] if len(branch_choices) == 1 else ""
+            st.session_state[expense_branch_key] = current_expense_branch
+        c1, c2, c3 = st.columns(3)
+        v["branch"] = c1.selectbox(
+            "Branch *", ["", *branch_choices],
+            index=["", *branch_choices].index(current_expense_branch), key=expense_branch_key,
+            disabled=len(branch_choices) == 1, placeholder="Select a branch",
+        )
+        v["vehicle_capacity"] = c2.text_input("Vehicle Capacity", key="expense_vehicle_capacity", placeholder="e.g., 10 MT")
+        v["ownership_type"] = c3.selectbox("Own or Outside", ["", "Own", "Outside"], key="expense_ownership_type", placeholder="Select ownership")
+        c1, c2 = st.columns(2)
+        v["beneficiary_account_number"] = c1.text_input("Bank A/C No:", key="expense_bank_account", placeholder="e.g., 0206101019660")
+        v["beneficiary_ifsc_code"] = c2.text_input("IFSC Code", key="expense_ifsc", placeholder="e.g., ICIC0001234")
         st.markdown("#### Expense breakdown")
         cols = st.columns(3)
         visible_expense_columns = MANISH_DIRECT_EXPENSE_COLUMNS if is_manish else STANDARD_DIRECT_EXPENSE_COLUMNS
@@ -868,6 +919,17 @@ with expense_tab:
         for i, category in enumerate(visible_expense_columns):
             category_key = DIRECT_EXPENSE_COLUMNS.index(category) if category in DIRECT_EXPENSE_COLUMNS else "passing_expense"
             v[category] = cols[i % 3].number_input(f"{category} (₹)", min_value=0.0, value=None, placeholder="e.g., 5,000", key=f"expense_category_{category_key}")
+        active_period_categories = [category for category in PERIOD_EXPENSE_CATEGORIES if number(v.get(category))]
+        period_columns = st.columns(2)
+        for index, category in enumerate(active_period_categories):
+            period_columns[index].caption(category)
+            v[f"{category}_period"] = period_columns[index].date_input(
+                "Period", value=(v["date"], v["date"]), format="DD/MM/YYYY",
+                key=f"expense_period_{category.casefold().replace(' ', '_')}",
+            )
+        invalid_period = any(not normalize_period(v.get(f"{category}_period")) for category in active_period_categories)
+        if invalid_period:
+            st.caption("Select both the start and end date for each expense period.")
         expense_categories = [category for category in visible_expense_columns if number(v[category])]
         expense_generated_remark = expense_auto_remark(v["vehicle_number"], v["beneficiary_name"], expense_categories, v["date"])
         if clean_text(v["vehicle_number"]) or clean_text(v["beneficiary_name"]) or expense_categories:
@@ -896,17 +958,17 @@ with expense_tab:
         c2.metric("Payment modes total", f"₹{paid_total:,.2f}")
         if paid_total and abs(expense_total - paid_total) > 0.01:
             st.warning("Expense total and payment-mode total do not match. Review before saving.")
-        if st.button("Save direct expense", type="primary", key="save_expense", disabled=not can_use_direct_expenses):
+        if st.button("Save direct expense", type="primary", key="save_expense", disabled=not can_use_direct_expenses or not v["branch"] or invalid_period):
             saved = store.create({
                 **expense_payload(v, expense_files), "created_by": current_user,
-                "branch": record_branch_scope or "",
             })
             audit_action("Created direct expense", saved, request_label(saved, v["date"]))
             st.success(f"Saved {request_label(saved, v['date'])}.")
 
 with records_tab:
     page_intro("", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
-    rows = store.list(status="All active")
+    all_record_rows = store.list(status="All active")
+    rows = list(all_record_rows)
     if record_branch_scope:
         rows = [
             row for row in rows
@@ -962,10 +1024,14 @@ with records_tab:
                     "It is shown below so the record can be reviewed."
                 )
         if record_type == TRIP_RECORDS:
+            leaderboard_source = [
+                row for row in all_record_rows
+                if filter_from <= as_date(row.get("trip_date")) <= filter_to
+            ]
             leaderboard_rows = "".join(
                 f"<tr><td>{rank}</td><td>{branch}</td><td>{trip_count}</td><td>₹{revenue:,.2f}</td></tr>"
                 for rank, (branch, trip_count, revenue) in enumerate(
-                    branch_trip_leaderboard(rows, [record_branch_scope] if record_branch_scope else BRANCHES), 1
+                    branch_trip_leaderboard(leaderboard_source, BRANCHES), 1
                 )
             )
             st.markdown("#### Trip leaderboard")
@@ -974,10 +1040,15 @@ with records_tab:
                 unsafe_allow_html=True,
             )
     elif record_branch_scope:
+        today = dt.date.today()
+        leaderboard_source = [
+            row for row in all_record_rows
+            if today.replace(day=1) <= as_date(row.get("trip_date")) <= today
+        ]
         empty_leaderboard_rows = "".join(
             f"<tr><td>{rank}</td><td>{branch}</td><td>{trip_count}</td><td>₹{revenue:,.2f}</td></tr>"
             for rank, (branch, trip_count, revenue) in enumerate(
-                branch_trip_leaderboard([], [record_branch_scope]), 1
+                branch_trip_leaderboard(leaderboard_source, BRANCHES), 1
             )
         )
         st.markdown("#### Trip leaderboard")
@@ -1054,7 +1125,13 @@ with reports_tab:
         pnl_ownership_filter = st.segmented_control(
             "Own or outside vehicle", ["Both", "Own", "Outside", "Vehicle No. Wise"], default="Both", key="pnl_ownership_filter",
         )
-    selected_rows = store.list(start, end, status="All active") if can_generate_reports and start <= end else []
+    report_rows = (
+        store.list(status="All active") if report_type == "P&L"
+        else store.list(start, end, status="All active")
+    ) if can_generate_reports and start <= end else []
+    selected_rows = [
+        row for row in report_rows if start <= as_date(row.get("trip_date")) <= end
+    ] if report_type == "P&L" else report_rows
     trips = [row for row in selected_rows if row.get("report_scope") != "Expense"]
     if report_type == "P&L":
         if pnl_ownership_filter != "Vehicle No. Wise":
@@ -1063,13 +1140,26 @@ with reports_tab:
         pnl_vehicle_filter = st.selectbox("Vehicle no.", ["All", *pnl_vehicle_options], key="pnl_vehicle_filter")
         if pnl_vehicle_filter != "All":
             trips = [row for row in trips if canonical_vehicle_number(row.get("vehicle_number")) == pnl_vehicle_filter]
-    expenses = [row for row in selected_rows if row.get("report_scope") == "Expense"]
+    expenses = [
+        row for row in (report_rows if report_type == "P&L" else selected_rows)
+        if row.get("report_scope") == "Expense"
+    ]
     if report_type == "P&L":
-        selected_vehicle_numbers = {canonical_vehicle_number(row.get("vehicle_number")) for row in trips} - {""}
-        expenses = [
-            row for row in expenses
-            if canonical_vehicle_number(row.get("vehicle_number")) in selected_vehicle_numbers
-        ]
+        if pnl_ownership_filter in {"Own", "Outside"}:
+            expenses = [
+                row for row in expenses
+                if clean_text(row.get("ownership_type")).casefold().startswith(pnl_ownership_filter.casefold())
+            ]
+        if pnl_vehicle_filter != "All":
+            expenses = [
+                row for row in expenses
+                if canonical_vehicle_number(row.get("vehicle_number")) == pnl_vehicle_filter
+            ]
+        expense_data = allocate_expenses_for_period(
+            [{**row, "categories": unpack(row.get("dtr_data")).get("categories", {})} for row in expenses],
+            start, end,
+        )
+        expenses = expense_data
     st.caption(f"{len(trips)} trip record(s) and {len(expenses)} direct expense record(s) selected.")
     if report_type == "DTR":
         records = []
@@ -1153,7 +1243,6 @@ with reports_tab:
             args=(selected_request_numbers, start, end),
         )
     else:
-        expense_data = [{**row, "categories": unpack(row.get("dtr_data")).get("categories", {})} for row in expenses]
         if pnl_ownership_filter == "Both":
             pnl_rows = branch_pnl_summary(trips, expense_data)
         elif pnl_ownership_filter == "Vehicle No. Wise":

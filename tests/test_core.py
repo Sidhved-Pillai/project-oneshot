@@ -18,6 +18,7 @@ from src.gemini_parser import parse_with_gemini
 from src.historical_suggester import HistoricalSuggester
 from src.entry_finance import advance_summary, diesel_expense, financial_values
 from src.entry_state import clear_entry_state, entry_state_prefix
+from src.expense_periods import allocate_expenses_for_period, serialize_period
 from src.current_leaderboard import branch_trip_leaderboard
 from src.record_filters import DIRECT_EXPENSES, TRIP_RECORDS, filter_record_type, sort_records_by_date
 from src.request_store import RequestStore, rows_to_dtr
@@ -127,6 +128,40 @@ def test_trip_leaderboard_aggregates_branch_performance():
 
 def test_diesel_expense_is_quantity_times_rate():
     assert diesel_expense(125.5, 89.75) == Decimal("11263.625")
+
+
+def test_insurance_and_vehicle_tax_are_prorated_by_selected_pnl_period():
+    annual_period = serialize_period((dt.date(2026, 1, 1), dt.date(2026, 12, 31)))
+    expenses = [{
+        "trip_date": dt.date(2026, 1, 1),
+        "categories": {"Insurance": 36500, "Vehicle Tax": 7300, "Salary": 1200},
+        "dtr_data": {"periods": {"Insurance": annual_period, "Vehicle Tax": annual_period}},
+    }]
+    allocated = allocate_expenses_for_period(
+        expenses, dt.date(2026, 9, 1), dt.date(2026, 9, 30),
+    )
+    assert len(allocated) == 1
+    assert allocated[0]["categories"]["Insurance"] == 3000
+    assert allocated[0]["categories"]["Vehicle Tax"] == 600
+    assert allocated[0]["categories"]["Salary"] == 0
+    assert allocated[0]["amount"] == 3600
+
+
+def test_prorated_expense_without_a_trip_still_appears_in_pnl_groupings():
+    annual_period = serialize_period((dt.date(2026, 1, 1), dt.date(2026, 12, 31)))
+    expense = {
+        "trip_date": dt.date(2026, 1, 1), "branch": "Andheri",
+        "vehicle_number": "MH 04 LE 8409", "ownership_type": "Own",
+        "categories": {"Insurance": 36500},
+        "dtr_data": {"periods": {"Insurance": annual_period}},
+    }
+    allocated = allocate_expenses_for_period([expense], dt.date(2026, 9, 1), dt.date(2026, 9, 30))
+    both = branch_pnl_summary([], allocated)
+    own = branch_vehicle_pnl_summary([], allocated, "Own")
+    vehicles = vehicle_number_pnl_summary([], allocated)
+    assert both[0]["Branch"] == "Andheri" and both[0]["Ins/Tax"] == 3000
+    assert own[0]["Branch"] == "Andheri" and own[0]["Insurance"] == -3000
+    assert vehicles[0]["Vehicle No."] == "MH04LE8409" and vehicles[0]["Ins/Tax"] == 3000
 
 
 def test_column_mappings():
@@ -798,7 +833,7 @@ def test_both_vehicle_pnl_is_horizontal_and_branch_wise():
     ]
     expenses = [{
         "vehicle_number": "OWN-1", "amount": 2300,
-        "categories": {"Driver's salary": 2000, "Extra Expense": 300},
+        "categories": {"Driver's salary": 2000, "Extra Expense": 300, "RTO Challan & Fine": 700},
     }]
     rows = branch_pnl_summary(trips, expenses)
     assert list(rows[0]) == BRANCH_PNL_COLUMNS
@@ -806,10 +841,10 @@ def test_both_vehicle_pnl_is_horizontal_and_branch_wise():
     pune, wada, total = rows
     assert (pune["Revenue-Own"], pune["UPI"], pune["Diesel"], pune["Toll"]) == (20000, 1000, 4000, 500)
     assert pune["Driver's Salary"] == 2000
-    assert pune["Extra Exp"] == 300
-    assert (pune["Expense"], pune["Profit"]) == (7800, 12200)
+    assert pune["Extra Exp"] == 1000
+    assert (pune["Expense"], pune["Profit"]) == (8500, 11500)
     assert (wada["Revenue OS"], wada["Transporter Freight"], wada["Profit"]) == (30000, 22000, 8000)
-    assert (total["Total Revenue"], total["Expense"], total["Profit"]) == (50000, 29800, 20200)
+    assert (total["Total Revenue"], total["Expense"], total["Profit"]) == (50000, 30500, 19500)
 
 
 def test_vehicle_number_wise_pnl_groups_normalized_numbers_and_reconciles_total():

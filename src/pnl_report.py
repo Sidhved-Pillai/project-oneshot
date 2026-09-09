@@ -226,12 +226,15 @@ def branch_vehicle_pnl_summary(trip_rows, expense_rows, ownership):
             vehicle_branch[vehicle] = branch
     expenses_by_branch = defaultdict(list)
     for row in expense_rows:
+        expense_ownership = str(row.get("ownership_type") or "").strip().lower()
+        if expense_ownership and not expense_ownership.startswith(ownership.lower()):
+            continue
         vehicle = canonical_vehicle_number(row.get("vehicle_number"))
         branch = str(row.get("branch") or "").strip() or vehicle_branch.get(vehicle)
-        if branch in trips_by_branch:
+        if branch:
             expenses_by_branch[branch].append(row)
     rows = []
-    for branch in sorted(trips_by_branch, key=str.casefold):
+    for branch in sorted(set(trips_by_branch) | set(expenses_by_branch), key=str.casefold):
         vertical = vehicle_pnl_summary(trips_by_branch[branch], expenses_by_branch[branch], ownership)
         rows.append({"Branch": branch, **{item["Particular"]: item["Amount"] for item in vertical}})
     if rows:
@@ -253,18 +256,22 @@ def vehicle_number_pnl_summary(trip_rows, expense_rows):
     expenses_by_vehicle = defaultdict(list)
     for row in expense_rows:
         vehicle = canonical_vehicle_number(row.get("vehicle_number")) or "Not specified"
-        if vehicle in trips_by_vehicle:
-            expenses_by_vehicle[vehicle].append(row)
+        expenses_by_vehicle[vehicle].append(row)
 
     rows = []
-    for vehicle in sorted(trips_by_vehicle, key=str.casefold):
+    for vehicle in sorted(set(trips_by_vehicle) | set(expenses_by_vehicle), key=str.casefold):
         vehicle_trips = trips_by_vehicle[vehicle]
-        branch_rows = branch_pnl_summary(vehicle_trips, expenses_by_vehicle[vehicle])
+        vehicle_expenses = expenses_by_vehicle[vehicle]
+        branch_rows = branch_pnl_summary(vehicle_trips, vehicle_expenses)
         totals = next((row for row in reversed(branch_rows) if row.get("Branch") == "Total"), {})
-        branches = sorted({str(row.get("branch") or "").strip() for row in vehicle_trips} - {""}, key=str.casefold)
+        branches = sorted({
+            str(row.get("branch") or "").strip()
+            for row in [*vehicle_trips, *vehicle_expenses]
+        } - {""}, key=str.casefold)
         ownership = sorted({
             "Own" if str(row.get("ownership_type") or "").strip().lower().startswith("own") else "Outside"
-            for row in vehicle_trips
+            for row in [*vehicle_trips, *vehicle_expenses]
+            if str(row.get("ownership_type") or "").strip()
         })
         rows.append({
             "Vehicle No.": vehicle,
