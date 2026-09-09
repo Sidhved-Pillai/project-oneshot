@@ -1,3 +1,6 @@
+PRIVATE_RECORD_USERS = {"Manish", "Vijay"}
+
+
 def can_delete_record(user_name, record):
     """Sid may delete any visible record; Manish may delete only his own."""
     if user_name == "Sid":
@@ -6,5 +9,5 @@ def can_delete_record(user_name, record):
 
 
 def can_view_record(user_name, record):
-    """Manish's Records page is private to records created through his login."""
-    return user_name != "Manish" or str(record.get("created_by") or "").strip() == "Manish"
+    """Private Records pages show only entries created through that user's login."""
+    return user_name not in PRIVATE_RECORD_USERS or str(record.get("created_by") or "").strip() == user_name

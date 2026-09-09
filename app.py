@@ -10,7 +10,7 @@ import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
-from src.access_control import can_delete_record, can_view_record
+from src.access_control import PRIVATE_RECORD_USERS, can_delete_record, can_view_record
 from src.ai_intake import extract_intake, should_autofill_field
 from src.business_memory import build_business_memory, recall
 from src.config import ROOT
@@ -36,7 +36,7 @@ MANISH_DIRECT_EXPENSE_COLUMNS = [
     "Insurance", "Vehicle Tax", "Repair and maintenance", "Passing expense", "Extra Expense",
 ]
 ALL_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense"]
-BRANCHES = ["Wada", "Baroda", "Pune"]
+BRANCHES = ["Wada", "Pune", "Andheri"]
 SPECIAL_CODE_SALT = bytes.fromhex("28d7f0e0dfb9b32fecf4f4656d309042")
 SPECIAL_CODE_HASH = bytes.fromhex("b17d745a7cfdb8fad453e479e3950b905f0505478fe8268461ae74fdbc2248fb")
 MEMBER_CODE_HASHES = {
@@ -48,11 +48,12 @@ MEMBER_CODE_HASHES = {
     "Nikhil": "40ed3b8fb38df58e9bef001c1bab0d0c9b08a4b13a84a9e7a9b4d549bb2c5e90",
     "Vinod": "48b3093ec26141bd7b8b150a7669023586f1bd3b53fd6a3a05777aa9e3d76aac",
     "Manish": "a021c3c411a4a3cb971eeb978f3df49f172c31d58a270a7d8c7a4218a2eb24f9",
+    "Vijay": "a0ae28758834b30cb27b787516334e01d007e2cea22e6e55f299fa56c376a4a1",
 }
 SPECIAL_MEMBERS = {"Sid", "Ajit", "Vinod", "Nikhil", "Shyam", "Nikhat"}
 PNL_MEMBERS = {"Sid", "Ajit", "Vinod", "Nikhil"}
 AUDITED_MEMBERS = {"Ajit", "Nikhat", "Shyam"}
-LIMITED_RECORD_BRANCH = {"Nitish": "Pune", "Gopal": "Pune", "Manish": "Wada"}
+LIMITED_RECORD_BRANCH = {"Nitish": "Pune", "Gopal": "Pune", "Manish": "Wada", "Vijay": "Andheri"}
 CANONICAL_VEHICLE_PLACERS = ("Nitish Jha", "Ajit Thakur", "Manish Jha")
 LOGIN_VEHICLE_PLACERS = {"Nitish": "Nitish Jha", "Ajit": "Ajit Thakur", "Manish": "Manish Jha"}
 ASCII_BOLD = str.maketrans(
@@ -907,9 +908,9 @@ with records_tab:
     if record_branch_scope:
         rows = [row for row in rows if clean_text(row.get("branch")).casefold() == record_branch_scope.casefold()]
         st.caption(f"Your account can access {record_branch_scope} records only.")
-    if current_user == "Manish":
+    if current_user in PRIVATE_RECORD_USERS:
         rows = [row for row in rows if can_view_record(current_user, row)]
-        st.caption("Your account can access records created by Manish only.")
+        st.caption(f"Your account can access records created by {current_user} only.")
     scoped_rows = list(rows)
     if rows:
         st.markdown("#### Filter records")

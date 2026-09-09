@@ -5,7 +5,7 @@ import pandas as pd
 from openpyxl import Workbook, load_workbook
 import pytest
 from sqlalchemy import event
-from src.access_control import can_delete_record, can_view_record
+from src.access_control import PRIVATE_RECORD_USERS, can_delete_record, can_view_record
 from src.excel_reader import detect_header_row
 from src.column_mapping import resolve_columns, DTR_ALIASES, CONSOLIDATED_ALIASES
 from src.remark_classifier import classify_remark
@@ -68,6 +68,11 @@ def test_record_delete_permissions_are_owner_scoped_for_manish():
     assert can_view_record("Manish", manish_record)
     assert not can_view_record("Manish", ajit_record)
     assert can_view_record("Sid", ajit_record)
+    vijay_record = {"created_by": "Vijay"}
+    assert PRIVATE_RECORD_USERS == {"Manish", "Vijay"}
+    assert can_view_record("Vijay", vijay_record)
+    assert not can_view_record("Vijay", ajit_record)
+    assert not can_delete_record("Vijay", vijay_record)
 
 
 def test_records_can_be_filtered_by_type_and_sorted_by_date():
