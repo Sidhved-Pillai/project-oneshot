@@ -12,7 +12,7 @@ from .vehicle_normalization import canonical_vehicle_number
 DIRECT_EXPENSE_COLUMNS = [
     "Route expense", "Bill discounting", "Salary", "Driver's salary", "Rent",
     "Office & General expenses", "Conveyance", "EMI", "Insurance", "Vehicle Tax",
-    "Repair and maintenance", "Interest", "Extra Expense",
+    "Repair and maintenance", "Interest", "Extra Expense", "RTO Challan & Fine",
 ]
 REPORT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense"]
 BRANCH_PNL_COLUMNS = [
@@ -124,7 +124,7 @@ def branch_pnl_summary(trip_rows, expense_rows):
             "Revenue OS": revenue_outside,
             "Total Revenue": revenue_own + revenue_outside,
             "Transporter Freight": transporter,
-            "Extra Exp": categories["Route expense"] + categories["Extra Expense"],
+            "Extra Exp": categories["Route expense"] + categories["Extra Expense"] + categories["RTO Challan & Fine"],
             "Passing Exp": categories["Passing expense"],
             "Bill Discounting": categories["Bill discounting"],
             "UPI": upi,
@@ -174,7 +174,8 @@ def vehicle_pnl_summary(trip_rows, expense_rows, ownership):
         vehicle_tax = _category_total(own_expenses, "Vehicle Tax")
         repairs = sum(_amount(row.get("dtr_data", {}), "Repairs & Maintenance") for row in own_trips)
         repairs += _category_total(own_expenses, "Repair and maintenance")
-        expenses = route + toll + diesel + driver_salary + emi + insurance + vehicle_tax + repairs
+        rto_challan = _category_total(own_expenses, "RTO Challan & Fine")
+        expenses = route + toll + diesel + driver_salary + emi + insurance + vehicle_tax + repairs + rto_challan
         return [
             {"Particular": "Revenue freight", "Amount": revenue},
             {"Particular": "Route expenses (UPI)", "Amount": -route},
@@ -185,6 +186,7 @@ def vehicle_pnl_summary(trip_rows, expense_rows, ownership):
             {"Particular": "Insurance", "Amount": -insurance},
             {"Particular": "Vehicle Tax", "Amount": -vehicle_tax},
             {"Particular": "Repair and maintenance", "Amount": -repairs},
+            {"Particular": "RTO Challan & Fine", "Amount": -rto_challan},
             {"Particular": "Net Profit / (Loss)", "Amount": revenue - expenses},
         ]
 

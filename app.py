@@ -16,14 +16,13 @@ from src.business_memory import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
 from src.entry_state import clear_entry_state, entry_state_prefix
-from src.leaderboard import branch_trip_leaderboard
+from src.current_leaderboard import branch_trip_leaderboard
 from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, filter_record_type, sort_records_by_date
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
 from src.vehicle_normalization import canonical_vehicle_number
-from src.workflow_pnl import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary
-from src.vehicle_pnl_report import vehicle_number_pnl_summary, export_pnl
+from src.current_pnl_report import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.workflow_store import RequestStore
 
 load_dotenv(ROOT / ".env")
@@ -33,7 +32,7 @@ PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advanc
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 MANISH_DIRECT_EXPENSE_COLUMNS = [
     "Driver's salary", "Office & General expenses", "EMI", "Conveyance",
-    "Insurance", "Vehicle Tax", "Repair and maintenance", "Passing expense", "Extra Expense",
+    "Insurance", "Vehicle Tax", "Repair and maintenance", "Passing expense", "Extra Expense", "RTO Challan & Fine",
 ]
 ALL_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense"]
 BRANCHES = ["Wada", "Pune", "Andheri"]
@@ -48,7 +47,7 @@ MEMBER_CODE_HASHES = {
     "Nikhil": "40ed3b8fb38df58e9bef001c1bab0d0c9b08a4b13a84a9e7a9b4d549bb2c5e90",
     "Vinod": "48b3093ec26141bd7b8b150a7669023586f1bd3b53fd6a3a05777aa9e3d76aac",
     "Manish": "a021c3c411a4a3cb971eeb978f3df49f172c31d58a270a7d8c7a4218a2eb24f9",
-    "Vijay": "a0ae28758834b30cb27b787516334e01d007e2cea22e6e55f299fa56c376a4a1",
+    "Vijay": "d2c8a6da1a9291485a92dd8554cf42be1e28090b517a503b9d3e2fbfbc8469cb",
 }
 SPECIAL_MEMBERS = {"Sid", "Ajit", "Vinod", "Nikhil", "Shyam", "Nikhat"}
 PNL_MEMBERS = {"Sid", "Ajit", "Vinod", "Nikhil"}
@@ -590,7 +589,7 @@ KNOWN_LOCATIONS = sorted({
 } - {""}, key=str.casefold)
 current_user = st.session_state.get("authenticated_user", "Unknown member")
 is_special_member = current_user in SPECIAL_MEMBERS
-can_use_direct_expenses = is_special_member or current_user == "Manish"
+can_use_direct_expenses = is_special_member or current_user in {"Manish", "Vijay"}
 can_generate_reports = is_special_member
 can_generate_pnl = current_user in PNL_MEMBERS
 record_branch_scope = LIMITED_RECORD_BRANCH.get(current_user)
@@ -898,7 +897,10 @@ with expense_tab:
         if paid_total and abs(expense_total - paid_total) > 0.01:
             st.warning("Expense total and payment-mode total do not match. Review before saving.")
         if st.button("Save direct expense", type="primary", key="save_expense", disabled=not can_use_direct_expenses):
-            saved = store.create({**expense_payload(v, expense_files), "created_by": current_user})
+            saved = store.create({
+                **expense_payload(v, expense_files), "created_by": current_user,
+                "branch": record_branch_scope or "",
+            })
             audit_action("Created direct expense", saved, request_label(saved, v["date"]))
             st.success(f"Saved {request_label(saved, v['date'])}.")
 
@@ -906,7 +908,15 @@ with records_tab:
     page_intro("", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
     rows = store.list(status="All active")
     if record_branch_scope:
-        rows = [row for row in rows if clean_text(row.get("branch")).casefold() == record_branch_scope.casefold()]
+        rows = [
+            row for row in rows
+            if clean_text(row.get("branch")).casefold() == record_branch_scope.casefold()
+            or (
+                row.get("report_scope") == "Expense"
+                and clean_text(row.get("created_by")) == current_user
+                and not clean_text(row.get("branch"))
+            )
+        ]
         st.caption(f"Your account can access {record_branch_scope} records only.")
     if current_user in PRIVATE_RECORD_USERS:
         rows = [row for row in rows if can_view_record(current_user, row)]
@@ -954,13 +964,27 @@ with records_tab:
         if record_type == TRIP_RECORDS:
             leaderboard_rows = "".join(
                 f"<tr><td>{rank}</td><td>{branch}</td><td>{trip_count}</td><td>₹{revenue:,.2f}</td></tr>"
-                for rank, (branch, trip_count, revenue) in enumerate(branch_trip_leaderboard(rows), 1)
+                for rank, (branch, trip_count, revenue) in enumerate(
+                    branch_trip_leaderboard(rows, [record_branch_scope] if record_branch_scope else BRANCHES), 1
+                )
             )
             st.markdown("#### Trip leaderboard")
             st.markdown(
                 f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_rows}</tbody></table>',
                 unsafe_allow_html=True,
             )
+    elif record_branch_scope:
+        empty_leaderboard_rows = "".join(
+            f"<tr><td>{rank}</td><td>{branch}</td><td>{trip_count}</td><td>₹{revenue:,.2f}</td></tr>"
+            for rank, (branch, trip_count, revenue) in enumerate(
+                branch_trip_leaderboard([], [record_branch_scope]), 1
+            )
+        )
+        st.markdown("#### Trip leaderboard")
+        st.markdown(
+            f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{empty_leaderboard_rows}</tbody></table>',
+            unsafe_allow_html=True,
+        )
     if not rows:
         st.info("No records match the selected filters.")
     else:

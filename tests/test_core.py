@@ -18,7 +18,7 @@ from src.gemini_parser import parse_with_gemini
 from src.historical_suggester import HistoricalSuggester
 from src.entry_finance import advance_summary, diesel_expense, financial_values
 from src.entry_state import clear_entry_state, entry_state_prefix
-from src.leaderboard import branch_trip_leaderboard
+from src.current_leaderboard import branch_trip_leaderboard
 from src.record_filters import DIRECT_EXPENSES, TRIP_RECORDS, filter_record_type, sort_records_by_date
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
@@ -122,6 +122,7 @@ def test_trip_leaderboard_aggregates_branch_performance():
         ("Pune", 2, 25000.0),
         ("Wada", 2, 20000.0),
     ]
+    assert branch_trip_leaderboard(rows, ["Wada", "Pune", "Andheri"])[-1] == ("Andheri", 0, 0.0)
 
 
 def test_diesel_expense_is_quantity_times_rate():
@@ -712,7 +713,8 @@ def test_pnl_uses_trip_margin_and_direct_expense_categories():
     assert values["Net Profit / (Loss)"] == 19000
     workbook = load_workbook(BytesIO(export_pnl(trips, expenses, dt.date(2026, 8, 1), dt.date(2026, 8, 31))))
     assert workbook["P&L"]["A1"].value.startswith("Profit & Loss")
-    assert len(DIRECT_EXPENSE_COLUMNS) == 13
+    assert len(DIRECT_EXPENSE_COLUMNS) == 14
+    assert "RTO Challan & Fine" in DIRECT_EXPENSE_COLUMNS
 
 
 def test_pnl_includes_manish_passing_expense():
@@ -730,17 +732,19 @@ def test_own_vehicle_pnl_uses_requested_expenses():
     }]
     expenses = [{"categories": {
         "Driver's salary": 5000, "EMI": 3000, "Insurance": 2000, "Vehicle Tax": 500,
+        "RTO Challan & Fine": 750,
     }}]
     rows = vehicle_pnl_summary(trips, expenses, "Own")
     values = {row["Particular"]: row["Amount"] for row in rows}
     assert list(values) == [
         "Revenue freight", "Route expenses (UPI)", "Toll charges", "Diesel amount",
         "Driver's salary", "EMI", "Insurance", "Vehicle Tax",
-        "Repair and maintenance", "Net Profit / (Loss)",
+        "Repair and maintenance", "RTO Challan & Fine", "Net Profit / (Loss)",
     ]
     assert values["Route expenses (UPI)"] == -2500
     assert values["Repair and maintenance"] == -1500
-    assert values["Net Profit / (Loss)"] == 26500
+    assert values["RTO Challan & Fine"] == -750
+    assert values["Net Profit / (Loss)"] == 25750
 
 
 def test_own_vehicle_pnl_recovers_upi_from_embedded_dtr_data():

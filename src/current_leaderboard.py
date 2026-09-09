@@ -1,5 +1,7 @@
+"""Branch leaderboard kept separate for safe Streamlit hot deployment."""
+
+
 def branch_trip_leaderboard(rows, branches=()):
-    """Aggregate trip count and revenue by the record's saved branch."""
     totals = {str(branch).strip().casefold(): (0, 0.0) for branch in branches if str(branch).strip()}
     labels = {str(branch).strip().casefold(): str(branch).strip() for branch in branches if str(branch).strip()}
     for row in rows:
