@@ -17,6 +17,7 @@ from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
 from src.entry_state import clear_entry_state, entry_state_prefix
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
+from src.pending_invoice_matcher import suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
 from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, export_operational_dtr
@@ -1079,6 +1080,126 @@ with records_tab:
         "Record order", ["↓", "↑"], default="↓", key="records_sort_arrow",
         label_visibility="collapsed", help="↓ Newest to oldest · ↑ Oldest to newest",
     )
+    if current_user == "Vijay":
+        pending_invoice_rows = [
+            row for row in filter_without_invoice_evidence(scoped_rows, True)
+            if row.get("report_scope") != "Expense"
+            and clean_text(row.get("created_by")) == "Vijay"
+            and clean_text(row.get("branch")).casefold() == "andheri"
+        ]
+        with st.expander("Upload Pending Invoices & Match"):
+            st.caption(
+                "Upload multiple invoice images or PDFs. Review every suggested match before attaching them."
+            )
+            pending_uploads = st.file_uploader(
+                "Pending invoice files",
+                type=["png", "jpg", "jpeg", "webp", "pdf"],
+                accept_multiple_files=True,
+                key="vijay_pending_invoice_uploads",
+            )
+            if st.button(
+                "Analyse and match invoices",
+                key="analyse_vijay_pending_invoices",
+                disabled=not pending_uploads or not pending_invoice_rows,
+            ):
+                drafts = []
+                progress = st.progress(0, text="Reading pending invoices…")
+                for index, uploaded in enumerate(pending_uploads, 1):
+                    source = {
+                        "filename": uploaded.name,
+                        "mime_type": uploaded.type or "application/octet-stream",
+                        "data": uploaded.getvalue(),
+                    }
+                    try:
+                        result, _ = extract_intake(
+                            secret("GEMINI_API_KEY"), "DTR",
+                            "Read this single invoice for matching to an existing Andheri trip record. Do not invent missing values.",
+                            [source], secret("GEMINI_MODEL"),
+                        )
+                        extracted = result.rows[0].model_dump() if result.rows else {}
+                        suggested, confidence, reason = suggest_invoice_match(extracted, pending_invoice_rows)
+                        drafts.append({
+                            **source,
+                            "suggested_request_number": suggested.get("request_number") if suggested else "",
+                            "confidence": confidence,
+                            "reason": reason,
+                            "vehicle_number": canonical_vehicle_number(extracted.get("vehicle_number")),
+                            "invoice_number": clean_text(extracted.get("invoice_number")),
+                            "lr_number": clean_text(extracted.get("lr_number")),
+                            "date": clean_text(extracted.get("date")),
+                            "error": "",
+                        })
+                    except Exception as exc:
+                        drafts.append({
+                            **source, "suggested_request_number": "", "confidence": "Error",
+                            "reason": "Invoice could not be read", "vehicle_number": "",
+                            "invoice_number": "", "lr_number": "", "date": "", "error": str(exc),
+                        })
+                    progress.progress(index / len(pending_uploads), text=f"Read {index} of {len(pending_uploads)} invoice(s)")
+                progress.empty()
+                st.session_state["vijay_pending_invoice_matches"] = drafts
+
+            drafts = st.session_state.get("vijay_pending_invoice_matches", [])
+            if drafts:
+                candidate_labels = {
+                    f"{request_label(candidate)} | {canonical_vehicle_number(candidate.get('vehicle_number')) or 'No vehicle'} | {as_date(candidate.get('trip_date')):%d/%m/%y}": candidate
+                    for candidate in pending_invoice_rows
+                }
+                request_to_label = {
+                    candidate["request_number"]: label for label, candidate in candidate_labels.items()
+                }
+                review_rows = [{
+                    "File": draft["filename"],
+                    "Vehicle": draft["vehicle_number"] or "—",
+                    "Invoice / LR": draft["invoice_number"] or draft["lr_number"] or "—",
+                    "Invoice Date": draft["date"] or "—",
+                    "Confidence": draft["confidence"],
+                    "Match reason": draft["reason"],
+                    "Match to record": request_to_label.get(draft["suggested_request_number"], "Do not attach"),
+                } for draft in drafts]
+                reviewed_matches = st.data_editor(
+                    pd.DataFrame(review_rows), hide_index=True, width="stretch",
+                    disabled=["File", "Vehicle", "Invoice / LR", "Invoice Date", "Confidence", "Match reason"],
+                    column_config={
+                        "Match to record": st.column_config.SelectboxColumn(
+                            "Match to record", options=["Do not attach", *candidate_labels], required=True,
+                        ),
+                    },
+                    key="vijay_pending_invoice_match_review",
+                )
+                selected_labels = [
+                    label for label in reviewed_matches["Match to record"].tolist()
+                    if label != "Do not attach"
+                ]
+                duplicate_matches = len(selected_labels) != len(set(selected_labels))
+                if duplicate_matches:
+                    st.warning("The same record is selected for more than one invoice. Choose one invoice per record.")
+                if st.button(
+                    "Confirm and attach invoices", type="primary",
+                    key="confirm_vijay_pending_invoices",
+                    disabled=not selected_labels or duplicate_matches,
+                ):
+                    attached = 0
+                    skipped = 0
+                    for draft, selected_label in zip(drafts, reviewed_matches["Match to record"].tolist()):
+                        candidate = candidate_labels.get(selected_label)
+                        if not candidate or not can_view_record(current_user, candidate):
+                            continue
+                        if store.attach_evidence(
+                            candidate["request_number"], draft["filename"], draft["mime_type"],
+                            draft["data"], edited_by=current_user,
+                        ):
+                            attached += 1
+                            audit_action(
+                                "Attached pending invoice", candidate["request_number"], draft["filename"],
+                            )
+                        else:
+                            skipped += 1
+                    st.session_state.pop("vijay_pending_invoice_matches", None)
+                    st.toast(f"Attached {attached} invoice(s). {skipped} record(s) were skipped.", icon="✅")
+                    st.rerun()
+            elif not pending_invoice_rows:
+                st.info("There are no Vijay trip records waiting for invoice evidence.")
     trip_record_count = sum(row.get("report_scope") != "Expense" for row in rows)
     expense_record_count = sum(row.get("report_scope") == "Expense" for row in rows)
     st.caption(f"{trip_record_count} trip record(s) and {expense_record_count} direct expense record(s) listed.")

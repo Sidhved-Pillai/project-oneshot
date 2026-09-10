@@ -19,6 +19,7 @@ from src.historical_suggester import HistoricalSuggester
 from src.entry_finance import advance_summary, diesel_expense, financial_values
 from src.entry_state import clear_entry_state, entry_state_prefix
 from src.expense_periods import allocate_expenses_for_period, serialize_period
+from src.pending_invoice_matcher import score_invoice_match, suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
 from src.record_filters import DIRECT_EXPENSES, TRIP_RECORDS, filter_record_type, filter_without_invoice_evidence, has_invoice_evidence, sort_records_by_date
 from src.request_store import RequestStore, rows_to_dtr
@@ -140,6 +141,41 @@ def test_records_without_invoice_evidence_filter_uses_metadata_only():
     assert not has_invoice_evidence(rows[1])
     assert [row["id"] for row in filter_without_invoice_evidence(rows, True)] == [2, 3]
     assert filter_without_invoice_evidence(rows, False) == rows
+
+
+def test_pending_invoice_match_prefers_unique_invoice_and_vehicle_details():
+    extracted = {
+        "invoice_number": "INV 7788", "lr_number": "LR 101",
+        "vehicle_number": "mh 04 le 8409", "date": "09/09/2026",
+        "company_name": "Saint Gobain India", "from_location": "Talegaon", "to_location": "Andheri",
+    }
+    candidates = [
+        {
+            "request_number": "REQ-1", "invoice_number": "INV-7788", "vehicle_number": "MH04LE8409",
+            "trip_date": dt.date(2026, 9, 9), "company_name": "Saint Gobain India",
+            "from_location": "Talegaon", "to_location": "Andheri", "dtr_data": {},
+        },
+        {
+            "request_number": "REQ-2", "invoice_number": "INV-9999", "vehicle_number": "MH14AB1234",
+            "trip_date": dt.date(2026, 9, 8), "company_name": "Other Company", "dtr_data": {},
+        },
+    ]
+    score, reasons = score_invoice_match(extracted, candidates[0])
+    suggested, confidence, reason = suggest_invoice_match(extracted, candidates)
+    assert score >= 170 and "invoice or LR number" in reasons
+    assert suggested["request_number"] == "REQ-1"
+    assert confidence == "High" and "vehicle number" in reason
+
+
+def test_pending_invoice_match_does_not_guess_between_ambiguous_records():
+    extracted = {"vehicle_number": "MH04LE8409"}
+    candidates = [
+        {"request_number": "REQ-1", "vehicle_number": "MH04LE8409", "dtr_data": {}},
+        {"request_number": "REQ-2", "vehicle_number": "MH 04 LE 8409", "dtr_data": {}},
+    ]
+    assert suggest_invoice_match(extracted, candidates) == (
+        None, "Review", "Multiple records have similar details",
+    )
 
 
 def test_insurance_and_vehicle_tax_are_prorated_by_selected_pnl_period():
@@ -402,6 +438,21 @@ def test_financial_mapping_and_persistent_request_roundtrip(tmp_path):
     }
     dtr = rows_to_dtr(rows)
     assert dtr.iloc[0]["UPI"] == 1250 and dtr.iloc[0]["Invoice No."] == "INV-7"
+
+
+def test_pending_invoice_attachment_never_overwrites_existing_evidence(tmp_path):
+    store = RequestStore(f"sqlite:///{tmp_path / 'pending-invoice.db'}")
+    number = store.create({
+        "trip_date": dt.date(2026, 9, 9), "vehicle_number": "MH04LE8409",
+        "created_by": "Vijay", "branch": "Andheri",
+    })
+    assert store.attach_evidence(number, "first.jpg", "image/jpeg", b"first", edited_by="Vijay")
+    assert not store.attach_evidence(number, "second.jpg", "image/jpeg", b"second", edited_by="Vijay")
+    assert store.get_evidence(number) == {
+        "source_filename": "first.jpg", "source_mime_type": "image/jpeg", "source_image": b"first",
+    }
+    listed = store.get(number)
+    assert listed["source_filename"] == "first.jpg" and "source_image" not in listed
 
 
 def test_record_listing_never_selects_or_returns_evidence_bytes(tmp_path):

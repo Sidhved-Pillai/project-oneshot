@@ -286,6 +286,30 @@ class RequestStore:
             ).mappings().first()
         return dict(row) if row else None
 
+    def attach_evidence(self, request_number, filename, mime_type, payload, edited_by=""):
+        """Attach evidence once; never overwrite evidence already stored on a record."""
+        if not request_number or not payload:
+            return False
+        with self.engine.begin() as conn:
+            result = conn.execute(
+                update(requests).where(
+                    requests.c.request_number == request_number,
+                    requests.c.source_image.is_(None),
+                ).values(
+                    source_filename=filename,
+                    source_mime_type=mime_type,
+                    source_image=payload,
+                    updated_at=dt.datetime.now(),
+                )
+            )
+            if not result.rowcount:
+                return False
+            row = conn.execute(
+                select(*REQUEST_METADATA_COLUMNS).where(requests.c.request_number == request_number)
+            ).mappings().first()
+            self._insert_revision(conn, request_number, dict(row), "pending_invoice_match", edited_by)
+        return True
+
     def delete_request(self, request_number):
         """Permanently delete one unified record and its revision history."""
         with self.engine.begin() as conn:
