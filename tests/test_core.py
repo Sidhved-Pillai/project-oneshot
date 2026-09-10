@@ -455,6 +455,23 @@ def test_pending_invoice_attachment_never_overwrites_existing_evidence(tmp_path)
     assert listed["source_filename"] == "first.jpg" and "source_image" not in listed
 
 
+def test_explicit_record_edit_can_replace_evidence_without_affecting_metadata(tmp_path):
+    store = RequestStore(f"sqlite:///{tmp_path / 'replace-evidence.db'}")
+    number = store.create({
+        "trip_date": dt.date(2026, 9, 9), "vehicle_number": "MH04LE8409",
+        "company_name": "Saint Gobain", "source_filename": "old.jpg",
+        "source_mime_type": "image/jpeg", "source_image": b"old",
+    })
+    store.update(number, {
+        "company_name": "Saint Gobain Updated", "source_filename": "new.pdf",
+        "source_mime_type": "application/pdf", "source_image": b"new",
+    }, "records_tab", "Sid")
+    assert store.get(number)["company_name"] == "Saint Gobain Updated"
+    assert store.get_evidence(number) == {
+        "source_filename": "new.pdf", "source_mime_type": "application/pdf", "source_image": b"new",
+    }
+
+
 def test_record_listing_never_selects_or_returns_evidence_bytes(tmp_path):
     store = RequestStore(f"sqlite:///{tmp_path / 'lightweight-list.db'}")
     evidence = b"invoice" * 750_000

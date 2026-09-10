@@ -693,8 +693,22 @@ def view_record(row):
         pd.DataFrame([display]), hide_index=True, width="stretch", disabled=locked_columns,
         key=f"record_editor_{row['request_number']}",
     )
-    if evidence.get("source_image"):
+    has_evidence = bool(evidence.get("source_image"))
+    replace_evidence_key = f"replace_record_evidence_{request_number}"
+    replace_evidence = bool(st.session_state.get(replace_evidence_key))
+    if has_evidence:
+        evidence_title, evidence_remove = st.columns([8, 1], vertical_alignment="center")
+        evidence_title.markdown("#### Invoice evidence")
+        if evidence_remove.button(
+            "✕", key=f"remove_record_evidence_{request_number}",
+            help="Replace this invoice evidence", use_container_width=True,
+        ):
+            st.session_state[replace_evidence_key] = True
+            replace_evidence = True
+    else:
         st.markdown("#### Invoice evidence")
+    replacement_evidence = None
+    if has_evidence and not replace_evidence:
         if clean_text(evidence.get("source_mime_type")).startswith("image/"):
             st.image(evidence["source_image"], caption=evidence.get("source_filename", "Invoice evidence"), width=500)
         else:
@@ -703,9 +717,12 @@ def view_record(row):
                 evidence.get("source_mime_type"),
             )
     else:
-        st.caption("No invoice evidence is attached to this record.")
+        if replace_evidence:
+            st.warning("Choose a replacement invoice. The existing evidence will remain unchanged until you save.")
+        else:
+            st.caption("No invoice evidence is attached to this record.")
         replacement_evidence = st.file_uploader(
-            "Upload invoice evidence",
+            "Upload replacement invoice evidence" if replace_evidence else "Upload invoice evidence",
             type=["png", "jpg", "jpeg", "webp", "pdf"],
             key=f"record_evidence_upload_{request_number}",
             help="Attach the invoice image or PDF, then click Save record changes.",
@@ -714,7 +731,13 @@ def view_record(row):
     repair_reason_missing = is_own_record and number(edited_item.get("Repairs & Maintenance")) > 0 and not clean_text(edited_item.get("Reason"))
     if repair_reason_missing:
         st.caption("Reason is required before repair and maintenance changes can be saved.")
-    if st.button("Save record changes", type="primary", key=f"save_record_{row['request_number']}", disabled=repair_reason_missing):
+    replacement_missing = replace_evidence and replacement_evidence is None
+    if replacement_missing:
+        st.caption("Upload the replacement invoice before saving record changes.")
+    if st.button(
+        "Save record changes", type="primary", key=f"save_record_{row['request_number']}",
+        disabled=repair_reason_missing or replacement_missing,
+    ):
         item = edited_item
         ownership_type = clean_text(item["Own / Outside"])
         transporter_freight = float(applicable_transporter_freight(ownership_type, item["Transporter Freight"]))
@@ -734,7 +757,7 @@ def view_record(row):
             "diesel_advance": number(item["Diesel"]),
             "notes": trip_auto_remark(item["Vehicle"], item["From"], item["To"], item["Vehicle Capacity"], as_date(item["Date"])) if not is_expense else plain_remark(item["Remarks"]),
         }
-        if not evidence.get("source_image") and replacement_evidence is not None:
+        if replacement_evidence is not None:
             update_values.update({
                 "source_filename": replacement_evidence.name,
                 "source_mime_type": replacement_evidence.type or "application/octet-stream",
@@ -810,6 +833,9 @@ def view_record(row):
             })
         store.update(row["request_number"], update_values, "records_tab", current_user)
         audit_action("Updated record", row["request_number"], request_label(row))
+        st.session_state.pop(replace_evidence_key, None)
+        st.session_state.pop("evidence_request_number", None)
+        st.session_state.pop("evidence_record", None)
         st.toast("Record updated. A revision snapshot was saved.", icon="✅")
         st.rerun()
 
@@ -830,7 +856,7 @@ html,body,[class*="css"]{font-family:'DM Sans',sans-serif}.stApp,[data-testid="s
 .billtee-board{width:100%;margin:6px 0 18px;border-collapse:separate;border-spacing:0;overflow:hidden;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.82)}.billtee-board th,.billtee-board td{padding:11px 15px;text-align:left;border-bottom:1px solid #edf1f5;font-weight:800}.billtee-board th{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.05em}.billtee-board td:last-child,.billtee-board th:last-child{text-align:right}.billtee-board tr:last-child td{border-bottom:0}
 div[data-testid="stVerticalBlockBorderWrapper"]{background:rgba(255,255,255,.92);border:1px solid rgba(215,228,224,.95)!important;border-radius:20px;box-shadow:0 12px 36px rgba(34,63,68,.075);transition:transform .2s ease,box-shadow .2s ease}div[data-testid="stVerticalBlockBorderWrapper"]:hover{box-shadow:0 16px 42px rgba(34,63,68,.1)}h4{font:800 1rem 'Manrope'!important;color:#214047!important;padding:10px 0 7px!important;border-bottom:1px solid #edf2f1}
 [data-testid="stFileUploader"]{padding:13px;border-radius:17px;background:rgba(255,255,255,.78);border:1px solid var(--line)}[data-testid="stFileUploaderDropzone"]{border:1.5px dashed #8bbdec;background:linear-gradient(145deg,#f7fbff,#edf6ff);border-radius:13px;transition:all .2s ease}[data-testid="stFileUploaderDropzone"]:hover{border-color:var(--teal);transform:translateY(-1px);box-shadow:0 8px 20px rgba(0,113,227,.1)}[data-testid="stAudioInput"]{padding:13px;border:1px solid var(--line);border-radius:17px;background:rgba(255,255,255,.78)}[data-testid="stAudioInput"] button{color:#fff!important;background:#0071e3!important;border:2px solid #0071e3!important;border-radius:999px!important;box-shadow:0 3px 10px rgba(0,113,227,.25)!important}
-[data-baseweb="input"]>div,[data-baseweb="select"]>div,textarea{border-color:#dce3eb!important;border-radius:12px!important;background:#fff!important;transition:border .18s ease,box-shadow .18s ease!important}[data-baseweb="input"]>div:focus-within,[data-baseweb="select"]>div:focus-within,textarea:focus{border-color:#0071e3!important;box-shadow:0 0 0 3px rgba(0,113,227,.1)!important}[data-testid="InputInstructions"]{display:none!important}[data-testid="stNumberInput"] button{display:none!important}.stButton>button,.stDownloadButton>button{border-radius:999px;font-weight:700;min-height:42px;padding-left:20px;padding-right:20px;transition:transform .18s ease,box-shadow .18s ease}.stButton>button[kind="primary"],.stDownloadButton>button[kind="primary"]{position:relative;overflow:hidden;border:0;color:#fff;background:#0071e3;box-shadow:0 7px 18px rgba(0,113,227,.22)}.stButton>button:hover,.stDownloadButton>button:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(0,113,227,.28)}[class*="st-key-delete_record_"] button{min-width:46px!important;padding:0!important;border:0!important;color:#fff!important;background:#e11d2e!important;box-shadow:0 7px 18px rgba(225,29,46,.22)!important}[class*="st-key-delete_record_"] button p{font-size:0!important}[class*="st-key-delete_record_"] button span{color:#fff!important;font-size:1.25rem!important}[class*="st-key-delete_record_"] button:hover{background:#c8102e!important;box-shadow:0 10px 24px rgba(225,29,46,.3)!important}[class*="st-key-trip_voice_autofill"] button,.st-key-expense_voice_autofill button{color:#fff!important;background:linear-gradient(135deg,#1f9d60,#27b974)!important;box-shadow:0 8px 20px rgba(31,157,96,.22)!important}[class*="st-key-trip_voice_autofill"] button:disabled,.st-key-expense_voice_autofill button:disabled{color:#fff!important;background:#8fd5ae!important;opacity:.72!important}
+[data-baseweb="input"]>div,[data-baseweb="select"]>div,textarea{border-color:#dce3eb!important;border-radius:12px!important;background:#fff!important;transition:border .18s ease,box-shadow .18s ease!important}[data-baseweb="input"]>div:focus-within,[data-baseweb="select"]>div:focus-within,textarea:focus{border-color:#0071e3!important;box-shadow:0 0 0 3px rgba(0,113,227,.1)!important}[data-testid="InputInstructions"]{display:none!important}[data-testid="stNumberInput"] button{display:none!important}.stButton>button,.stDownloadButton>button{border-radius:999px;font-weight:700;min-height:42px;padding-left:20px;padding-right:20px;transition:transform .18s ease,box-shadow .18s ease}.stButton>button[kind="primary"],.stDownloadButton>button[kind="primary"]{position:relative;overflow:hidden;border:0;color:#fff;background:#0071e3;box-shadow:0 7px 18px rgba(0,113,227,.22)}.stButton>button:hover,.stDownloadButton>button:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(0,113,227,.28)}[class*="st-key-delete_record_"] button,[class*="st-key-remove_record_evidence_"] button{min-width:46px!important;padding:0!important;border:0!important;color:#fff!important;background:#e11d2e!important;box-shadow:0 7px 18px rgba(225,29,46,.22)!important}[class*="st-key-delete_record_"] button p{font-size:0!important}[class*="st-key-delete_record_"] button span,[class*="st-key-remove_record_evidence_"] button span{color:#fff!important;font-size:1.25rem!important}[class*="st-key-delete_record_"] button:hover,[class*="st-key-remove_record_evidence_"] button:hover{background:#c8102e!important;box-shadow:0 10px 24px rgba(225,29,46,.3)!important}[class*="st-key-trip_voice_autofill"] button,.st-key-expense_voice_autofill button{color:#fff!important;background:linear-gradient(135deg,#1f9d60,#27b974)!important;box-shadow:0 8px 20px rgba(31,157,96,.22)!important}[class*="st-key-trip_voice_autofill"] button:disabled,.st-key-expense_voice_autofill button:disabled{color:#fff!important;background:#8fd5ae!important;opacity:.72!important}
 div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);border:1px solid #d6e7f7;border-radius:16px;padding:13px 16px;box-shadow:0 5px 16px rgba(0,80,160,.05)}[data-testid="stMetricLabel"]{color:#6e7781;font-weight:700}[data-testid="stMetricValue"]{font:800 1.28rem 'Manrope';color:#0066cc}.profit-loss-card{min-height:91px;padding:13px 16px;border:1px solid #d6e7f7;border-radius:16px;background:linear-gradient(145deg,#f8fbff,#eef6ff);box-shadow:0 5px 16px rgba(0,80,160,.05)}.profit-loss-card span{display:block;color:#6e7781;font-weight:700}.profit-loss-card strong{display:block;margin-top:4px;color:#0066cc;font:800 1.28rem 'Manrope'}.profit-loss-card.negative strong{color:#d70015}[data-testid="stDataFrame"]{border:1px solid var(--line);border-radius:15px;overflow:hidden;box-shadow:0 8px 24px rgba(34,63,68,.06)}[data-testid="stAlert"]{border-radius:14px}details{border:1px solid var(--line)!important;border-radius:13px!important;background:rgba(255,255,255,.78)!important}
 @media(max-width:700px){.block-container{padding:4.5rem .85rem 4rem}.app-hero{padding:17px}.status-pill{display:none}[data-testid="stTabs"] [data-testid="stTab"]{padding:8px 10px;font-size:.75rem}.flow-strip{overflow-x:auto}.flow-step{white-space:nowrap}.page-intro p{font-size:.82rem}}
 </style>
