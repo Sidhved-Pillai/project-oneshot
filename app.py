@@ -696,27 +696,26 @@ def view_record(row):
     has_evidence = bool(evidence.get("source_image"))
     replace_evidence_key = f"replace_record_evidence_{request_number}"
     replace_evidence = bool(st.session_state.get(replace_evidence_key))
-    if has_evidence:
-        evidence_title, evidence_remove = st.columns([8, 1], vertical_alignment="center")
-        evidence_title.markdown("#### Invoice evidence")
-        if evidence_remove.button(
-            "✕", key=f"remove_record_evidence_{request_number}",
-            help="Replace this invoice evidence", use_container_width=True,
-        ):
-            st.session_state[replace_evidence_key] = True
-            replace_evidence = True
-    else:
-        st.markdown("#### Invoice evidence")
+    st.markdown("#### Invoice evidence")
     replacement_evidence = None
     if has_evidence and not replace_evidence:
-        if clean_text(evidence.get("source_mime_type")).startswith("image/"):
-            st.image(evidence["source_image"], caption=evidence.get("source_filename", "Invoice evidence"), width=500)
-        else:
-            st.download_button(
-                "Open invoice evidence", evidence["source_image"], evidence.get("source_filename", "invoice.pdf"),
-                evidence.get("source_mime_type"),
-            )
-    else:
+        with st.container(key=f"evidence_image_frame_{request_number}"):
+            if st.button(
+                "Remove evidence", icon=":material/close:",
+                key=f"remove_record_evidence_{request_number}",
+                help="Replace this invoice evidence",
+            ):
+                st.session_state[replace_evidence_key] = True
+                replace_evidence = True
+            if not replace_evidence:
+                if clean_text(evidence.get("source_mime_type")).startswith("image/"):
+                    st.image(evidence["source_image"], caption=evidence.get("source_filename", "Invoice evidence"), width=500)
+                else:
+                    st.download_button(
+                        "Open invoice evidence", evidence["source_image"], evidence.get("source_filename", "invoice.pdf"),
+                        evidence.get("source_mime_type"),
+                    )
+    if not has_evidence or replace_evidence:
         if replace_evidence:
             st.warning("Choose a replacement invoice. The existing evidence will remain unchanged until you save.")
         else:
@@ -857,6 +856,7 @@ html,body,[class*="css"]{font-family:'DM Sans',sans-serif}.stApp,[data-testid="s
 div[data-testid="stVerticalBlockBorderWrapper"]{background:rgba(255,255,255,.92);border:1px solid rgba(215,228,224,.95)!important;border-radius:20px;box-shadow:0 12px 36px rgba(34,63,68,.075);transition:transform .2s ease,box-shadow .2s ease}div[data-testid="stVerticalBlockBorderWrapper"]:hover{box-shadow:0 16px 42px rgba(34,63,68,.1)}h4{font:800 1rem 'Manrope'!important;color:#214047!important;padding:10px 0 7px!important;border-bottom:1px solid #edf2f1}
 [data-testid="stFileUploader"]{padding:13px;border-radius:17px;background:rgba(255,255,255,.78);border:1px solid var(--line)}[data-testid="stFileUploaderDropzone"]{border:1.5px dashed #8bbdec;background:linear-gradient(145deg,#f7fbff,#edf6ff);border-radius:13px;transition:all .2s ease}[data-testid="stFileUploaderDropzone"]:hover{border-color:var(--teal);transform:translateY(-1px);box-shadow:0 8px 20px rgba(0,113,227,.1)}[data-testid="stAudioInput"]{padding:13px;border:1px solid var(--line);border-radius:17px;background:rgba(255,255,255,.78)}[data-testid="stAudioInput"] button{color:#fff!important;background:#0071e3!important;border:2px solid #0071e3!important;border-radius:999px!important;box-shadow:0 3px 10px rgba(0,113,227,.25)!important}
 [data-baseweb="input"]>div,[data-baseweb="select"]>div,textarea{border-color:#dce3eb!important;border-radius:12px!important;background:#fff!important;transition:border .18s ease,box-shadow .18s ease!important}[data-baseweb="input"]>div:focus-within,[data-baseweb="select"]>div:focus-within,textarea:focus{border-color:#0071e3!important;box-shadow:0 0 0 3px rgba(0,113,227,.1)!important}[data-testid="InputInstructions"]{display:none!important}[data-testid="stNumberInput"] button{display:none!important}.stButton>button,.stDownloadButton>button{border-radius:999px;font-weight:700;min-height:42px;padding-left:20px;padding-right:20px;transition:transform .18s ease,box-shadow .18s ease}.stButton>button[kind="primary"],.stDownloadButton>button[kind="primary"]{position:relative;overflow:hidden;border:0;color:#fff;background:#0071e3;box-shadow:0 7px 18px rgba(0,113,227,.22)}.stButton>button:hover,.stDownloadButton>button:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(0,113,227,.28)}[class*="st-key-delete_record_"] button,[class*="st-key-remove_record_evidence_"] button{min-width:46px!important;padding:0!important;border:0!important;color:#fff!important;background:#e11d2e!important;box-shadow:0 7px 18px rgba(225,29,46,.22)!important}[class*="st-key-delete_record_"] button p{font-size:0!important}[class*="st-key-delete_record_"] button span,[class*="st-key-remove_record_evidence_"] button span{color:#fff!important;font-size:1.25rem!important}[class*="st-key-delete_record_"] button:hover,[class*="st-key-remove_record_evidence_"] button:hover{background:#c8102e!important;box-shadow:0 10px 24px rgba(225,29,46,.3)!important}[class*="st-key-trip_voice_autofill"] button,.st-key-expense_voice_autofill button{color:#fff!important;background:linear-gradient(135deg,#1f9d60,#27b974)!important;box-shadow:0 8px 20px rgba(31,157,96,.22)!important}[class*="st-key-trip_voice_autofill"] button:disabled,.st-key-expense_voice_autofill button:disabled{color:#fff!important;background:#8fd5ae!important;opacity:.72!important}
+[class*="st-key-evidence_image_frame_"]{position:relative!important;width:min(500px,calc(100% - 18px))!important;overflow:visible!important}[class*="st-key-evidence_image_frame_"] [class*="st-key-remove_record_evidence_"]{position:absolute!important;z-index:20!important;top:-13px!important;right:-13px!important;width:38px!important;height:38px!important}[class*="st-key-remove_record_evidence_"] button{min-width:38px!important;width:38px!important;height:38px!important;min-height:38px!important;border-radius:50%!important}[class*="st-key-remove_record_evidence_"] button p{display:none!important}[class*="st-key-remove_record_evidence_"] button span{margin:0!important;font-size:1.35rem!important}
 div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);border:1px solid #d6e7f7;border-radius:16px;padding:13px 16px;box-shadow:0 5px 16px rgba(0,80,160,.05)}[data-testid="stMetricLabel"]{color:#6e7781;font-weight:700}[data-testid="stMetricValue"]{font:800 1.28rem 'Manrope';color:#0066cc}.profit-loss-card{min-height:91px;padding:13px 16px;border:1px solid #d6e7f7;border-radius:16px;background:linear-gradient(145deg,#f8fbff,#eef6ff);box-shadow:0 5px 16px rgba(0,80,160,.05)}.profit-loss-card span{display:block;color:#6e7781;font-weight:700}.profit-loss-card strong{display:block;margin-top:4px;color:#0066cc;font:800 1.28rem 'Manrope'}.profit-loss-card.negative strong{color:#d70015}[data-testid="stDataFrame"]{border:1px solid var(--line);border-radius:15px;overflow:hidden;box-shadow:0 8px 24px rgba(34,63,68,.06)}[data-testid="stAlert"]{border-radius:14px}details{border:1px solid var(--line)!important;border-radius:13px!important;background:rgba(255,255,255,.78)!important}
 @media(max-width:700px){.block-container{padding:4.5rem .85rem 4rem}.app-hero{padding:17px}.status-pill{display:none}[data-testid="stTabs"] [data-testid="stTab"]{padding:8px 10px;font-size:.75rem}.flow-strip{overflow-x:auto}.flow-step{white-space:nowrap}.page-intro p{font-size:.82rem}}
 </style>
