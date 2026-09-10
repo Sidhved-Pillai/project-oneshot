@@ -75,7 +75,8 @@ def test_record_delete_permissions_are_owner_scoped_for_manish():
     assert PRIVATE_RECORD_USERS == {"Manish", "Vijay"}
     assert can_view_record("Vijay", vijay_record)
     assert not can_view_record("Vijay", ajit_record)
-    assert not can_delete_record("Vijay", vijay_record)
+    assert can_delete_record("Vijay", vijay_record)
+    assert not can_delete_record("Vijay", manish_record)
 
 
 def test_records_can_be_filtered_by_type_and_sorted_by_date():

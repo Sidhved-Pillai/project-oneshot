@@ -1234,7 +1234,7 @@ with records_tab:
     else:
         rows = sort_records_by_date(rows, "Oldest first" if sort_arrow == "↑" else "Newest first")
         with st.container(height=420, border=True):
-            has_delete_column = current_user in {"Sid", "Manish"}
+            has_delete_column = current_user in {"Sid", "Manish", "Vijay"}
             record_widths = [1.35, .8, .9, 1.1, 1.15, 1, .85, .65] if has_delete_column else [1.35, .8, .9, 1.1, 1.15, 1, .85]
             record_titles = ("Record", "Date", "Branch", "Vehicle", "Placed by", "Revenue", "", "") if has_delete_column else ("Record", "Date", "Branch", "Vehicle", "Placed by", "Revenue", "")
             header = st.columns(record_widths)
