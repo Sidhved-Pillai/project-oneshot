@@ -18,7 +18,7 @@ from src.entry_finance import advance_summary, diesel_expense
 from src.entry_state import clear_entry_state, entry_state_prefix
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
 from src.current_leaderboard import branch_trip_leaderboard
-from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, filter_record_type, sort_records_by_date
+from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
@@ -703,6 +703,12 @@ def view_record(row):
             )
     else:
         st.caption("No invoice evidence is attached to this record.")
+        replacement_evidence = st.file_uploader(
+            "Upload invoice evidence",
+            type=["png", "jpg", "jpeg", "webp", "pdf"],
+            key=f"record_evidence_upload_{request_number}",
+            help="Attach the invoice image or PDF, then click Save record changes.",
+        )
     edited_item = edited.iloc[0].to_dict()
     repair_reason_missing = is_own_record and number(edited_item.get("Repairs & Maintenance")) > 0 and not clean_text(edited_item.get("Reason"))
     if repair_reason_missing:
@@ -727,6 +733,12 @@ def view_record(row):
             "diesel_advance": number(item["Diesel"]),
             "notes": trip_auto_remark(item["Vehicle"], item["From"], item["To"], item["Vehicle Capacity"], as_date(item["Date"])) if not is_expense else plain_remark(item["Remarks"]),
         }
+        if not evidence.get("source_image") and replacement_evidence is not None:
+            update_values.update({
+                "source_filename": replacement_evidence.name,
+                "source_mime_type": replacement_evidence.type or "application/octet-stream",
+                "source_image": replacement_evidence.getvalue(),
+            })
         if is_expense:
             categories = {name: number(item.get(name)) for name in ALL_DIRECT_EXPENSE_COLUMNS}
             periods = dict(raw.get("periods", {}))
@@ -1056,16 +1068,23 @@ with records_tab:
             f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{empty_leaderboard_rows}</tbody></table>',
             unsafe_allow_html=True,
         )
+    live_title, live_evidence_filter, live_sort = st.columns([5, 3, 1], vertical_alignment="center")
+    live_title.markdown("#### Live records")
+    without_invoice_evidence = live_evidence_filter.toggle(
+        "Show Records without Invoice Evidence",
+        key="records_without_invoice_evidence",
+    )
+    rows = filter_without_invoice_evidence(rows, without_invoice_evidence)
+    sort_arrow = live_sort.segmented_control(
+        "Record order", ["↓", "↑"], default="↓", key="records_sort_arrow",
+        label_visibility="collapsed", help="↓ Newest to oldest · ↑ Oldest to newest",
+    )
+    trip_record_count = sum(row.get("report_scope") != "Expense" for row in rows)
+    expense_record_count = sum(row.get("report_scope") == "Expense" for row in rows)
+    st.caption(f"{trip_record_count} trip record(s) and {expense_record_count} direct expense record(s) listed.")
     if not rows:
         st.info("No records match the selected filters.")
     else:
-        labels = {record_select_label(row): row for row in rows}
-        live_title, live_sort = st.columns([8, 1])
-        live_title.markdown("#### Live records")
-        sort_arrow = live_sort.segmented_control(
-            "Record order", ["↓", "↑"], default="↓", key="records_sort_arrow",
-            label_visibility="collapsed", help="↓ Newest to oldest · ↑ Oldest to newest",
-        )
         rows = sort_records_by_date(rows, "Oldest first" if sort_arrow == "↑" else "Newest first")
         with st.container(height=420, border=True):
             has_delete_column = current_user in {"Sid", "Manish"}

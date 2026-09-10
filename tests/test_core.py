@@ -20,7 +20,7 @@ from src.entry_finance import advance_summary, diesel_expense, financial_values
 from src.entry_state import clear_entry_state, entry_state_prefix
 from src.expense_periods import allocate_expenses_for_period, serialize_period
 from src.current_leaderboard import branch_trip_leaderboard
-from src.record_filters import DIRECT_EXPENSES, TRIP_RECORDS, filter_record_type, sort_records_by_date
+from src.record_filters import DIRECT_EXPENSES, TRIP_RECORDS, filter_record_type, filter_without_invoice_evidence, has_invoice_evidence, sort_records_by_date
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
 from src.trip_dtr_report import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
@@ -128,6 +128,18 @@ def test_trip_leaderboard_aggregates_branch_performance():
 
 def test_diesel_expense_is_quantity_times_rate():
     assert diesel_expense(125.5, 89.75) == Decimal("11263.625")
+
+
+def test_records_without_invoice_evidence_filter_uses_metadata_only():
+    rows = [
+        {"id": 1, "source_filename": "invoice.jpg", "source_mime_type": "image/jpeg"},
+        {"id": 2, "source_filename": "", "source_mime_type": ""},
+        {"id": 3, "source_filename": None, "source_mime_type": None},
+    ]
+    assert has_invoice_evidence(rows[0])
+    assert not has_invoice_evidence(rows[1])
+    assert [row["id"] for row in filter_without_invoice_evidence(rows, True)] == [2, 3]
+    assert filter_without_invoice_evidence(rows, False) == rows
 
 
 def test_insurance_and_vehicle_tax_are_prorated_by_selected_pnl_period():

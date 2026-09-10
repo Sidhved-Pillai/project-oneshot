@@ -31,3 +31,15 @@ def sort_records_by_date(records, order):
         return record_date, record_id
 
     return sorted(records, key=key, reverse=order == "Newest first")
+
+
+def has_invoice_evidence(record):
+    """Check evidence availability from lightweight metadata, without loading bytes."""
+    return bool(
+        str(record.get("source_filename") or "").strip()
+        or str(record.get("source_mime_type") or "").strip()
+    )
+
+
+def filter_without_invoice_evidence(records, enabled):
+    return [record for record in records if not has_invoice_evidence(record)] if enabled else list(records)
