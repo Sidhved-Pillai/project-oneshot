@@ -23,7 +23,7 @@ from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, filt
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
-from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, vijay_transporter_freight, vijay_transporter_profile
+from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
 from src.vehicle_normalization import canonical_vehicle_number
 from src.current_pnl_report import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.records_store_v10 import RequestStore
@@ -124,6 +124,15 @@ def apply_vijay_transporter_profile(prefix):
 def apply_vijay_freight_rate(prefix):
     revenue = st.session_state.get(f"{prefix}_revenue")
     st.session_state[f"{prefix}_transporter_freight"] = vijay_transporter_freight(revenue)
+
+
+def apply_vijay_vehicle_profile(prefix):
+    transporter = vijay_transporter_for_vehicle(st.session_state.get(f"{prefix}_vehicle_number"))
+    if not transporter:
+        return
+    st.session_state[f"{prefix}_transporter_name"] = transporter
+    for field, value in vijay_transporter_profile(transporter).items():
+        st.session_state[f"{prefix}_{field}"] = value
 
 
 def is_own_vehicle(ownership_type):
@@ -467,7 +476,15 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     v["invoice_number"] = c2.text_input("Invoice number", key=f"{prefix}_invoice_number", placeholder="e.g., INV-10595976")
     st.markdown("#### 2. Vehicle information")
     c1, c2, c3 = st.columns(3)
-    v["vehicle_number"] = c1.text_input("Vehicle number *", key=f"{prefix}_vehicle_number", placeholder="e.g., MH14JL9818")
+    vehicle_input_kwargs = {
+        "on_change": apply_vijay_vehicle_profile, "args": (prefix,),
+    } if current_user == "Vijay" else {}
+    v["vehicle_number"] = c1.text_input(
+        "Vehicle number *", key=f"{prefix}_vehicle_number", placeholder="e.g., MH14JL9818",
+        **vehicle_input_kwargs,
+    )
+    if current_user == "Vijay":
+        apply_vijay_vehicle_profile(prefix)
     v["vehicle_capacity"] = c2.text_input("Vehicle capacity", key=f"{prefix}_vehicle_capacity", placeholder="e.g., 20MT")
     choices = ["", "Own", "Outside"]
     current = st.session_state.get(f"{prefix}_ownership_type", "")
