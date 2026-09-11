@@ -27,6 +27,7 @@ from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, r
 from src.trip_dtr_report import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
 from src.pnl_report import BRANCH_PNL_COLUMNS, DIRECT_EXPENSE_COLUMNS, VEHICLE_NO_PNL_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl, pnl_summary, vehicle_pnl_summary
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
+from src.transporter_profiles import VIJAY_TRANSPORTER_PROFILES, vijay_transporter_profile
 from src.vehicle_normalization import canonical_vehicle_number
 from src.business_memory import build_business_memory, recall
 from src.workflow_ai import convert_rtgs_to_dtr as workflow_convert_rtgs_to_dtr
@@ -89,6 +90,21 @@ def test_records_can_be_filtered_by_type_and_sorted_by_date():
     assert [row["id"] for row in filter_record_type(rows, DIRECT_EXPENSES)] == [1]
     assert [row["id"] for row in sort_records_by_date(rows, "Newest first")] == [3, 2, 1]
     assert [row["id"] for row in sort_records_by_date(rows, "Oldest first")] == [1, 2, 3]
+
+
+def test_vijay_transporter_profiles_fill_exact_bank_details():
+    assert list(VIJAY_TRANSPORTER_PROFILES) == ["Altaf Khan Transport", "Nisar Anwar Shaikh"]
+    altaf = vijay_transporter_profile("Altaf Khan Transport")
+    nisar = vijay_transporter_profile("Nisar Anwar Shaikh")
+    assert altaf == {
+        "beneficiary_name": "Altaf Khan Transport",
+        "transporter_name": "Altaf Khan Transport",
+        "beneficiary_account_number": "60350673934",
+        "beneficiary_ifsc_code": "MAHB0000979",
+    }
+    assert nisar["beneficiary_account_number"] == "917020048356986"
+    assert nisar["beneficiary_ifsc_code"] == "UTIB0002168"
+    assert vijay_transporter_profile("Unknown") == {}
 
 
 def test_new_entry_revenue_is_never_evidence_autofilled():

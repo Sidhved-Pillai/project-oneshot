@@ -23,6 +23,7 @@ from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, filt
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
+from src.transporter_profiles import VIJAY_TRANSPORTER_PROFILES, vijay_transporter_profile
 from src.vehicle_normalization import canonical_vehicle_number
 from src.current_pnl_report import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.records_store_v10 import RequestStore
@@ -111,6 +112,12 @@ def canonical_vehicle_placer(value):
 
 def canonicalize_placer_state(key):
     st.session_state[key] = canonical_vehicle_placer(st.session_state.get(key, ""))
+
+
+def apply_vijay_transporter_profile(prefix):
+    profile = vijay_transporter_profile(st.session_state.get(f"{prefix}_vijay_transporter"))
+    for field, value in profile.items():
+        st.session_state[f"{prefix}_{field}"] = value
 
 
 def is_own_vehicle(ownership_type):
@@ -472,6 +479,15 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         v.update({"beneficiary_name": "", "transporter_name": "", "beneficiary_account_number": "", "beneficiary_ifsc_code": ""})
     else:
         st.markdown("#### 3. Beneficiary details")
+        if current_user == "Vijay":
+            st.selectbox(
+                "Select transporter",
+                ["", *VIJAY_TRANSPORTER_PROFILES],
+                key=f"{prefix}_vijay_transporter",
+                placeholder="Select Altaf Khan Transport or Nisar Anwar Shaikh",
+                on_change=apply_vijay_transporter_profile,
+                args=(prefix,),
+            )
         c1, c2 = st.columns(2)
         v["beneficiary_name"] = c1.text_input("Beneficiary name", key=f"{prefix}_beneficiary_name", placeholder="e.g., XYZ Transport")
         v["transporter_name"] = c2.text_input("Transporter name", key=f"{prefix}_transporter_name", placeholder="e.g., XYZ Transport")
