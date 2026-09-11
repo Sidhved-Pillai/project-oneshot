@@ -24,6 +24,7 @@ from src.trip_dtr_report import DTR_REVIEW_COLUMNS, export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
 from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
+from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.current_pnl_report import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.records_store_v10 import RequestStore
@@ -131,6 +132,7 @@ def apply_vijay_vehicle_profile(prefix):
     if not transporter:
         return
     st.session_state[f"{prefix}_transporter_name"] = transporter
+    st.session_state[f"{prefix}_ownership_type"] = "Outside"
     for field, value in vijay_transporter_profile(transporter).items():
         st.session_state[f"{prefix}_{field}"] = value
 
@@ -321,6 +323,12 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
                 blank = current in (None, "", 0, 0.0) or (field == "date" and current == dt.date.today())
                 if blank:
                     st.session_state[state_key] = as_date(value) if field == "date" else value
+        # Older cached AI responses used one combined identifier. Preserve it
+        # as an invoice only when neither explicit field was extracted.
+        if mode == "ENTRY":
+            legacy = clean_text(getattr(result.rows[0], "lr_invoice_number", ""))
+            if legacy and not clean_text(st.session_state.get(f"{prefix}_invoice_number")) and not clean_text(st.session_state.get(f"{prefix}_lr_number")):
+                st.session_state[f"{prefix}_invoice_number"] = legacy
         st.success("Form populated from the evidence. Please review every field before saving.")
     except Exception as exc:
         st.error(f"Could not auto-fill the form: {exc}")
@@ -458,10 +466,19 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         key = f"{prefix}_{field}"
         if clean_text(st.session_state.get(key)):
             st.session_state[key] = normalizer(st.session_state[key])
+    if current_user == "Vijay":
+        st.session_state[f"{prefix}_from_location"] = canonical_vijay_location(
+            st.session_state.get(f"{prefix}_from_location"), origin=True,
+        )
+        st.session_state[f"{prefix}_to_location"] = canonical_vijay_location(
+            st.session_state.get(f"{prefix}_to_location"),
+        )
     st.markdown("#### 1. Basic information")
     c1, c2 = st.columns(2)
     branch_key = f"{prefix}_branch"
     available_branches = allowed_branches or BRANCHES
+    if current_user == "Vijay" and "Andheri" in available_branches:
+        st.session_state[branch_key] = "Andheri"
     branch_lookup = {branch.casefold(): branch for branch in available_branches}
     current_branch = branch_lookup.get(clean_text(st.session_state.get(branch_key)).casefold(), "")
     if st.session_state.get(branch_key) != current_branch:

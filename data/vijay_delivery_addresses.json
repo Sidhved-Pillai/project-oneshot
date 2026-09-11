@@ -1,0 +1,3152 @@
+[
+  {
+    "customer_codes": [
+      "D62138",
+      "MUMC002959"
+    ],
+    "name": "A TO Z",
+    "full_address": "SHOP NO 5,UJWAL BUILDING,ZUNZARRAO MARKET KALYAN WEST 421301",
+    "short_address": "Kalyan West"
+  },
+  {
+    "customer_codes": [
+      "K05846"
+    ],
+    "name": "AAHAR FOODS (BHAYENDER)",
+    "full_address": "MAXUS CINEMA,SNO.27,TINBE HOSPITAL ROAD, NEAR RAILWAY FLYOVER,BHAYANDER(W),THANE-401101, 401101",
+    "short_address": "Bhayander West"
+  },
+  {
+    "customer_codes": [
+      "D62182",
+      "MUMC002970"
+    ],
+    "name": "AARVEE ENTERPRISES",
+    "full_address": "GALA NO 4 & 5,BUIDLING NO 3,APMC MARKET ,M.G ROAD,PEN TAL-PEN 402107",
+    "short_address": "Pen"
+  },
+  {
+    "customer_codes": [
+      "D62147",
+      "MUMC002961"
+    ],
+    "name": "AARYAA TRADERS",
+    "full_address": "NEAR KURLAI ROAD,TANDULWADI ROAD SAPHALE EAST,TAL DIST PALGHAR 401102",
+    "short_address": "saphale"
+  },
+  {
+    "customer_codes": [
+      "D02612",
+      "MUMC002790"
+    ],
+    "name": "AAYAT ENTERPRISES",
+    "full_address": "SHOP NO 05,ARJOO APARTMENT,POONAM SAGAR COMPLEX MIRA ROAD EAST 401107",
+    "short_address": "Miraroad, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02496"
+    ],
+    "name": "ABDHESH ENTPERPRISES-GHANSOLI",
+    "full_address": "APT,SEC-22,TALWALI GHANSOLI,NAVI MUMBAI NAVI MUMBAI 400701",
+    "short_address": "Ghansoli"
+  },
+  {
+    "customer_codes": [
+      "D02636",
+      "MUMC002796"
+    ],
+    "name": "AMMAR TRADING CO.",
+    "full_address": "HOUSE NO.20 GALA NO.1/A MASTER COMPOUND NR RAIS HIGH SCHOOL GAURI PADA BHIWANDI 421302",
+    "short_address": "Kalyan"
+  },
+  {
+    "customer_codes": [
+      "D62184",
+      "MUMC002971"
+    ],
+    "name": "ANANYA ENTERPRISES",
+    "full_address": "SHOP NO 6,BLDG NO 3,SANDSTON CHS LTD KANAKIYA ROAD MIRA ROAD EAST 401107",
+    "short_address": "Miraroad"
+  },
+  {
+    "customer_codes": [
+      "D39674",
+      "MUMC002944"
+    ],
+    "name": "ANANYA MARKETING",
+    "full_address": "SHOP NO 38,OSTWAL ORCHID KANKIYA ROAD,NEXT TO GALAXY HOSPITAL ,MIRA RD EAST 401107",
+    "short_address": "Miraroad"
+  },
+  {
+    "customer_codes": [
+      "D62108",
+      "MUMC002949"
+    ],
+    "name": "ANIL ENTERPRISES",
+    "full_address": "MANVEL PADA ROAD HANUMAN NAGAR ,VIRAR EAST 401303",
+    "short_address": "Virar"
+  },
+  {
+    "customer_codes": [
+      "D02573",
+      "MUMC002783"
+    ],
+    "name": "ANJALI ENTERPRISES-ULHASNAGAR",
+    "full_address": "PLOT NO 9,CENTRAL HOSPITAL RD,NEAR HANUMAN MANDIR,ULHASNAGAR 421002",
+    "short_address": "Ambarnath, Ulhasnagar"
+  },
+  {
+    "customer_codes": [
+      "D62092"
+    ],
+    "name": "ANSHA ENTERPRISES",
+    "full_address": "H.NO 45/3,DHOBI TALAO,NEAR ASMA COMPLEX NEW GAURYPADA, 421302",
+    "short_address": "Bhiwandi"
+  },
+  {
+    "customer_codes": [
+      "D02516",
+      "MUMC002766"
+    ],
+    "name": "ANVI FOODS & BEVERAGE",
+    "full_address": "SHOP NO 1647 B,POST -CHIRNER,TALUKA- URAN DISTRICT RAIGARH 410206",
+    "short_address": "Uran"
+  },
+  {
+    "customer_codes": [
+      "D00255"
+    ],
+    "name": "A-ONE ENTERPRISES (VAJRESHWARI)",
+    "full_address": "DEV DWARKA BANG,AT POST-VARJRESHWARI TAL - BHIWANDI,DIST.-THANE 401204",
+    "short_address": "Vajreshwari"
+  },
+  {
+    "customer_codes": [
+      "D02555"
+    ],
+    "name": "A-ONE TRADING",
+    "full_address": "DEVIDAS ROAD,NEAR BORI MASJID,WHOLESALE MARKET MAHAGIRI,THANE WEST 400601",
+    "short_address": "Thane West Station"
+  },
+  {
+    "customer_codes": [
+      "D02595",
+      "MUMC002787"
+    ],
+    "name": "ARYADEV ENTERPRISES",
+    "full_address": "C/21,SIGRUN SPLENDOR,MADHUBAN TOWNSHIP OPP EVERSHINE GATE,VASAI 401208",
+    "short_address": "Vasai East"
+  },
+  {
+    "customer_codes": [
+      "D02863"
+    ],
+    "name": "ASHRAF COLD DRINKS",
+    "full_address": "SHOP NO 03, A WING, GRIB NAWAZ, BLDG, DATTU WADI MUMBAU, THANE 400612",
+    "short_address": "Mumbra"
+  },
+  {
+    "customer_codes": [
+      "D02624",
+      "MUMC002795"
+    ],
+    "name": "ASTHA ENTERPRISES",
+    "full_address": "SHOP NO 25,GAGAN SOLITARE CHS LTD VIVA JANGID COMPLEX MANVEL PADA RD,VIRAR EAST 401303",
+    "short_address": "Virar East"
+  },
+  {
+    "customer_codes": [
+      "K07612",
+      "MUMC004057"
+    ],
+    "name": "AVENUE SUPER MARTS LTD -BOISAR",
+    "full_address": "BOISAR D-MART MIDC BOISAR,",
+    "short_address": "BOISAR"
+  },
+  {
+    "customer_codes": [
+      "D02425",
+      "MUMC002746"
+    ],
+    "name": "BHARAT TRADING COMPANY(SHRIVARDHAN-RAIGAD)",
+    "full_address": "435 TILAK ROAD,NEAR GAS AGENCY ,SHRIVARDHAN DIST-RAIGAD 402110",
+    "short_address": "Raigad, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02435",
+      "MUMC002752"
+    ],
+    "name": "CHAOUDARY AGENCIES (PALI)",
+    "full_address": "NEW PALIWALA COMPLEX,AT-POST-PALI,TAL-SUHAGAD, DIST.RAIGAD,PIN CODE-410205. 410205",
+    "short_address": "Pali, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D62187",
+      "MUMC002972"
+    ],
+    "name": "D PUROHIT TRADERS",
+    "full_address": "PLOT NO 67,SHOP NO 3,SECTOR NO 50 HARI OM CHS. NERUL NAVI MUMBAI 400706",
+    "short_address": "Seawoods, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02500",
+      "MUMC002763"
+    ],
+    "name": "D.A DISTRIBUTOR",
+    "full_address": "GALA NO 1,AVANTIKA APARTMENT M.S.E.B ROAD MASOLI NAKA,DAHNU ROAD,DIST,PALGHAR 401501",
+    "short_address": "Dahanu, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D01041",
+      "MUMC002701"
+    ],
+    "name": "D.K.ENTERPRISES (NAVI MUMBAI)",
+    "full_address": "SHOP NO.09,PLOT NO.44/45/46,ANJALI APT.,SECTOR-05 SANPADA GAON, GAJANAN MAHARAJ CHOWK,SANPADA GAON,NAVI MUMBAI 410206",
+    "short_address": "Turbe, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02946",
+      "MUMC002874"
+    ],
+    "name": "DAVA DESIRE MULTITRADE PRIVATE LIMITED",
+    "full_address": "PARAG VILLA, NANDIVALI RD",
+    "short_address": "DOMBIVALI EAST"
+  },
+  {
+    "customer_codes": [
+      "D62098"
+    ],
+    "name": "DHANUSH ENTERPRISES",
+    "full_address": "SAI SATYAM BUILDING,SHOP NO 2,PLOT NO 20 SECTOR-4,KARANJADE,TAL PANVEL DIST. 410220",
+    "short_address": "Panvel"
+  },
+  {
+    "customer_codes": [
+      "D02246",
+      "MUMC002741"
+    ],
+    "name": "DIVYA DISTRIBUTORS-NALLASOPARA",
+    "full_address": "Shop No 8,Subhodh Sagar Complex,Shreeprastha 4th floor,Near Fun Fiesta,Nallasopara West 401203",
+    "short_address": "Nallasopara West, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02057"
+    ],
+    "name": "DRISTI ENTERPRISES (VASAI-E) RAILWAY",
+    "full_address": "HIRA PANNA APRT, RAMDAS NAGAR,OPP PLATFORM NO.7, 401202",
+    "short_address": "Vasai East, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02451",
+      "MUMC002756"
+    ],
+    "name": "EKVIRA AAI ENTERPRISES,(KHARGHAR)",
+    "full_address": "SHOP NO 18,PLOT NO.2,REGENCY PARK CHS,SEC-5 KHARGHAR,NAVI MUMBAI 400710",
+    "short_address": "Kharghar, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02490",
+      "MUMC002760"
+    ],
+    "name": "EKVIRA TRADERS-NALLASOPARA",
+    "full_address": "GANGADEEP VASUDEVBURA NAGAR AT POST KALAM,TAL VASAI,DIST PALGHAR,NALLASOPARA WEST 401203",
+    "short_address": "Nallasopara East, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "MUMC019693"
+    ],
+    "name": "EKVIRA DISTRIBUTORS",
+    "full_address": "HOUSE NO.529, SHOP NO-3/4 MAHARASHTRA CHS BONKODE VILLAGE KOPARKHAIRNE NAVI MUMBAI Thane, Thane - 400709",
+    "short_address": "KOPARKHAIRNE"
+  },
+  {
+    "customer_codes": [
+      "D62183"
+    ],
+    "name": "G.K. ENTERPRISES",
+    "full_address": "MEGHDOOT BLDG,SAI BABA NAGAR MIRA ROAD EAST 401107",
+    "short_address": "Miraroad, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02104"
+    ],
+    "name": "G.M. ENTERPRISES- KHARGHAR (SHOPPEE)",
+    "full_address": "LAVISTA PLOT NO.256/257, SHOP NO.4,SEC-10 Khargar, 410210",
+    "short_address": "Kharghar, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D62146"
+    ],
+    "name": "GAURANG ENTERPRISES",
+    "full_address": "AT POST GANESH PURI ,GANDHI PADA TAL- BHIWANDI DATARTRAY NIWAS,SHOP NO 3 421302",
+    "short_address": "Ganeshpuri"
+  },
+  {
+    "customer_codes": [
+      "D02953"
+    ],
+    "name": "GOLDEN BAKERY",
+    "full_address": "SHOP NO 3, DARSH PALACE, SANTOSH NAGAR,Amber Plaza Party Hall, BOMBAY COLONY, DAHISAR",
+    "short_address": "THANE"
+  },
+  {
+    "customer_codes": [
+      "D02247",
+      "MUMC002742"
+    ],
+    "name": "GUPTA DISTRIBUTOR’S",
+    "full_address": "Shop No19,Lotus building,Agrawal & Doshi Complex,Bhabola Naka,Vasai West 401201",
+    "short_address": "Vasai West, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D01463",
+      "MUMC002704"
+    ],
+    "name": "GURUKRUPA CATERERS(MUKUND NGR-ROHA)",
+    "full_address": "MUKUND NAGAR,ASTAMI, TAL-ROHA,DIST-RAIGAD. 402109",
+    "short_address": "Roha, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "K10209",
+      "MUMC004804"
+    ],
+    "name": "HARDCASTLE RESTAURANTS PVT LTD",
+    "full_address": "C/0 RADHA KRISHNA FOODLAND PVT LTD,FOOD PARK  PLOT NO 1, SECTOR- AWC, ROAD PALI NAK KALAMBOLI",
+    "short_address": "KALAMBOLI"
+  },
+  {
+    "customer_codes": [
+      "K06173"
+    ],
+    "name": "HOTEL NEETA INTERNATIONAL",
+    "full_address": "HP PETROL PUMP TOLL NAKA KHALAPUR 410202",
+    "short_address": "Khalapur, Maharasthra"
+  },
+  {
+    "customer_codes": [
+      "DTH0655",
+      "MUMC003219"
+    ],
+    "name": "HOTEL PRANJALI (MURBAD)",
+    "full_address": "KHUTAL BANGLOW,POST SARALGAON, TAL MURBAD,DIST THANE 421401",
+    "short_address": "Murbad, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02066"
+    ],
+    "name": "HRIDAAN ENTERPRISES (NAVI MUMBAI)",
+    "full_address": "KALA - SHREE,SHOP NO.1,SHOP NO.1 PLOT B-84/86,SECTOR-29,AGROLI, 400614",
+    "short_address": "Belapur, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02483"
+    ],
+    "name": "ICICI BANK LTD (KHANDALA BRANCH)",
+    "full_address": "ICICI BANK LEARNING CENTRE,OLD MUMBAI PUNE HIGHWA NR HOTEL KAMAT,KHANDALA(LONAVALA)DIST-PUNE 410301",
+    "short_address": "Khandala, Maharasthra"
+  },
+  {
+    "customer_codes": [
+      "K10122",
+      "MUMC004785"
+    ],
+    "name": "IKEA INDIA PRIVATE LIMITED",
+    "full_address": "PLOT NO 15-15A-C, VILL TURBE AND PAWANA,MUMBAI STORE LAND, MIDC TTC INDL ESTATE AREA",
+    "short_address": "TURBE"
+  },
+  {
+    "customer_codes": [
+      "C06268",
+      "MUMC001289"
+    ],
+    "name": "INSTAKART SERVICES PVT LTD",
+    "full_address": "BLOCK NO C2, A COM WAREHOUSE & LOGISTICS PARKINSTAKART SERVICES PVT LTD ANJR VILLAGE, OPP DIVA PETROL PUMP",
+    "short_address": "Rayasani, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "K07988",
+      "MUMC004167"
+    ],
+    "name": "J.J ENTERPRISES",
+    "full_address": "PLOT NO 153,SHOP NO 23,SHELTOR PLAZA SECTOR 50 NERUL ,NAVI MUMBAI 400706",
+    "short_address": "Nerul"
+  },
+  {
+    "customer_codes": [
+      "D02440",
+      "MUMC002754"
+    ],
+    "name": "JAGDAMBA ENTERPRISES (NEW PANVEL)",
+    "full_address": "HOUSE NO.53,PALI DEVAD, NEXT TO P.D.ENGINEERING WORKS SUKAPUR, 410206",
+    "short_address": "Panvel"
+  },
+  {
+    "customer_codes": [
+      "K06809",
+      "MUMC003821"
+    ],
+    "name": "JAI BADA GANESH",
+    "full_address": "18,TENNAKA POST MANOR,TAL PALGHAR DIST THANE 401404",
+    "short_address": "Manor"
+  },
+  {
+    "customer_codes": [
+      "D02429",
+      "MUMC002749"
+    ],
+    "name": "JAIN ENTERPRISES (MURUD- JANJIRA)",
+    "full_address": "BAZZAR PETH,MURUD-JANJIRA, RAIGAD. 402401",
+    "short_address": "Janjira, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D00040"
+    ],
+    "name": "JIVDANI ENTERPRISES (NALASOPARA)",
+    "full_address": "IBRAHIM KARVE CHWL,SHOP NO.21, STN RD.NALASOPARA.DIST.-THANE 401203",
+    "short_address": "Nallasopara East, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D62133"
+    ],
+    "name": "KAMAT ENTERPRISES",
+    "full_address": "2ND ROOM NO 206,B WING, HATISWAR CHS,MAHESH PARK, 401203",
+    "short_address": "Nallasopara West, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02597",
+      "MUMC002788"
+    ],
+    "name": "KEDAR SALES",
+    "full_address": "SHOP NO 6,CHANCHAL SOCIETY AMBEKAR ROAD SHIVAJI CHOWK,KALYAN WEST 421301",
+    "short_address": "KALYAN"
+  },
+  {
+    "customer_codes": [
+      "D02437"
+    ],
+    "name": "KOKAN AGENCY(MANGAON-RAIGAD)",
+    "full_address": "AT POST - LAKHAPALE TALUKA MANGAON 402103",
+    "short_address": "Mangaon, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02961",
+      "MUMC002878"
+    ],
+    "name": "LEXICON EXIM",
+    "full_address": "SHOP NO 3, PLOT NO 44/45,PROGRESIV SEA LOUNGE, SECTOR-15 CBD BELAPUR, NAVI MUMBAI",
+    "short_address": "BELAPUR"
+  },
+  {
+    "customer_codes": [
+      "K08232"
+    ],
+    "name": "MALHAR COLDDRINKS",
+    "full_address": "23/A,TAL - KHALAPUR,SAJGAON KHOPOLI,SAJGAON 410203",
+    "short_address": "Khalapur"
+  },
+  {
+    "customer_codes": [
+      "K08231"
+    ],
+    "name": "MALHAR ENTERPRISES",
+    "full_address": "AT POST SAJGOAN, KHALAPUR 410203",
+    "short_address": "Khalapur"
+  },
+  {
+    "customer_codes": [
+      "D02512",
+      "MUMC002765"
+    ],
+    "name": "MALHAR ENTERPRISES-KARJAT",
+    "full_address": "01,SHIVKRUPA APT,SHIVAJI NAGAR,VENGAON ROAD, DAHIVALI,KARJAT-410201 410201",
+    "short_address": "Karjat, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D62180",
+      "MUMC002969"
+    ],
+    "name": "MALI ENTERPRISES",
+    "full_address": "PRABHAT COLONY ,MAHAD TAL MAHAD DIST RAIGAD 402301",
+    "short_address": "Mahad, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02865",
+      "MUMC002842"
+    ],
+    "name": "MANAS ENTERPRIISES",
+    "full_address": "SHOP NO 2, RAJESH KALURAM BHAGAS CHAKAD NOPADA GAON, TAL PANVEL, DIST-RAIGAD,",
+    "short_address": "Kamothe, Panvel"
+  },
+  {
+    "customer_codes": [
+      "D50405"
+    ],
+    "name": "MANSI ENTERPRISES",
+    "full_address": "SECTOR -11,PLOT NO 49,NEAR BUDH GHAR KAMOTHE,PANVEL 410209",
+    "short_address": "Kamothe, Panvel"
+  },
+  {
+    "customer_codes": [
+      "D02292",
+      "MUMC002743"
+    ],
+    "name": "MAULI KRUPA ENTERPRISES-DOMBIVLI",
+    "full_address": "ROOM NO-3,KAMEET ESTATE SARWAT COLONY GURUMANDIR ROAD,DOMBIWALI EAST 421201",
+    "short_address": "Dombivli, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02778"
+    ],
+    "name": "METRO",
+    "full_address": "SHOP NP D/02,SALASAR AANAN,KANAKIYA ROAD,RONAK HOTEL,MIRA ROAD,T HANE",
+    "short_address": "MIRA ROAD"
+  },
+  {
+    "customer_codes": [
+      "D02574"
+    ],
+    "name": "MHATRE DISTRIBUTORS",
+    "full_address": "C/O HOTEL VANRAI,RCF,KATA GATE THAI, ALIBAG 402101",
+    "short_address": "Alibaugh, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02099",
+      "MUMC002736"
+    ],
+    "name": "MOIN RAZA ENTERPRISES (MURBAD)",
+    "full_address": "1002,MUSLIM MOHALLA,NEAR URDU SCHO0L BAKED ALI ROAD,OPP RAJLAXMI KIRANA, 421401",
+    "short_address": "Murbad, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02092",
+      "MUMC002733"
+    ],
+    "name": "MUKTA MILK SUPL. & GEN.STORE (DOMBIVALI-E)",
+    "full_address": "MUKTA RESIDENCY,B-2,SHOP NO.16, PADLE BUS STOP,KALYAN SHIL RD, 421201",
+    "short_address": "Diva Shilphata, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02505",
+      "MUMC002764"
+    ],
+    "name": "NARAYANI ENTERPRISES-BHAYANDER WEST",
+    "full_address": "SHOP NO 10,DHARTI RESIDENCY ,NEXT TO MACDONALD , 150FT. RD,BHAYANDER WEST,THANE 401101",
+    "short_address": "Bhyander (W), Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02967",
+      "MUMC002881"
+    ],
+    "name": "NATIONAL PRODUCTS COMMERCIAL",
+    "full_address": "SHOP NO 10,DHARTI RESIDENCY ,NEXT TO MACDONALD , 150FT. RD,BHAYANDER WEST,THANE 401101",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "D02494",
+      "MUMC002762"
+    ],
+    "name": "NEEL ENTERPRISE",
+    "full_address": "SHOP NO 2 YAMUNA COMPLEX,RAILWAY STATION ROAD PANVEL 410206",
+    "short_address": "New Panvel, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02431"
+    ],
+    "name": "NEEL SIDDHI ENTERPRISES (MURUD-JANJIRA)",
+    "full_address": "AT- POST - NANDGAON, TAL- MURUD,DIST-JANJIRA,RAIGAD. 402401",
+    "short_address": "Janjira, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02540",
+      "MUMC002772"
+    ],
+    "name": "NEW KARAN AGENCY- CHANDI , ALIBAUG",
+    "full_address": "HOUSE NO 38,AT SATIRJE,HOUSE NO 38-B MAPGAON,ALIBAUG,RAIGAD 402207",
+    "short_address": "Alibaugh, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D62083",
+      "MUMC002946"
+    ],
+    "name": "NEW SAMVED ENTERPRISES",
+    "full_address": "SHOP B -19,RAJIV MASJITHA PARK,ACHOLE ROAD NEAR DURRAKKAR HOTEL 401209",
+    "short_address": "Nalasopara"
+  },
+  {
+    "customer_codes": [
+      "D01968",
+      "MUMC002720"
+    ],
+    "name": "NEW SOALTEE FAST FOOD (SHOPPEE)",
+    "full_address": "MEHUL VILLA,SHOP NO 1, RAMBAUG, 421301",
+    "short_address": "Kalyan, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D01602"
+    ],
+    "name": "NIHAL AGENCY(NERAL)",
+    "full_address": "AT NERAL ' K ' SEE,TALIKA KARJAT, DISTRICT RAIGAD,NERAL-410201. 410201",
+    "short_address": "Neral, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02457"
+    ],
+    "name": "NIKITA ENTERPRISES",
+    "full_address": "SHOP NO 3 SAI SANKUL OPP GAONDEVI MANDIR TISGAON KALYAN EAST 421306",
+    "short_address": "Kongaon, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D62174",
+      "MUMC002968"
+    ],
+    "name": "NOOR ENTERPRISES MIRA ROAD-E",
+    "full_address": "AARZOO APARTMENT ,POONAM NAGAR COMPLEX MIRA RD(EAST),DIST THANE 401107",
+    "short_address": "Miraroad, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02056",
+      "MUMC002728"
+    ],
+    "name": "OM ENTERPRISES (VASAI WEST)",
+    "full_address": "GANESH KRUPA, BHANDAR AALI,KHOCHI WADI, 401202",
+    "short_address": "Vasai West, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D62171",
+      "MUMC002967"
+    ],
+    "name": "OM SAI ENTERPRISES",
+    "full_address": "SHOP NO 3,PLOT NO 90,SECTOR NO 10, KHARGHAR 410210",
+    "short_address": "Kharghar, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D01308"
+    ],
+    "name": "OM SAI ENTERPRISES",
+    "full_address": "MHATRE NIWAS,OPP.SWASTIK REGAL,KAVESAR, WAGHBIL,G.B.ROAD,THANE - 400601. 400601",
+    "short_address": "Thane, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02543"
+    ],
+    "name": "OM SAI ENTERPRISES-KASARA",
+    "full_address": "AT POST BAMNE,SAHAHAPUR,NEAR LIBERTY OIL MILL THANE,MAHARASHTRA 421601",
+    "short_address": "Kasara, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D62193"
+    ],
+    "name": "OMKAR AGENCY",
+    "full_address": "PAWAN OMKARA GOWDOWN, OPP PAWAN VATIKA ,NEAR DON BOSCO 421301",
+    "short_address": "Kalyan, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02434"
+    ],
+    "name": "PARVATI ENTERPRISES (MAHAD-RAIGAD)",
+    "full_address": "PARVATI BLDG,PRABHAT COLONY MAHAD RAIGAD 402301",
+    "short_address": "Mahad, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "K06975",
+      "MUMC003873"
+    ],
+    "name": "PRINCE COLD DRINKS",
+    "full_address": "AT POST KASA. NEAR S.T STAND PRINCE COLD DRINKSTAL DAHANU 401602 RD. DIST: THANE",
+    "short_address": "Dahanu, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D62111"
+    ],
+    "name": "R.S MARKETING- MIRA RD",
+    "full_address": "SHOP NO 16,ACCORD CRYSTAL CHS,GCC CLUB MIRA ROAD EAST, 401104",
+    "short_address": "Mira Road East,"
+  },
+  {
+    "customer_codes": [
+      "D02889",
+      "MUMC002852"
+    ],
+    "name": "RAHUL AGENCY",
+    "full_address": "AT VAUSHET TAL ALIBAG",
+    "short_address": "Alibaugh, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D01738",
+      "MUMC002713"
+    ],
+    "name": "RAJWADI GENERAL STORE (VASAI E)",
+    "full_address": "GALA NO: 23,SUBH LAXMI SHOPPING CENTRE VASANT NAGRI,VASAI (EAST) 401202",
+    "short_address": "Vasai East, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "C06441",
+      "MUMC001371"
+    ],
+    "name": "RELIANCE RETAIL LIMITED",
+    "full_address": "RELIANCE CORPORATE PARK, 5,TTC INDUSTRIAL AREA,THANE BELAPUR ROAD,",
+    "short_address": "GHANSOLI S.O"
+  },
+  {
+    "customer_codes": [
+      "K05824",
+      "MUMC003676"
+    ],
+    "name": "RELIANCE RETAIL LIMITED",
+    "full_address": "OLD ICI COMPOUND FOSBERRY ROAD OFF REAY ROAD STATION EAST 400015",
+    "short_address": "Reay Road Sewri"
+  },
+  {
+    "customer_codes": [
+      "D00671",
+      "MUMC002698"
+    ],
+    "name": "RELIANCE RETAIL LIMITED",
+    "full_address": "DISTRIBUTION CENTRE,WAREHOUSE NOS 77 &  80,INDIAN CORPORATION DAPODA RD,MANKOLI NAKA",
+    "short_address": "Bhiwandi"
+  },
+  {
+    "customer_codes": [
+      "D01405"
+    ],
+    "name": "ROYAL AGENCY (BHIWANDI)",
+    "full_address": "396/1,HARI SNRUTI BUILDING,AMBICA SAW- MILL COMPOUND,MAHAVEER ROAD,LBT-BNCMC0508019 421302",
+    "short_address": "Bhiwandi, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02493",
+      "MUMC002761"
+    ],
+    "name": "Rudra Agency",
+    "full_address": "PLOT NO-213,SHOP NO.01,NEAR GAONDEVI MANDIR YASHWANT SOCIETY,AMBARNATH (E) 421502",
+    "short_address": "Ambarnath, Ulhasnagar"
+  },
+  {
+    "customer_codes": [
+      "D02086",
+      "MUMC002732"
+    ],
+    "name": "S & S ENTERPRISE - VIRAR-W",
+    "full_address": "SHOP NO. 17,VIVA REGVEDA B VIVA VEDAGANDA COMPLEX VIRAR WEST 401303",
+    "short_address": "Virar (W), Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02510"
+    ],
+    "name": "S R DISTRIBUTOR",
+    "full_address": "SHOP NO 2,MARVEL NEAR GANGA COMPLEX, SANGHAVI COMPLEX,MIRA RD 401104",
+    "short_address": "Mira Road East,"
+  },
+  {
+    "customer_codes": [
+      "D62100",
+      "MUMC002947"
+    ],
+    "name": "S.B TRADERS",
+    "full_address": "ENGLISH SCHOOL,NEAR AKRAM MASJID AMRUT NAGAR,MUMBRA 400612",
+    "short_address": "Mumbra"
+  },
+  {
+    "customer_codes": [
+      "K05935",
+      "MUMC003690"
+    ],
+    "name": "S.K.FOODS",
+    "full_address": "D-76A,GR. FLOOR. VASHI PLAZA SEC-17 VASHI NAVI MUMBAI 400703",
+    "short_address": "Vashi"
+  },
+  {
+    "customer_codes": [
+      "D02897",
+      "MUMC002857"
+    ],
+    "name": "S.R ENTERPRISES",
+    "full_address": "B/206,  HARDWAR CHS,NEAR MAHESH PARK, TULINJ RD",
+    "short_address": "Nalasopara"
+  },
+  {
+    "customer_codes": [
+      "K07137",
+      "MUMC003909"
+    ],
+    "name": "S.R ENTERPRISES",
+    "full_address": "FOOD WAY, KHALAPUR  TOLL PLAZA 410202",
+    "short_address": "Khalapur, Maharasthra"
+  },
+  {
+    "customer_codes": [
+      "D02541",
+      "MUMC002773"
+    ],
+    "name": "S.S ENTERPRISES",
+    "full_address": "S.P MISHRA & BROTHER'S HOUSE,KAPURBAWADI NAKA G.B ROAD,THANE WEST 400601",
+    "short_address": "Thane, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "K09873",
+      "MUMC004712"
+    ],
+    "name": "S.S ENTERPRISES",
+    "full_address": "AT  POST SAJGAON ,FOOD WAY,KHALAPUR",
+    "short_address": "KHALAPUR"
+  },
+  {
+    "customer_codes": [
+      "D62143"
+    ],
+    "name": "SAHER AGENCY",
+    "full_address": "AT GANGA NAGAR,POST NERAL,TAL KARJAT,DISTD RAIGARH 410201",
+    "short_address": "Neral, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02430",
+      "MUMC002750"
+    ],
+    "name": "SAHIL ENTERPRISES(REVDANDA)",
+    "full_address": "REVDANDA BAZAARPETH,PARNAKA, REVDANDA,TAL.ALIBAUG,DIST.RAIGAD 402202",
+    "short_address": "Revdanda, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D62160",
+      "MUMC002964"
+    ],
+    "name": "SAI GANESH AQUA ENTERPRISES CORPORATE",
+    "full_address": "SHOP NO 01,NEW GHARKUL CHS, SEC- 1E,KALAMBOLI,RAIGAD 410218",
+    "short_address": "Kalamboli, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "C05171",
+      "MUMC000840"
+    ],
+    "name": "SAI KRIPA FOOD SERVICES PVT LTD-MULUND",
+    "full_address": "RAJA INDUSTRIAL ESTATE,GALA NO 3/4,GROUND FLOOR , NEAR INDRAPRASHT,MUMBAI, Mulund (West)",
+    "short_address": "Nhava Sheva"
+  },
+  {
+    "customer_codes": [
+      "C05171",
+      "MUMC000840"
+    ],
+    "name": "SAI KRIPA FOOD SERVICES PVT LTD-MULUND",
+    "full_address": "RAJA INDUSTRIAL ESTATE,GALA NO 3/4,GROUND FLOOR , NEAR INDRAPRASHT,MUMBAI, Mulund (West",
+    "short_address": "Rabale"
+  },
+  {
+    "customer_codes": [
+      "D02554"
+    ],
+    "name": "SAI PADMAVATI ENTERPRISES",
+    "full_address": "MAJID NAKA AT POST TAL. WALA DIST. PALGHAR 421303",
+    "short_address": "Wada, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02947"
+    ],
+    "name": "SAI SHRADDHA AGENCY",
+    "full_address": "SHOP NO 13, KAILESH TOWER, NEAR D MART, YESHWANT VIVA TOWNSHIP, NALLASOPARA E",
+    "short_address": "NALLASOPARA  - E"
+  },
+  {
+    "customer_codes": [
+      "D62120",
+      "MUMC002954"
+    ],
+    "name": "SAKHI ENTERPRISES",
+    "full_address": "SHOP NO 4,FLOOR NO GR,BUILDING,SAMARPAN BLDG CHS LTD,BLOCK SECTOR, 401104",
+    "short_address": "Mira Road East"
+  },
+  {
+    "customer_codes": [
+      "MUMC020548"
+    ],
+    "name": "SAKHI ENTERPRISES",
+    "full_address": "GROUND, BLDG NO - 3 / SHOP 38, C WING, SHREE SHARNAM CHS LTD KANAKIA ROAD,UNIQUE GARDEN, OM MILK CENTRE, MIRA ROAD EAST 401107",
+    "short_address": "Mira Road East"
+  },
+  {
+    "customer_codes": [
+      "D02622"
+    ],
+    "name": "SAMRUDHI ENTERPRISES",
+    "full_address": "H.N 877,GALA NO A & B,NEAR VIDHYAPATH ROAD AT POST,LONERI TAL MANGAON 402103",
+    "short_address": "Mangaon, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D01321",
+      "MUMC002703"
+    ],
+    "name": "SANTKRIPA DUGHDHALAY(KALYAN-E)",
+    "full_address": "GODAVARI BLDG,SHOP NO:4,LOKGRAM NETIVALI,KALYAN-EAST. 421306",
+    "short_address": "Kalyan (East), Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D00077",
+      "MUMC002673"
+    ],
+    "name": "SATNAM AGENCY (PALGHAR)",
+    "full_address": "11,SAI ASHIRWAD BLDG,NR PIMPLE BLDG AMBMATA RD,PALGHAR 401404",
+    "short_address": "Palghar, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "C04590",
+      "MUMC000626"
+    ],
+    "name": "SCOOTSY LOGISTICS PRIVATE LIMITED",
+    "full_address": "Ground Floor, Unit No.001, Marwah House, Krishanla,Marwah Marg, Andheri East, Mumbai . Office add",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "K11545",
+      "MUMC005516"
+    ],
+    "name": "SCOOTSY LOGISTICS PRIVATE LIMITED",
+    "full_address": "Padgha Maharashtra",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "MUMC017171"
+    ],
+    "name": "SCOOTSY LOGISTICS PVT LTD(BHIWANDI)",
+    "full_address": "BUILDING NO B4 GROUND FLOOR, GLOBAL COMPLEX SURVEY NO 25/10/1 TAREE SONALE   TAHASHIL,BHIWANDI MUNICIPAL,CORPORATION THANE ZONE 5",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "MUMC017281"
+    ],
+    "name": "CLOUDSTORE RETAIL PRIVTAE LIMITED(BHIWANDI FC-22)",
+    "full_address": "BUILDING NO B4 GROUND FLOOR, GLOBAL COMPLEX SURVEY NO 25/10/1 TAREE SONALE   TAHASHIL,BHIWANDI MUNICIPAL,CORPORATION THANE ZONE 5",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "MUMC017280"
+    ],
+    "name": "CLOUDSTORE RETAIL PRIVTAE LIMITED(BHIWANDI FC-14)",
+    "full_address": "PLOT NO 697 696 WH NO B4 VILLAGE BORIVALI BHIWANDI TAHASIL BHIWANDI MUNICIPAL CORPORATION THANE ZONE-05",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "D02563"
+    ],
+    "name": "SHARDHA ENTERPRISES- THANE CITY",
+    "full_address": "A WING,SHOP NO 6,ANUPAM SOCEITY,OPP LIC BLDG HAJURI DARGAH RD,WAGLE ESTATE,THANE W 400604",
+    "short_address": "Thane West"
+  },
+  {
+    "customer_codes": [
+      "D02168",
+      "MUMC002738"
+    ],
+    "name": "SHAYAMA ENTERPRISES (GHANSOLI)",
+    "full_address": "SHOP # 4SHREE KRISHANA MAHESHWAR PD APARTMENT SECTOR 16 GHANSOLI 400701",
+    "short_address": "Ghansoli, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02168",
+      "MUMC002738"
+    ],
+    "name": "SHAYAMA ENTERPRISES (GHANSOLI)",
+    "full_address": "SARVEY NO 85, HISSA NO 4, CHIRNER, Uran",
+    "short_address": "URAN"
+  },
+  {
+    "customer_codes": [
+      "D01804"
+    ],
+    "name": "SHEENA AGENCY - (KALYAN WEST)",
+    "full_address": "SHOP NO.2,SHIVARTH BLDG. SHIAMBHAV SOCIETY,5 RAMBAUG, 421301",
+    "short_address": "Kalyan, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D01747",
+      "MUMC002714"
+    ],
+    "name": "SHIV SAI ENTERPRISES (BHIWANDI-KALHER)",
+    "full_address": "120,ARIHANT COMMERCIAL COMPLEX PURNA VILLAGE 421302",
+    "short_address": "Kalher, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02938"
+    ],
+    "name": "SHIVANSH ENTERPRISES- FFD",
+    "full_address": "SOP NO 01, TODAY CATLISTO, PLOT NO 260, SECTOR- 17",
+    "short_address": "ULWE"
+  },
+  {
+    "customer_codes": [
+      "D02847",
+      "MUMC002833"
+    ],
+    "name": "SHIVANSH ENTERPRISES-SHOPPEE",
+    "full_address": "SHOP NO 10,BALU DYRE CHOWK,MANJARLI VALVALI GAON RD,BADLAPUR WEST 421503",
+    "short_address": "Badlapur, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02971"
+    ],
+    "name": "SHOUHAL ENTERPRISES",
+    "full_address": "SHOP NO-1,2,3 , HOUSE NO-877 NILKANTHESWAR MANDIR VAVANJE,TAL-PANVEL.",
+    "short_address": "PANVEL"
+  },
+  {
+    "customer_codes": [
+      "D00911",
+      "MUMC002700"
+    ],
+    "name": "SHRADDHA ENTERPRISES(NALASOPARA-E)",
+    "full_address": "SHOP NO.1,TRUPATI APPT. DON LANE, ACHOLE ROAD,NALASOPARA-E 401203",
+    "short_address": "Nallasopara East, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02539",
+      "MUMC002771"
+    ],
+    "name": "SHRAVANI COMMUNICATION",
+    "full_address": "OPP KOLAD RAILWAY STATION KOLAD 402304",
+    "short_address": "Kolhad, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D00315",
+      "MUMC002688"
+    ],
+    "name": "SHREE BALAJI TRADING CO.(BADLAPUR)",
+    "full_address": "SHOP NO.9 & 10,GURUSADAN BLDGNO.2 SHIVAJI CHOWK BADLAPUR(EAST),PIN-421 503. 421503",
+    "short_address": "Badlapur, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02446"
+    ],
+    "name": "SHREE DATTAKRUPA ENTERPRISES (KHARGHAR)",
+    "full_address": "A.T.KHUTUK BHANDAR, P.O.KHARGHAR,TAL-PANVEL,DIST-RAIGAD, 410210",
+    "short_address": "Kharghar, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D62161",
+      "MUMC002965"
+    ],
+    "name": "SHREE GANESH AGENCY",
+    "full_address": "SHOP NO 8,RAJKAMAL MAKET SEC-10,NERUL WEST, 400706",
+    "short_address": "Nerul, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02940"
+    ],
+    "name": "SHREE GANESH ENTERPRISES",
+    "full_address": "SHOP NO 3,4,5, SWASTIK APT, NATINGI BYPASS",
+    "short_address": "VIRAR EAST"
+  },
+  {
+    "customer_codes": [
+      "D62136",
+      "MUMC002958"
+    ],
+    "name": "SHREE GANESH ENTERPRISES (TALOJA)",
+    "full_address": "SHOP NO 01,DURVANKAR APT,PLOT NO 46, SEC NO 02,TALOJA PHASE -1 410208",
+    "short_address": "Taloja, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D62169",
+      "MUMC002966"
+    ],
+    "name": "SHREE GANESH SALES AGENCY",
+    "full_address": "SHOP NO 02,UMARPADA BOIDA PADA NAIGAON LINK ROAD Naigaon 401202",
+    "short_address": "Naigaon East, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D00584",
+      "MUMC002697"
+    ],
+    "name": "SHREE KRIPA AGENCIES(NERAL)",
+    "full_address": "NEAR OLD POLICE STN. PADA ROAD, AMBIKA BHAVAN NAKA,NERAL 410101",
+    "short_address": "Neral, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02495"
+    ],
+    "name": "SHREE SIDDHIVINAYAK ENTERPRISES ( NAVI MUMBAI)",
+    "full_address": "SHOP NO1,BALAJI DARSHAN BLDG , PLOT NO 15 SECTOR 44A ,SEAWOOD WEST ,NAVI MUMBAI. 400706",
+    "short_address": "Seawoods, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02488"
+    ],
+    "name": "SHREE SIDDHIVINAYAK ENTERPRISES (VIRAR WEST)",
+    "full_address": "OM SHREE GREEN PARK SHOP NO 6,PADMAVATI NAGAR BOLINJ VIRAR WEST 401303",
+    "short_address": "Virar (W), Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D50400"
+    ],
+    "name": "SHREE TARAK ENTERPRISES",
+    "full_address": "SHOP NO 2,SIDDHIVINAYAK CHS,GANESH NAGAR NAIGON EAST, 401208",
+    "short_address": "Naigon East"
+  },
+  {
+    "customer_codes": [
+      "D02619",
+      "MUMC002793"
+    ],
+    "name": "SHREYAN WATER SOLUTION",
+    "full_address": "H NO.881/B,MARI AAI MANDIR BAMADONGI VILLAGE,ULWE 410206",
+    "short_address": "Ulwe, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D62150",
+      "MUMC002962"
+    ],
+    "name": "SHRI KULSWAMINI ENTERPRISES",
+    "full_address": "AT YELAWADE,POST SHIRVALI, TAL MANGOAN,DIST RAIGAD 402120",
+    "short_address": "Mangaon, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02443",
+      "MUMC002755"
+    ],
+    "name": "SHREE SAI ENTERPRISES (TALOJA PHASE 2)",
+    "full_address": "HOUSE NO.406,AT-PENDHAR, POST NAWADE,DIST.RAIGAD, 410208",
+    "short_address": "Nawade, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02427",
+      "MUMC002748"
+    ],
+    "name": "SHRI SIDDHESH PRODUCTS(KURUL-ALIBAUG)",
+    "full_address": "AT POST KURUL,TAL - ALIBAUG,DIST - RAIGAD RAIGAD. 402201",
+    "short_address": "Alibaugh, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02613",
+      "MUMC002791"
+    ],
+    "name": "SHUBHAM ENTERPRISE",
+    "full_address": "SHOP NO 2/A,PLOT NO 84/86,SEC-29,AGROLI VILLAGE CBD BELAPUR,NAVI MUMBAI 400614",
+    "short_address": "Belapur, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D00399",
+      "MUMC002693"
+    ],
+    "name": "SODEXO INDIA SERVICES PRIVATE LIMITED-KALAMBOLI",
+    "full_address": "PLOT NO.1,SECTOR -KWC,TAL-PANVEL,DIST - RAIGAD,KALAMBOLI",
+    "short_address": "Nhava Sheva"
+  },
+  {
+    "customer_codes": [
+      "D00399",
+      "MUMC002693"
+    ],
+    "name": "SODEXO INDIA SERVICES PRIVATE LIMITED-KALAMBOLI",
+    "full_address": "PLOT NO.1,SECTOR -KWC,TAL-PANVEL,DIST - RAIGAD,KALAMBOL",
+    "short_address": "Rabale, Navi Mumbai"
+  },
+  {
+    "customer_codes": [
+      "D02492"
+    ],
+    "name": "SP MINERALS- ULWE",
+    "full_address": "SHOP NO 2,ORCHID,PLOT NO 31, SECTOR 20,ULWE,NAVI MUMBAI 410206",
+    "short_address": "Ulwe, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02915",
+      "MUMC002864"
+    ],
+    "name": "SRUSHTI ENTERPRISES",
+    "full_address": "BUILDING NO 7, FLAT NO 1002, JAIAN RESIDENCY,",
+    "short_address": "Ambarnath"
+  },
+  {
+    "customer_codes": [
+      "D02544",
+      "MUMC002775"
+    ],
+    "name": "STAR AGENCY-TITWALA",
+    "full_address": "MOULI KRUPA BUILDING HANUMAN NAGAR MANDA TITWALA WEST 421605",
+    "short_address": "Titwala, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02810",
+      "MUMC002815"
+    ],
+    "name": "STREET SIDE SUPER MARKET- SHOPPEE",
+    "full_address": "SIDE SUPER MARKET,UNIT NO,1,2,3,4,GROUND FLR, CLUSTER URBAN-2,DOWN TOWN KHONI,DOMBIVALI EAST 421204",
+    "short_address": "Dombivli, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02098",
+      "MUMC002735"
+    ],
+    "name": "SUGAN ENTERPRISES (MIRA ROAD-E)",
+    "full_address": "SHOP NO 9,POONAM SAGAR COMPLEX, AARZOO APARTMENT,MIRA RD 401104",
+    "short_address": "Miraroad, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02436",
+      "MUMC002753"
+    ],
+    "name": "SUPRIYA ENTERPRISES (WADWAL)",
+    "full_address": "POST: DONVAT,TAL: KHALAPUR DIST: RAIGAD 410202",
+    "short_address": "Khopoli, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02432",
+      "MUMC002751"
+    ],
+    "name": "SWARUPA AGENCY (TASGAON-RAIGAD)",
+    "full_address": "M. TASGAON POSTVILLE,TALUKA MANGAON RAIGAD 402301",
+    "short_address": "Mahad, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02960",
+      "MUMC002877"
+    ],
+    "name": "R.G ENTERPRISES",
+    "full_address": "AT POST- LONERE NEAR ANAND NAGAR, MANGOAN RAIGAD",
+    "short_address": "MANGOAN"
+  },
+  {
+    "customer_codes": [
+      "DTH1000"
+    ],
+    "name": "TAMBOLI TRADERS- PALGHAR",
+    "full_address": "MASJID MARKET,TARPE CHOWK,A/P JAWHAR,DISTRICT PALGHAR 401501",
+    "short_address": "Palghar"
+  },
+  {
+    "customer_codes": [
+      "D02771",
+      "MUMC002798"
+    ],
+    "name": "TAYAL DISTRIBUTORS",
+    "full_address": "SHOP NO 17,BUIDLING NO 9,AGARWAL AND DOSHI COMPLEX,KAUL HERITAGE,BHABOLA VASAI W 401202",
+    "short_address": "Vasai West, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D62121",
+      "MUMC002955"
+    ],
+    "name": "TRIO WATER AND BEVERAGES SERVICES",
+    "full_address": "405,305,SAYANDHI HEIGHTS,APO- DHISH BAR & RESTO,BOLINJ ROAD 401303",
+    "short_address": "Virar West"
+  },
+  {
+    "customer_codes": [
+      "MUMC017916"
+    ],
+    "name": "TRIO WATER & BEVERAGES SERVICES-HOME DELIVEY",
+    "full_address": "B-SHOP NO 14 SAMBHAV TOWER  PADMAVATI NAGAR AGASHI ROAD",
+    "short_address": "VIRAR W"
+  },
+  {
+    "customer_codes": [
+      "D02969",
+      "MUMC002883"
+    ],
+    "name": "TRISHA ENTERPRISES",
+    "full_address": "2ND FLR, OFFICE  NO 203, ASHOK INDL ESTATE LBS NO1",
+    "short_address": "Thane W"
+  },
+  {
+    "customer_codes": [
+      "D02969",
+      "MUMC002883"
+    ],
+    "name": "TRISHA ENTERPRISES",
+    "full_address": "SHOP NO 2, SADGURU KRUPA NIWAS, MUMBRA PANVEL RD, HANUMAN HOTEL SHILPHATA , THANE",
+    "short_address": "THANE"
+  },
+  {
+    "customer_codes": [
+      "D02921",
+      "MUMC002867"
+    ],
+    "name": "TUHI NIRANKAR ENTERPRISES",
+    "full_address": "BADLAPUR AMNERNATH PIPE LINE ROAD, GAJANAN SOCIETY SHOP NO 4, OPP KONI PALAVA, KALYAN THANE",
+    "short_address": "KALYAN"
+  },
+  {
+    "customer_codes": [
+      "D01815",
+      "MUMC002716"
+    ],
+    "name": "VAISHALI AGENCY (VANGANI)",
+    "full_address": "NR. VITTAL MANDIR MUKKAM POST VANGANI TALUKA AMBARNATH 421502",
+    "short_address": "VANGANI"
+  },
+  {
+    "customer_codes": [
+      "K10592",
+      "MUMC004964"
+    ],
+    "name": "VICKY FOODS",
+    "full_address": "GODOWN NO 4/B CENTRAL WAREHOUSING CORPORATION , SEC- 20, APMC FRUIT MARKET, NR TURBE RLY STN WEST,",
+    "short_address": "TURBE"
+  },
+  {
+    "customer_codes": [
+      "C08333",
+      "MUMC016537"
+    ],
+    "name": "MARVELOUS VICKYFOODS PRIVATE LIMITED",
+    "full_address": "CORPORATION SECTOR 20 APMC FRUIT MARKET NEAR TURBHE RAILWAY STATION WEST VASHI NAVI MUMBAI",
+    "short_address": "TURBE"
+  },
+  {
+    "customer_codes": [
+      "D62186"
+    ],
+    "name": "VIRA INVESTMENT & TRADING CO.",
+    "full_address": "05,1ST FLOOR,D.S COMPLEX,NR ,MARUTI MANDIR VASIND WEST,TAL: SHAHAPUR 421601",
+    "short_address": "Shahapur"
+  },
+  {
+    "customer_codes": [
+      "D02426",
+      "MUMC002747"
+    ],
+    "name": "VIRAJ DISTRIBUTORS(POYNAD-ALIBAUG)",
+    "full_address": "AMBEPUR BANDHAN ,POST/POYNAD TAL-ALIBAUG DIST- RAIGAD 402201",
+    "short_address": "Poynad, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02043",
+      "MUMC002726"
+    ],
+    "name": "VIRAJ MARKETING (BHAYANDER-W)",
+    "full_address": "SHOP NO.1,B-WING,DEVASHISH BLDG, OPP.POLICE STATION, 401101",
+    "short_address": "Bhayander West"
+  },
+  {
+    "customer_codes": [
+      "MUMC017519"
+    ],
+    "name": "VIRAJ MARKETING",
+    "full_address": "SHOP NO 1,2 SHREE HARI DARSHAN VIMAL DAIRY LANE INDRALOK NAKA BHAYANDER E",
+    "short_address": "BHAYANDER E"
+  },
+  {
+    "customer_codes": [
+      "K08989"
+    ],
+    "name": "VIRAT FOODS",
+    "full_address": "MUMBAI PUNE EXPRESS WAY,SATGAON TAL - KHALAPUR,DIST RAIGAD 410202",
+    "short_address": "Khalapur"
+  },
+  {
+    "customer_codes": [
+      "D02856",
+      "MUMC002838"
+    ],
+    "name": "VIRENDRA ENTEPRISSES",
+    "full_address": "957/A,PROP NO780,VIRENDRA NIWAS,SECTOR-19, KOPARKHAIRANE NAVI MUMBAI 400705",
+    "short_address": "Koparkairne, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "D02586",
+      "MUMC002786"
+    ],
+    "name": "YASH ENTERPRISES",
+    "full_address": "GALA NO.568,GANESH CHAWL,MUKUND COMPANYM, RAM NAGAR,DIGHA,NAVI MUMBAI 400708",
+    "short_address": "Pawane"
+  },
+  {
+    "customer_codes": [
+      "K07379"
+    ],
+    "name": "YASH ENTERPRISES -THANE",
+    "full_address": "ROOM NO 171,NEAR DUTTA MANDIR KALYAN SHILL PHATA 400407",
+    "short_address": "shilphata"
+  },
+  {
+    "customer_codes": [
+      "K10465",
+      "MUMC004905"
+    ],
+    "name": "YASH TRADING",
+    "full_address": "NEAR NATIONAL HOSPITAL,KALA TALAV, KALYAN",
+    "short_address": "KALYAN"
+  },
+  {
+    "customer_codes": [
+      "D02772",
+      "MUMC002799"
+    ],
+    "name": "YASHPAL ENTERPRISES",
+    "full_address": "A WING,102,MADHIVAN BLDG,PHOOLPADA RD RJ NAGAR,VIRAR EAST",
+    "short_address": "VIRAR ( E )"
+  },
+  {
+    "customer_codes": [
+      "DTH0895",
+      "MUMC003248"
+    ],
+    "name": "YOGITA ENTERPRISES (MIRA ROAD)",
+    "full_address": "SHOP NO 1,A WING,SURYA ORCHID,BEVERLY PARK,OPP WOODLAND HOTEL,MIRA RD E,THANE 4001107 401107",
+    "short_address": "Mira Road"
+  },
+  {
+    "customer_codes": [
+      "D02945"
+    ],
+    "name": "ZAM ZAM ENTERPRISES-FFD",
+    "full_address": "FLAT NO 401, 4TH FLOOR, GALA NO 10, SAMAD NAGAR",
+    "short_address": "KANERI, BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "D02975",
+      "MUMC002886"
+    ],
+    "name": "SDM ENTERPRISES",
+    "full_address": "SHOP NO 2, TULSI SAROVAR, CHS LTD, PLOT NO 70,  SECTOR 34, KAMOTHE,PANVEL",
+    "short_address": "KAMOTHE"
+  },
+  {
+    "customer_codes": [
+      "D02973",
+      "MUMC002884"
+    ],
+    "name": "YASH ENTERPRISES (BHAYANDER)",
+    "full_address": "SHOP NO 3, OM HEMA RESIDENCY CHS LTD, AMRUTVANI, RD, BEHIND MEXUS MALL,",
+    "short_address": "BHAYANDER WEST"
+  },
+  {
+    "customer_codes": [
+      "D02976",
+      "MUMC002887"
+    ],
+    "name": "M.J ENTERPRISES",
+    "full_address": "SAI NAGAR BHADWAD GOAN, NR CHATRAPATI SHIVAJI MAHARAJ GRD,",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "K10117",
+      "MUMC004784"
+    ],
+    "name": "Reliance Retail Ltd.-BHIWANDI",
+    "full_address": "Richiand Commercial Hub, Building No. D6-A&D6 , Nashik Highway. Nominee Vijay Bhikaji Kharmale Bhi",
+    "short_address": "Bhiwandi"
+  },
+  {
+    "customer_codes": [
+      "K10924",
+      "MUMC005146"
+    ],
+    "name": "AVENUE SUPERMARTS LTD-ULHASNAGAR",
+    "full_address": "DMART ULHASNAGAR THANE DMART, 279 ULHAS NAGAR MHARAL",
+    "short_address": "ULHASNAGAR"
+  },
+  {
+    "customer_codes": [
+      "K09303",
+      "MUMC004481"
+    ],
+    "name": "AVENUE SUPER MARTS LTD- BADLAPUR",
+    "full_address": "BARRAGE BADLAPUR WESTP D MART,BARRAGE ROAD KULGAON,KULGAON BADLAPUR",
+    "short_address": "BADLAPUR-W"
+  },
+  {
+    "customer_codes": [
+      "K06992",
+      "MUMC003882"
+    ],
+    "name": "AVENUE SUPERMARTS LTD.KALYAN JOKER CINEMA",
+    "full_address": "KALYAN DMART. OPPOSITE JOKER CINEMA.,SHIVAJI CHOWK. . KALYAN",
+    "short_address": "KALYNA WEST"
+  },
+  {
+    "customer_codes": [
+      "D02023",
+      "MUMC002724"
+    ],
+    "name": "BALAJI ENTERPRISES-TURBHE",
+    "full_address": "MAFCO MINI MARKET, B-7,GR FLOOR,SECTOR-18,TURBHE,",
+    "short_address": "TURBHE"
+  },
+  {
+    "customer_codes": [
+      "D02977",
+      "MUMC002888"
+    ],
+    "name": "MHATRE ENTERPRISES",
+    "full_address": "SHOP NO B/1, PANDURANG KRUPA BLDG NAVPADA,SUBHASH RD, DOMBIVALI WEST",
+    "short_address": "DOMBIVALI WEST"
+  },
+  {
+    "customer_codes": [
+      "K11389"
+    ],
+    "name": "P.K. MARKETING",
+    "full_address": "RAJLAXMI HI-TECH TEXTILE PARK, SURVERY NO. 17/4 & ,& 156/1 HOUSE NO.1811 GALA NO.C3 GRD FLR BHIWANDI",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "K11390"
+    ],
+    "name": "POOJA TRADING",
+    "full_address": "SURVEY NO. 202 HISSA NO 7/10 VILLAGE KONGAON TEL :- BHIWANDI",
+    "short_address": "KALYAN"
+  },
+  {
+    "customer_codes": [
+      "K11392"
+    ],
+    "name": "Tulsi Trading",
+    "full_address": "SURVEY NO. 212 PLOT NO 12/13 NEAR WATER TANK OPP PETROL PUMP KONGAON KALYAN",
+    "short_address": "KALYAN"
+  },
+  {
+    "customer_codes": [
+      "K11391"
+    ],
+    "name": "Ramsons Traders",
+    "full_address": "SURVEY NO. 79/2& 82, VILLAGE ARIVWALI,NR SHETHIYA CRANES,OLD MUMBAI PUNE RD TAL. PANVEL DIST. RAIGAD",
+    "short_address": "PANVEL"
+  },
+  {
+    "customer_codes": [
+      "K06406",
+      "MUMC003756"
+    ],
+    "name": "RADHA SOAMI SATSANG BEAS",
+    "full_address": "UTTAN ROAD,NEAR FLYOVER BRIDGE,BHYANDER WEST,",
+    "short_address": "BHYANDER W"
+  },
+  {
+    "customer_codes": [
+      "K11090"
+    ],
+    "name": "KIRANAKART TECHNOLOGIES PVT LTD",
+    "full_address": "BUILDING NO-A-1 , Antriksh logidorm, Sape Village, Taluka Bhiwandi Dist- Thane",
+    "short_address": "BHYANDER"
+  },
+  {
+    "customer_codes": [
+      "K11559",
+      "MUMC005526"
+    ],
+    "name": "KIRANAKART TECHNOLOGIES PVT LTD",
+    "full_address": "C/O ADANI AGRI LOGISTICS GRD FLR SURVEY NO 102/1- PANVEL RURAL RAIGARH",
+    "short_address": "TALOJA"
+  },
+  {
+    "customer_codes": [
+      "MUMC019135"
+    ],
+    "name": "ZEPTO PRIVATE LIMITED",
+    "full_address": "R2 SHAKTI LOGISTICS PARK PHASE 2 DOHALE VILLAGE POSTADGHA BHIWANDI TEHSIL  MONCHAL COPORATION",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "D02984",
+      "MUMC002891"
+    ],
+    "name": "GREENFIELD SUPPLIERS",
+    "full_address": "EXPORT BLDG -G5-12, VEG MKT SECTOR 19 GRD FLR, TURBE VASHI",
+    "short_address": "TURBE"
+  },
+  {
+    "customer_codes": [
+      "D02988",
+      "MUMC002893"
+    ],
+    "name": "NANDKUMAR TRADERS",
+    "full_address": "DESAI ROAD AT POST TAL WADA DIST PALGHAR",
+    "short_address": "PALGHAR WADA"
+  },
+  {
+    "customer_codes": [
+      "D02990",
+      "MUMC002895"
+    ],
+    "name": "SHREE SAIBABA ENTERPRISES",
+    "full_address": "SHOP NO G-1 NEW SONALI CHSL TARKHAD KARDI VASAI VILLAGE VASAI EAST",
+    "short_address": "VASAI EAST"
+  },
+  {
+    "customer_codes": [
+      "K10577",
+      "MUMC004959"
+    ],
+    "name": "SHREE SUKHSAGAR HOPITALITY SERVICES",
+    "full_address": "H NO 1068, SHOP 3/4.MAYUR APPARTMENT, SEC-5,",
+    "short_address": "KOPERKHAIRANE"
+  },
+  {
+    "customer_codes": [
+      "MUMC017538"
+    ],
+    "name": "SHREE SUKHSAGAR HOSPITALITY SERVICES",
+    "full_address": "FOUNTAIN CITY WATER PARK AND BANQUET HALL NH-48 SAHUNAVGHAR 401209  GUJARAT HIGHWAY",
+    "short_address": "Palghar"
+  },
+  {
+    "customer_codes": [
+      "D02989",
+      "MUMC002894"
+    ],
+    "name": "T.B KHATIB BROTHER'S",
+    "full_address": "AT POST NANDGAON TAL MURUD JANJIRA DIST , RAIGAD",
+    "short_address": "Alibaugh"
+  },
+  {
+    "customer_codes": [
+      "D02991",
+      "MUMC002896"
+    ],
+    "name": "SWAMI ENTERPRISES",
+    "full_address": "SPARSH CHS SHOP NO 5 PLOT NO 101-102 SECTOR NO 44 SEAWOOD NAVI MUMAI",
+    "short_address": "SEAWOOD"
+  },
+  {
+    "customer_codes": [
+      "D02979",
+      "MUMC002890"
+    ],
+    "name": "SHUBHAM AGENCY",
+    "full_address": "KALA SHREE BLDG PLOT NO B-84/86 SHOP NO 24, SECTOR 29 AGROLI CBD BELAPUR NAVI MUMBAI",
+    "short_address": "BELAPUR"
+  },
+  {
+    "customer_codes": [
+      "K10559",
+      "MUMC004948"
+    ],
+    "name": "Hands On Trades Private Limited",
+    "full_address": "Rich Land Commercial bldg, B9, Gala No 1 TO 12, Vadpe Village, Mumbai Nashik Highway, Bhiwandi",
+    "short_address": "Bhiwandi"
+  },
+  {
+    "customer_codes": [
+      "K13146",
+      "MUMC016576"
+    ],
+    "name": "HANDS ON TRADE PRIVATE LIMITED TALOJA",
+    "full_address": "SURVEY N 122 TO 133 BLDG B 8 A ESR TALOJA INDUSTRI LOGISTICS PARK VLG USATANE KHONI TALOJA RD AMBERNA",
+    "short_address": "TALOJA"
+  },
+  {
+    "customer_codes": [
+      "D02997",
+      "MUMC002901"
+    ],
+    "name": "PICK AND CARRY SURPER MARKET",
+    "full_address": "SHREE KRPA CHS SEC-10 SHOP NO 2 KHARGHAR",
+    "short_address": "KHARGHAR"
+  },
+  {
+    "customer_codes": [
+      "D02996",
+      "MUMC002900"
+    ],
+    "name": "MS SHRAVYA ENTERPRISES",
+    "full_address": "H NO 1093 UNIT NO 002 YASHWANT K PATIL SEC- 23,OPP MAULI HEIGHT GHANSOLI NAVI MUMBAI",
+    "short_address": "GHANSOLI"
+  },
+  {
+    "customer_codes": [
+      "D02995",
+      "MUMC002899"
+    ],
+    "name": "P.P ENTERPRISES",
+    "full_address": "PLOT NO 276 RD NO 16/A NEAR BALAJI INFOTECH WAGLE ESTATE THANE WEST",
+    "short_address": "THANE (W)"
+  },
+  {
+    "customer_codes": [
+      "D03004"
+    ],
+    "name": "KRISHNA ENTERPRISES",
+    "full_address": "RADHA NIVAWS RADHA NAGAR TULINJ NALASOPARA EAST",
+    "short_address": "NALASOPARA ( E )"
+  },
+  {
+    "customer_codes": [
+      "D03001",
+      "MUMC002905"
+    ],
+    "name": "UNITED ENTERPRISES-shoppee",
+    "full_address": "SHOP NO 9, GRD FLR BRHMAND PHASE 2, MANPADA THANE WEST",
+    "short_address": "MANPADA THANE ( W )"
+  },
+  {
+    "customer_codes": [
+      "K11484",
+      "MUMC005476"
+    ],
+    "name": "SHREE DISTRIBUTORS",
+    "full_address": "Shed B3, Gala Number 5,6,7,8, Sairaj Logistic Center Lonad Road Bhivandi",
+    "short_address": "Bhivandi"
+  },
+  {
+    "customer_codes": [
+      "D03005",
+      "MUMC002907"
+    ],
+    "name": "A.N ENTERPRISES",
+    "full_address": "SHOP NO 10 PLOT NO 14 SATYAM BLDG MHADA PALGHAR, SALWAD CT, BOISAR",
+    "short_address": "BOISAR"
+  },
+  {
+    "customer_codes": [
+      "D03006",
+      "MUMC002908"
+    ],
+    "name": "FOOD PLAZA SUPER MARKET",
+    "full_address": "SHOP NP E/6 PLOT NO 182 AHINSA GRUH NIRMAN PANVEL, RAIGARH NAVI MUMBAI",
+    "short_address": "PANVEL"
+  },
+  {
+    "customer_codes": [
+      "D03009"
+    ],
+    "name": "S.B ENTERPRISES",
+    "full_address": "SHOP NO 8 MURBAD SHAHAPUR RD NEAR BALAJI MOTOERS TAL SHAHAPUR DIST THANE",
+    "short_address": "SHAHAPUR"
+  },
+  {
+    "customer_codes": [
+      "D03000",
+      "MUMC002904"
+    ],
+    "name": "RADHA ENTERPRISES",
+    "full_address": "SHOP NO 38 BLD NO 8 OSTWAL ORCHID BLDG BEVERLY PARK KAHANI RD MIRA BHAYANDER RD EAST",
+    "short_address": "BHAYANDER E"
+  },
+  {
+    "customer_codes": [
+      "D03003",
+      "MUMC002906"
+    ],
+    "name": "ANNAPURNA AGENCIES",
+    "full_address": "NEW SONAL CHS LTD,SHOP NO 4 TORKAD VASAI WEST",
+    "short_address": "VASAI ( W )"
+  },
+  {
+    "customer_codes": [
+      "D03016",
+      "MUMC002912"
+    ],
+    "name": "A.G ENTERPRISES",
+    "full_address": "ROAD NO 18, NEAR TOYOTA COMPANY WAGLW ESTATE",
+    "short_address": "THANE"
+  },
+  {
+    "customer_codes": [
+      "D03017",
+      "MUMC002913"
+    ],
+    "name": "SARA AGENCY",
+    "full_address": "GALA NO 3,1777 AL MUNEER APT, SUBHASH NAGAR ,NAVI PADA RD BHIWANDI",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "D02999",
+      "MUMC002903"
+    ],
+    "name": "R.M RETAIL MART VEG -BOXX-(SHOPPEE)",
+    "full_address": "UNIT NO 7, GRD FLR CASE ELIGHT BLDG LAKESHORE GREEN PLAWA PHASE 11 KHONI DOMBIVALI",
+    "short_address": "DOMBIVALI"
+  },
+  {
+    "customer_codes": [
+      "D03013",
+      "MUMC002909"
+    ],
+    "name": "RUDRADAKSH ENTERPRISES",
+    "full_address": "SHOP NO 3 IRISH APT CENTRAL PARK TULINJ ,NALLASOPARA EAST",
+    "short_address": "NALLASOPARA  (E )"
+  },
+  {
+    "customer_codes": [
+      "D03021",
+      "MUMC002914"
+    ],
+    "name": "BHAGWATI ENTERPRISES",
+    "full_address": "NEELKANTH HEIGHT SHOP NO 23 PLOT  NO 12 &13,SEC 8 GHANSOLI NAVI MUMBAI",
+    "short_address": "GHANSOLI"
+  },
+  {
+    "customer_codes": [
+      "D02183",
+      "MUMC002739"
+    ],
+    "name": "TRENT HYPERMARKET PRIVATE LIMITED",
+    "full_address": "THL BHIWANDI,C/O  PART A4 PART ACORN WAREHOUSE & LOGIST",
+    "short_address": "Bhiwandi"
+  },
+  {
+    "customer_codes": [
+      "K11994",
+      "MUMC005835"
+    ],
+    "name": "KESHWANI PROVISION STORE",
+    "full_address": "NR. GOVENMENT REST HOUSE AT PATLI  PADA TALASARI DIST PALGHAR",
+    "short_address": "PALGHAR"
+  },
+  {
+    "customer_codes": [
+      "K09599",
+      "MUMC004614"
+    ],
+    "name": "Reliance Retail Ltd.Khalapur Raigad",
+    "full_address": "Shed No. 100,At Indospace Industrial & Logistic Park, Khopoli II, Village - Ajivali Nominee",
+    "short_address": "Khalapur"
+  },
+  {
+    "customer_codes": [
+      "C07428",
+      "MUMC001959"
+    ],
+    "name": "DERIVE TRADING & RESORTS PVT LTD",
+    "full_address": "(RADISSON BLU RESORT & SPA) ALIBAUG, GONDAL PADA, RAIGAD MAHARASHTRA",
+    "short_address": "ALIBAUG"
+  },
+  {
+    "customer_codes": [
+      "DTH0655",
+      "MUMC003219"
+    ],
+    "name": "HOTEL PRANJALI (MURBAD)",
+    "full_address": "KHUTAL BANGLOW,POST SARALGAON, TAL MURBAD,DIST THANE 421401",
+    "short_address": "MURBAD"
+  },
+  {
+    "customer_codes": [
+      "D03025",
+      "MUMC002915"
+    ],
+    "name": "SHREEJI FOODS & COLD DRINKS",
+    "full_address": "GALA NO 3 & 4, GANESH NAGAR GATE NO 1, KARANJE RD, TAL URAN, DIST RAIGAD",
+    "short_address": "PANVEL"
+  },
+  {
+    "customer_codes": [
+      "D02993",
+      "MUMC002898"
+    ],
+    "name": "GREEN APPLE FRUITS AND VEGETABLE",
+    "full_address": "SHOP NO 4 CLUSTER MLCP SURVEY NO65 ANJUR RD, MANKOLI VILLAGE OPP ASSOCIATED SAW MILL BHIWANDI",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "D03080",
+      "MUMC002917"
+    ],
+    "name": "PEER BABA ENTERPRISES",
+    "full_address": "DHUMAL RESIDENCY, NEAR LG SHOP GHOTEGHAR, SHAHAPUR -DIST -THANE",
+    "short_address": "SHAHAPUR"
+  },
+  {
+    "customer_codes": [
+      "D03086",
+      "MUMC002922"
+    ],
+    "name": "MUKTAI ENTERPRISES",
+    "full_address": "SHOP NO 4, VARDHAMAN PLAZA ROAD PALI KALAMBOLI",
+    "short_address": "KALAMBOLI"
+  },
+  {
+    "customer_codes": [
+      "D03081",
+      "MUMC002918"
+    ],
+    "name": "LAXMI ENTERPRISES",
+    "full_address": "SHOP NO 03, CHINTAMANI SOCIETY , SECTOR NO 26 VASHI NAVI MUMBAI",
+    "short_address": "vasai"
+  },
+  {
+    "customer_codes": [
+      "D03091",
+      "MUMC002923"
+    ],
+    "name": "PARAB COLDDRINK",
+    "full_address": "SHOP NO 04, WING A SAKHARAM COMPLEX NR LOW SUPER MARKET AAGASAN RD,",
+    "short_address": "DIVA (E)"
+  },
+  {
+    "customer_codes": [
+      "D03095",
+      "MUMC002925"
+    ],
+    "name": "SAINATH ENTERPRISES",
+    "full_address": "T2 ROAD, OSTWAL BY PASS ROAD,CIDCO VILLAGE H NO 373/522 CIDCO PALGHAR BOISAR (CT)",
+    "short_address": "BOISAR"
+  },
+  {
+    "customer_codes": [
+      "D03084",
+      "MUMC002920"
+    ],
+    "name": "JAY MATA DI ENTERPRISES",
+    "full_address": "HOUSE NO. 0768. OWE PETH PANVEL",
+    "short_address": "PANVEL"
+  },
+  {
+    "customer_codes": [
+      "K12279",
+      "MUMC006033"
+    ],
+    "name": "RK BAZAR PRIVATE LIMITED",
+    "full_address": "GALA NO 15,16 VASANT PATIL COMPOUND, BEHIND , SARPANCH OFFICE SONARPADA, DOMBIVALI",
+    "short_address": "DOMBIVALI"
+  },
+  {
+    "customer_codes": [
+      "D03094",
+      "MUMC002924"
+    ],
+    "name": "K.K DISTRIBUTOR",
+    "full_address": "SHOP NO 6 & 4, MADHUVAN SOC R.J NAGAR PHOOL PADA RD VIRAR EAST, PALGHAR",
+    "short_address": "VIRAR (E )"
+  },
+  {
+    "customer_codes": [
+      "D03096",
+      "MUMC002926"
+    ],
+    "name": "OM SAI ENTERPRISES",
+    "full_address": "AT POST LONI, TALOJA MIDC RD TAL- KALYAN,",
+    "short_address": "KALYAN"
+  },
+  {
+    "customer_codes": [
+      "D03085",
+      "MUMC002921"
+    ],
+    "name": "SHREE SADGURUKRUPA ENTERPRISES",
+    "full_address": "NR SATIRJE GRAMPANCHAYAT HOUSE NO 137, G. BHASKAR, PATIL, MAPGAON,SATIJE,ALIBAUG,RAIGAD",
+    "short_address": "ALIBAUG"
+  },
+  {
+    "customer_codes": [
+      "D02974",
+      "MUMC002885"
+    ],
+    "name": "GHARAT ENTERPRISES",
+    "full_address": "AT PALAV  HOUSE NO 1924 POST CHAUL TAL ,ALIBAG DIST RAIGAD, ALIBAUG",
+    "short_address": "ALIBAUG"
+  },
+  {
+    "customer_codes": [
+      "D02890",
+      "MUMC002853"
+    ],
+    "name": "ANOOP DRINKING WATER AND COLDDRINK SUPPLY",
+    "full_address": "AT POST CHOWK TAL KHALAPUR,",
+    "short_address": "KHALAPUR"
+  },
+  {
+    "customer_codes": [
+      "D02985",
+      "MUMC002892"
+    ],
+    "name": "DOSANI TRADERS",
+    "full_address": "JASAVALI JASAVALI SHRIWARDHAN RAIGAS",
+    "short_address": "SHRIWARDHAN"
+  },
+  {
+    "customer_codes": [
+      "D02920",
+      "MUMC002866"
+    ],
+    "name": "PRANJALI ENTERPRISES",
+    "full_address": "AT KHUTAL POST, KAIRA NEAR SWARAJ DHABA, TAL ROHA, DIST RAIGARD",
+    "short_address": "ROHA"
+  },
+  {
+    "customer_codes": [
+      "D03104",
+      "MUMC002928"
+    ],
+    "name": "SHIVKRUPA ENTERPRISES",
+    "full_address": "GALA NO 5, H NO 312, WARD NO 4,GERASE ROAD, VASIND EAST, TAL SAHAPUR",
+    "short_address": "SAHAPUR"
+  },
+  {
+    "customer_codes": [
+      "C06798",
+      "MUMC001571"
+    ],
+    "name": "NATURE TRAILS RESORTS PVT LTD-kahalpur",
+    "full_address": "KOPOLI PALI ROAD TAL KHALAPUR",
+    "short_address": "KAHALPUR"
+  },
+  {
+    "customer_codes": [
+      "D03111",
+      "MUMC002930"
+    ],
+    "name": "SHRISTI ENTERPRISES",
+    "full_address": "SHOP NO 6 GROUNG FLOOR AVENUE BUSINESS PARK AND TRUCK TERMINANS KALYAN WEST",
+    "short_address": "KALYAN W"
+  },
+  {
+    "customer_codes": [
+      "C07428",
+      "MUMC001959"
+    ],
+    "name": "DERIVE TRADING & RESORTS PVT LTD",
+    "full_address": "(RADISSON BLU RESORT & SPA) ALIBAUG GONDAL PADA, RAIGAD MAHARASHTRA",
+    "short_address": "Alibaug"
+  },
+  {
+    "customer_codes": [
+      "D03104",
+      "MUMC002928"
+    ],
+    "name": "SHIVKRUPA ENTERPRISES",
+    "full_address": "GALA NO 5, H NO 312, WARD NO 4, GERASE ROAD VASIND EAST, TAL SAHAPUR",
+    "short_address": "VASIND"
+  },
+  {
+    "customer_codes": [
+      "K12332",
+      "MUMC006076"
+    ],
+    "name": "AVENUE E-COMMERCE LTD (BELAPUR) M M",
+    "full_address": "MINIMAX SHOP NO 1 & 2 THE MARUTHI MOUNT VIEW CHS P N 24 SECTOR R8B GBO BELAPUR NAVI MUMBAI MUNICIPAL",
+    "short_address": "Belapur"
+  },
+  {
+    "customer_codes": [
+      "D03027",
+      "MUMC002916"
+    ],
+    "name": "PURVI ENTERPRISES",
+    "full_address": "3162 SHOP NO 03, KARANJA NEAR DRONAGIRI TAL URAN DIST RAIGAD",
+    "short_address": "DRONAGIRI"
+  },
+  {
+    "customer_codes": [
+      "D03134",
+      "MUMC002931"
+    ],
+    "name": "ACE ENTERPRISES",
+    "full_address": "SHOP NO 5 DMELLO WADI PROPERTY TAMTALAO",
+    "short_address": "VASAI WEST"
+  },
+  {
+    "customer_codes": [
+      "D03140",
+      "MUMC002932"
+    ],
+    "name": "SAI ENTERPRISES",
+    "full_address": "SHOP NO 3, PLOT NO 1034/003, SHANKAR MAHADEV APT, SEC-5,NAVI MUMBAI",
+    "short_address": "KOPAR KHAIRANE"
+  },
+  {
+    "customer_codes": [
+      "D03145",
+      "MUMC002933"
+    ],
+    "name": "SAMARTH KRUPA ENTERPRISES",
+    "full_address": "SHOP NO 27 AT GHESAR POST NILJE TALUKA KALYAN",
+    "short_address": "KALYAN"
+  },
+  {
+    "customer_codes": [
+      "D03146",
+      "MUMC002934"
+    ],
+    "name": "SHIVA ENTERPRISES",
+    "full_address": "SHOP NO 10 BLDG NO 6, VASUDEV COMPLEX CHS LTD KANAKIA MIRA RD EAST",
+    "short_address": "MIRA RD EAST"
+  },
+  {
+    "customer_codes": [
+      "D03157",
+      "MUMC002936"
+    ],
+    "name": "SHREE BHOLE AGENCY",
+    "full_address": "SHOP NO 20 SANJARI SHOPPING CENTER SHREE GAJANAN, COMPOUND OPP VINA DYNASITY EVERSHINE CITY PALGHAR",
+    "short_address": "VASAI"
+  },
+  {
+    "customer_codes": [
+      "K12893",
+      "MUMC006511"
+    ],
+    "name": "KIRANAKART TECHNOLOGIES PVT LTD",
+    "full_address": "H NO 180/10 BLDG AB GLOBAL COMPLEX OPPOSITE SHANGRILA RESORT BHIWANDI TAHASIL MUNICIPAL CO THA",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "K12115",
+      "MUMC005913"
+    ],
+    "name": "GCC HOTELS PVT LTD",
+    "full_address": "92/1  OFF MIRA BHAYANDER ROAD, MIRA RD EAST",
+    "short_address": "MIRA RD E"
+  },
+  {
+    "customer_codes": [
+      "K12041",
+      "MUMC005859"
+    ],
+    "name": "HANDS ON TRADE PVT LTD",
+    "full_address": "RATAN LOGISTICS HUB BLDG NO RBI AMANE BHIWANDI,BHIWANDI THASHIL BHIWANDI MUNICIPAL CORPORATION TH",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "K13025",
+      "MUMC006599"
+    ],
+    "name": "DAIVIK DISTRIBUTOR",
+    "full_address": "SHOP NO 5 MAIN ROAD CHINCHAN , DIST PALGHAR",
+    "short_address": "PALGHAR"
+  },
+  {
+    "customer_codes": [
+      "K13045",
+      "MUMC006618"
+    ],
+    "name": "MAHA PURNIMA FABRICS",
+    "full_address": "SHOP NO 14,15,16 C GROUND FLR, ORION BLDG NO 1, THAKUR GALAXY, YASHWANT SHRUSTI BOISER WEST",
+    "short_address": "BOISER"
+  },
+  {
+    "customer_codes": [
+      "D03173",
+      "MUMC002939"
+    ],
+    "name": "MAHA PURNIMA FABRICS",
+    "full_address": "SHOP NO 14,15,16 C GROUND FLR, ORION BLDG NO 1, THAKUR GALAXY, YASHWANT SHRUSTI BOISER WEST",
+    "short_address": "BOISER"
+  },
+  {
+    "customer_codes": [
+      "D03158",
+      "MUMC002937"
+    ],
+    "name": "CHIRAG ENTERPRISES",
+    "full_address": "SHOP NO 6, PLOT NO 42, BHARATRATNA BABASAHEB ,AMBEDKAR SAMTA BHAVAN, SECTOR-10 SANPADA, NAVI MUM",
+    "short_address": "SANPADA"
+  },
+  {
+    "customer_codes": [
+      "K10379",
+      "MUMC004869"
+    ],
+    "name": "GOOD VIBES SUPERSTORE LLP",
+    "full_address": "TAKAULI NAKA, NEAER PADGA TOLL PLAZA,  BEHIND URBAN TADKA RESTAURANT NASIK HIGHWAY, KALYAN WEST",
+    "short_address": "Kalyan W"
+  },
+  {
+    "customer_codes": [
+      "C08346",
+      "MUMC016543"
+    ],
+    "name": "RELIANCE RETAIL MERCHANDISING CENTRE",
+    "full_address": "RELINCE SMART BAZZAR RELIANCE CORPORATE PARK LTD THANE BELAPUR ROAD",
+    "short_address": "BELAPUR"
+  },
+  {
+    "customer_codes": [
+      "K12270",
+      "MUMC006024"
+    ],
+    "name": "CENTRALE",
+    "full_address": "ANGALI 329/2 ANGALI PADAI Road SATPALE VASAI VIRAR PALGHAR",
+    "short_address": "PALGHAR"
+  },
+  {
+    "customer_codes": [
+      "D03172",
+      "MUMC002938"
+    ],
+    "name": "NITA ENTERPRISES",
+    "full_address": "AT POST TONDRE NEAR NAGARPALIKA OFFICE TAL- PANVEL",
+    "short_address": "PANVEL"
+  },
+  {
+    "customer_codes": [
+      "D03193",
+      "MUMC016648"
+    ],
+    "name": "MARVI ENTERPRISES",
+    "full_address": "SHOP NO 2 NAVPADA NEAR GANESH MANDIR SECTOR 22 KAMOTHE",
+    "short_address": "KAMOTHE"
+  },
+  {
+    "customer_codes": [
+      "K13260",
+      "MUMC16921"
+    ],
+    "name": "ALISHAN TRADERS",
+    "full_address": "HOUSE NO 2144/06 KASA GALKWAD PADA DAHANU JAWAHAR KASA BUDRUK B.O PALGHAR,  -",
+    "short_address": "Palghar"
+  },
+  {
+    "customer_codes": [
+      "D03196",
+      "MUMC17021"
+    ],
+    "name": "DRASHITI ENTERPRISES",
+    "full_address": "SHOP NO 16 PLOT NO 35 SECTOR 11 MARUTI TOWER COOP HSG CBD BELAPUR",
+    "short_address": "BELAPUR"
+  },
+  {
+    "customer_codes": [
+      "MUMC017430"
+    ],
+    "name": "ATHARV ENTERPRISES",
+    "full_address": "SHOP NO-02 PLOT NO 29 SHEETAL DHARA SEAWOODS SECTORE 44A NAVI MUMBAI",
+    "short_address": "SEAWOODS"
+  },
+  {
+    "customer_codes": [
+      "MUMC17020"
+    ],
+    "name": "RADHAKRISHNA FOODLAND PVT LTD",
+    "full_address": "A-2 GOODWON NO4 GLOBAL COMPLEX TURF SONALE OPPOSITE SHANGRILLA RESORT",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "MUMC017492"
+    ],
+    "name": "ATHARVA DISTRIBUTORS",
+    "full_address": "GODOWN NO-3/A GRND FLR CENTRAL WAREHOUSING CORPORATION NEAR APMC MARKET SEELA VASHI",
+    "short_address": "VASHI"
+  },
+  {
+    "customer_codes": [
+      "MUMC017550"
+    ],
+    "name": "PRINCE ENTERPRISES",
+    "full_address": "GORAI CROSS CHAWL GORAI VILLAGE",
+    "short_address": "GORAI"
+  },
+  {
+    "customer_codes": [
+      "MUMC017537"
+    ],
+    "name": "ALROZ TRADING",
+    "full_address": "HOUSE NO-944 SY NO 203 CHAROTI DAHANU ROAD",
+    "short_address": "DAHANU"
+  },
+  {
+    "customer_codes": [
+      "MUMC002075"
+    ],
+    "name": "APOLLO HEALTHCO LIMITED",
+    "full_address": "GALA NO 1 TO 8 GRD F;R BLDG NO A/2 PRITHVI COMPLEX AMANE, KALHER VILLAGE TAL BHIWANDI THANE",
+    "short_address": "KALHER BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "MUMC017325"
+    ],
+    "name": "NEW NOOR ENTERPRISES",
+    "full_address": "SHOP NO 5 GROUND FLOOR DYNASTY CHS LTD MAIN ROAD SHRUTI PARK",
+    "short_address": "THANE"
+  },
+  {
+    "customer_codes": [
+      "MUMC004961"
+    ],
+    "name": "INNOVATIVE RETAIL CONCEPTS PRIVATE LIMITED",
+    "full_address": "WAREHOUSE NO.1, SAHIB WAREHOUSING, MAMA COMPOUND KON, NR BHIWANDI BYPASS, NSK  HIGHWAY, SARIVALI BHIWAND",
+    "short_address": "BHIWAND"
+  },
+  {
+    "customer_codes": [
+      "MUMC017600"
+    ],
+    "name": "BALAJI WORK'S",
+    "full_address": "ONERS ACCOTAITION SECTOR NO-21 TURBHE NEAR APMC FRUIT MARKET",
+    "short_address": "TURBHE"
+  },
+  {
+    "customer_codes": [
+      "MUMC017776"
+    ],
+    "name": "NAYRA ENTERPRISES",
+    "full_address": "GUT NO 31/6 DUGHAD PHATA WADA  BHIWANDI ROAD",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "MUMC017615"
+    ],
+    "name": "OVAL ENTERPRISES",
+    "full_address": "H NO 420 NEXT TO INDIAN PETROL PUMP OPP FOUNTAIN HOTEL CHAVINDRA BHIWANDI ROAD",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "MUMC017748"
+    ],
+    "name": "DHARMA ENTERPRISES",
+    "full_address": "SHOP NO 1 SADGURU KRUPA BUILDING GOLAVALLI GAON DEVI MANDIR ROAD",
+    "short_address": "DOMBIVALI E"
+  },
+  {
+    "customer_codes": [
+      "MUMC017850"
+    ],
+    "name": "KIRANAKART TECHNOLOGIES PRIVATE LIMITED",
+    "full_address": "SQUARE INTEGRATED LOGISTIC PARK K SQUARE BEFORE PADGHA  TOLL NAKA NASHIK MUMBAI HIGHWAY AFTER PUSKAR MELA HOTEL KURUND VILLAGE",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "MUMC017828"
+    ],
+    "name": "ATHARVA DISTRIBUTORS AND MARKETING PRIVATE LIMITED",
+    "full_address": "GODOWN-3A CENTRAL WAREHOUSEING CORPORATION SECTOR-20 NEAR APMC MARKET NEAR TURBHE RAILWAY STATION VASHI",
+    "short_address": "Turbhe"
+  },
+  {
+    "customer_codes": [
+      "MUMC017616"
+    ],
+    "name": "VISHANK ENTERPRISES",
+    "full_address": "SHOP-13 GOPAL NAARO BHIWANDI THANE,",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "MUMC018002"
+    ],
+    "name": "VIGNAHARTHA DISTRIBUTOR",
+    "full_address": "SHOP NO 14 BUILDING NO 1 SHANTI VISTA BOISAR SEVALAL JOB PLAXEMENT YASHWANT SHRISTA BOISAR",
+    "short_address": "BOISAR"
+  },
+  {
+    "customer_codes": [
+      "MUMC018124"
+    ],
+    "name": "ISHA ENTERPRISES",
+    "full_address": "Grd Flr,Shop No 8 Chandrasen Kedar Bldg Near Shivaji Chowk Kalyan Shill Road, Lodha Heaven",
+    "short_address": "KALYAN"
+  },
+  {
+    "customer_codes": [
+      "MUMC018193"
+    ],
+    "name": "K.E. INFRASTRUCTURE PVT. LTD.",
+    "full_address": "Haware city Kasarvadavali, 7X54+WRX, Haware City, Kasarvadavali, Thane West, Thane, Maharashtra",
+    "short_address": "Thane"
+  },
+  {
+    "customer_codes": [
+      "MUMC018183"
+    ],
+    "name": "RAJANI ENTERPRISES",
+    "full_address": "GRND FLOOR BUILDING NO-552 SHOP NO 492 SECTOR 5 NAVI MUMBAI KOPAR KHARANE",
+    "short_address": "KOPAR KHARANE"
+  },
+  {
+    "customer_codes": [
+      "MUMC018204"
+    ],
+    "name": "PAURAS ENTERPRISES",
+    "full_address": "HOUSE 321 OPP DIVINE GRACE HIGH SCHOOL AT POST VAJRESHWARI ASSARA NAGAR ROAD",
+    "short_address": "Vajreshwari"
+  },
+  {
+    "customer_codes": [
+      "MUMC017193"
+    ],
+    "name": "KAMLESHWAR ENTERPRISSE",
+    "full_address": "SHOP NO 3 GROUND FLOOR HOTEL OM PANCHARATNA GRND NEAR SHEDUNG TOLL NAKA",
+    "short_address": "Uran"
+  },
+  {
+    "customer_codes": [
+      "MUMC018125"
+    ],
+    "name": "P.P ENTERPRISES",
+    "full_address": "GRD,SHOP NO.03, JIGNESH JYOT CHS LTD TATA LINE Dombivli E SHRADHANAND CROSS ROAD",
+    "short_address": "Dombivli E"
+  },
+  {
+    "customer_codes": [
+      "MUMC018338"
+    ],
+    "name": "CONTAGIOUS ONLINE MEDIA NETWORK PVT LTD",
+    "full_address": "P H PALMS MASTER WADI MADH MUMBAI SUBUEBAN, Mumbai -",
+    "short_address": "MADH"
+  },
+  {
+    "customer_codes": [
+      "MUMC018356"
+    ],
+    "name": "DHAN GURU NANIK COLD DRINK HOUSE",
+    "full_address": "PLOT NO 46 O.T SECTION ULHASNAGAR CAMP NR SAGAR BISCUIT FACTORY",
+    "short_address": "ULHASNAGAR"
+  },
+  {
+    "customer_codes": [
+      "MUMC018352"
+    ],
+    "name": "SHREE KRISHNA TRADERS",
+    "full_address": "NEAR ABU HOTEL GANDHI ROAD ULHASNAGAR",
+    "short_address": "ULHASNAGAR"
+  },
+  {
+    "customer_codes": [
+      "MUMC003476"
+    ],
+    "name": "BOOKER INDIA LTD.(MIRA ROAD )",
+    "full_address": "BOOKER WHOLESALE,118 C PANDURANGWADI GHODBANDER NEXT TO LODHA AQUA OPP THAKUR MALL,",
+    "short_address": "Miraroad, Maharashtra"
+  },
+  {
+    "customer_codes": [
+      "MUMC018383"
+    ],
+    "name": "SURYANATH AGENCY",
+    "full_address": "H No 0342, Room no 201, Yamuna Apartment Gothivali Gaon Near Dk Telars, Rabale",
+    "short_address": "Rabale"
+  },
+  {
+    "customer_codes": [
+      "MUMC018476"
+    ],
+    "name": "PRAJWAL ENTERPRISES",
+    "full_address": "3/298, SUNIL DATTATRAY MANORE, PARALI NAKA, WADA,",
+    "short_address": "WADA"
+  },
+  {
+    "customer_codes": [
+      "MUMC018477"
+    ],
+    "name": "TARUN ENTERPRISES",
+    "full_address": "Grnd Flr, A-003, Shiv Pooja Apt Ami Park Near Chakradhar Nagar,",
+    "short_address": "Nallasopara W"
+  },
+  {
+    "customer_codes": [
+      "MUMC017779"
+    ],
+    "name": "VEER MART",
+    "full_address": "SHOP NO F G 60 R-GALLERY RUNAL SHOPPING ARCADE KALYAN SHILL ROAD",
+    "short_address": "KALYAN"
+  },
+  {
+    "customer_codes": [
+      "MUMC004561"
+    ],
+    "name": "AVENUE E COMMERCE LIMITED-MIRA RD",
+    "full_address": "SURVEY NO 141,HISSA NO 2. (OLD SURVEY NO 465) GHODBANDER, VILLAGE BHAYANDER. (OLD VILLAGE NAHVGHAR) MIRA RD",
+    "short_address": "MIRA ROAD"
+  },
+  {
+    "customer_codes": [
+      "MUMC018585"
+    ],
+    "name": "VIGNESHWAR TRADERS",
+    "full_address": "07 PRAGATI SANKOOL SUBHASH ROAD KUMBHARKHAN PADA DOMBIVALI W",
+    "short_address": "DOMBIVALI W"
+  },
+  {
+    "customer_codes": [
+      "MUMC018592"
+    ],
+    "name": "OK ENTERPRISES",
+    "full_address": "Ashok Nagar, Ulhasnagar, Maharashtra 421004",
+    "short_address": "ULHASNAGAR"
+  },
+  {
+    "customer_codes": [
+      "MUMC018552"
+    ],
+    "name": "SYNERGIA LIFE SCIENCES PVT LTD",
+    "full_address": "Talathi Saja Kone,",
+    "short_address": "WADA"
+  },
+  {
+    "customer_codes": [
+      "MUMC018512"
+    ],
+    "name": "MOTI MITHAIWALE",
+    "full_address": "GRD FLR, SHOP NO. 05, KASTURI ASHISH VENKETESH PETROL KALYAN-SHILL ROAD,DOMBIVALI",
+    "short_address": "DOMBIVALI"
+  },
+  {
+    "customer_codes": [
+      "MUMC018561"
+    ],
+    "name": "SHREE SAIBABA ENTERPRISES",
+    "full_address": "GRD FLR, G-1, SONALI APPARTMENT TARKHAD,Vasai",
+    "short_address": "Vasai"
+  },
+  {
+    "customer_codes": [
+      "MUMC018641"
+    ],
+    "name": "INTERNATIONAL SOCIETY FOR KRISHNA CONSCIOUSNESS KHARGHAR",
+    "full_address": "ISKCON Navi Mumbai at Kharghar, Hare Krishna Land, Plot No. 2, Central Park Rd, opposite Kharghar Golf Course, Sector 23, , Navi Mumbai, Maharashtra",
+    "short_address": "Kharghar"
+  },
+  {
+    "customer_codes": [
+      "MUMC018650"
+    ],
+    "name": "PARSHWANATH HOLIDAYS",
+    "full_address": "R - 10, CHHEDA SADAN DOMBIVALI EAST SHIV MANDIR ROAD",
+    "short_address": "DOMBIVALI E"
+  },
+  {
+    "customer_codes": [
+      "MUMC018666"
+    ],
+    "name": "HOTEL PRANJALI",
+    "full_address": "Hotel Pranjali, Khutal Bangla, Maharashtra 421401",
+    "short_address": "MURBAD"
+  },
+  {
+    "customer_codes": [
+      "MUMC018584"
+    ],
+    "name": "ROSHAN ENTERPRISES",
+    "full_address": "SHOP NO 11 ADNAN APARTMENT WAFA COMPLEX GAIBI NAGAR BHIWANDI THANE",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "MUMC018638"
+    ],
+    "name": "MARUTI ENTERPRISES",
+    "full_address": "4/2A,, Palegaon, Opp. New Water Tank ambernath Thane, Thane - 421501",
+    "short_address": "Ambernath"
+  },
+  {
+    "customer_codes": [
+      "MUMC019161"
+    ],
+    "name": "RUPAREL AGRO PRIVATE LIMITED",
+    "full_address": "DHAMANGAON TALUKA BHIWANDI THANE",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "TAJ AQUA - SA"
+    ],
+    "name": "BIPL- SA WAREHOUSE-  TAJ AQUA",
+    "full_address": "SHOP NO 15 MARIGOLD PRESTIGE RESIDENCY NR SURAJ WATER PARK WAGHBIL ORALA-1 THANE",
+    "short_address": "THANE"
+  },
+  {
+    "customer_codes": [
+      "A2S Enterprises - SA"
+    ],
+    "name": "BIPL- SA WAREHOUSE-  A2S ENTERPRISES",
+    "full_address": "GALA NO 52,AKASHGANGA COMPLEX GATE NUBER 3 GOKHALE ROAD (THANE), REVATI BUILDING 2ND RABODI,THAN",
+    "short_address": "THANE"
+  },
+  {
+    "customer_codes": [
+      "MUMC019315"
+    ],
+    "name": "PURVI ENTERPRISES",
+    "full_address": "GROUND, Shop No. 3066, Panchavati Colony KARANJA ROAD MULEKHAND FATA URAN Navi Mumbai",
+    "short_address": "URAN"
+  },
+  {
+    "customer_codes": [
+      "MUMC017990"
+    ],
+    "name": "RUHI ENTERPRISES",
+    "full_address": "KASARWADI MHATRE NIWAS OPP GOAD PASS COMPANY WAGHLE ESTATE GHODBUNDER ROAD WAGHLE ESTATE",
+    "short_address": "Thane"
+  },
+  {
+    "customer_codes": [
+      "MUMC019497"
+    ],
+    "name": "RESHMA ENTERPRISES",
+    "full_address": "SHREENATH ENTERPRISES COMPOUND NEAR DON BOSCO SCHOOL VIMAL DAIRY RD KASHI NAGAR BHAYANDAR EAST PALGHAR, Palghar - 401105",
+    "short_address": "BHAYANDAR"
+  },
+  {
+    "customer_codes": [
+      "MUMC019232"
+    ],
+    "name": "KASTURI ENETERPRISES",
+    "full_address": "PLOT NO 16 L NO 68/3 SANATAN SANKUL DEVAD NEW PANVEL RAIGAD RAIGARH(MH), Navi Mumbai - 410206",
+    "short_address": "NEW PANVEL"
+  },
+  {
+    "customer_codes": [
+      "MUMC019507"
+    ],
+    "name": "SAAVI ENTERPRISES",
+    "full_address": "C-WING 209 NEW BALDEV APT VINAYAK NGR RD NR RELIANCE ENERGI BHAYANDER WEST",
+    "short_address": "BHAYANDER"
+  },
+  {
+    "customer_codes": [
+      "MUMC019585"
+    ],
+    "name": "CHANDRIKA GENERAL STORES",
+    "full_address": "DHANIV GALA NO 02 BHANI BANGH NAGAR NEAR PETROL PUMP PELHAR RD NALASOPARA EAST 401209",
+    "short_address": "NALASOPARA E"
+  },
+  {
+    "customer_codes": [
+      "MUMC019543"
+    ],
+    "name": "ZEPTO PRIVATE LIMITED",
+    "full_address": "H NO 180/10 BLDG AB GLOBAL COMPLEX OPPOSITE SHANGRILA RESORT BHIWANDI TAHASIL MUNICIPAL CO Thane, Thane - 421302",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "MUMC016585"
+    ],
+    "name": "SADGURUKRUPA ENTERPRISES",
+    "full_address": "Gala no 3, Sandip gaon Lodha regency man pada diva road Dombivli east 421204",
+    "short_address": "Dombivli"
+  },
+  {
+    "customer_codes": [
+      "MUMC019179"
+    ],
+    "name": "INSPIRA INTEGRATED SERVICES",
+    "full_address": "SHOP NO 1 LAKHANI EXOTICA BUILDING PLOT ULWE Navi Mumbai - 410206",
+    "short_address": "ULWE"
+  },
+  {
+    "customer_codes": [
+      "MUMC019569"
+    ],
+    "name": "BABA AGENCIES",
+    "full_address": "SHOP NO 2 TANIYA STEPHEN RESIDENCY CHS LTD 2ND RD SHREEPRASHTHA NALLASOPARA WEST PALGHAR PALGHAR, Palghar - 401203",
+    "short_address": "NALLASOPARA"
+  },
+  {
+    "customer_codes": [
+      "MUMC019492"
+    ],
+    "name": "HANDS ON TRADE PRIVATE LIMITED TALOJA 2",
+    "full_address": "M11-LODHA INDUTRIAL & LOGISTIC PARK PALAVA II NOS 45/149/249/3 TO 49/7 & 50/6 OF VILLAGE NARHEN TALUKA AMABERNAATH THANE",
+    "short_address": "TALOJA 2"
+  },
+  {
+    "customer_codes": [
+      "MUMC019643"
+    ],
+    "name": "SHREE GANESH ENTERPRISES",
+    "full_address": "House No.3700, At - Ketkhadi, Post - Vangaon, Vangaon Road, Vangaon Railway Station, Tal - Dahanu, Vangaon, Palghar PALGHAR, Palghar - 401103",
+    "short_address": "DAHANU"
+  },
+  {
+    "customer_codes": [
+      "MUMC019732"
+    ],
+    "name": "Devnarayan Distributors",
+    "full_address": "GALA NO 09 CHAUDHARY CHAWL KUMBHAEPADA VIRAR EAST PALGHAR, Palghar - 401303",
+    "short_address": "VIRAR E"
+  },
+  {
+    "customer_codes": [
+      "MUMC019758"
+    ],
+    "name": "RAHUL SALES",
+    "full_address": "SHOP NO 2 (HOUSE NO 624) SHANTARAM APT NEAR BASTA COLONY PO KHUTCCHAR TA SHAHPUR 421601 DIST THANE 421601",
+    "short_address": "SHAHPUR"
+  },
+  {
+    "customer_codes": [
+      "MUMC019708"
+    ],
+    "name": "CLOUDSTORE RETAIL PRIVATE LIMITED BHIWANDI 3",
+    "full_address": "UNIT NO 2 PREMISES NO B400 ONE K SQUARE INDUSTRIAL & LOGISTICS PARK BEFORE PADGHA TOLL NAKA NASHIK MUMBAI HIGHWAY PADGHA BHIWANDI 421101",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "MUMC019818"
+    ],
+    "name": "S K ENTERPRISES",
+    "full_address": "SHOP NO 1 BK NO 1035 NEAR BASSERA MAIDAN ULHASNAGAR CAMP 3 ULHASNAGAR 421004",
+    "short_address": "ULHASNAGAR"
+  },
+  {
+    "customer_codes": [
+      "MUMC019860"
+    ],
+    "name": "MRINAL WATER SUPPLY",
+    "full_address": "SHOP NO 1 PANBUDYA NAGAR WADHEGHAR NAGAR KALYAN WEST 421301",
+    "short_address": "KALYAN WEST"
+  },
+  {
+    "customer_codes": [
+      "BIPL - SA WAREHOUSE-AARADHYA ENTERPRISES"
+    ],
+    "name": "AARADHYA ENTERPRISES - SA",
+    "full_address": "VRINDHAVAN DHAM, SHOP NO.1, SECTOR 21 KHARGHAR. NAVI MUMBAI",
+    "short_address": "Kharghar"
+  },
+  {
+    "customer_codes": [
+      "MUMC019918"
+    ],
+    "name": "ISHWARI COLD DRINKS",
+    "full_address": "955/1, A SAHARA SANKUL WADA, Thane, Thane - 421312",
+    "short_address": "WADA"
+  },
+  {
+    "customer_codes": [
+      "MUMC020086"
+    ],
+    "name": "NEW NATIONAL DAIRY FARM",
+    "full_address": "SHOP NO 10 GRD FLR OLD IDEAL MARKET OPP MUNICIPAL SACHOOL KAUSA MUMBRA Thane, Thane - 400612",
+    "short_address": "THANE"
+  },
+  {
+    "customer_codes": [
+      "MUMC020094"
+    ],
+    "name": "KRISHNA ENTERPRISES",
+    "full_address": "Ground Floor, Shop No.106/C,, Patadia Complex CHS LTD, Janar Near-Bramhdev Mandir,, Bhayandar West,",
+    "short_address": "Bhayandar"
+  },
+  {
+    "customer_codes": [
+      "MUMC020117"
+    ],
+    "name": "AQUA BLISSE",
+    "full_address": "SHOP NO 6 APEX AVENUE SECTOR 5A PLOT NO 44 SAI PRASAD ENCLAVE B-205 PLOT NO 27 SECTOR 7 KAMOTHE NAVI MUMBAI",
+    "short_address": "KAMOTHE"
+  },
+  {
+    "customer_codes": [
+      "MUMC019961"
+    ],
+    "name": "SUNITA ENTERPRISES",
+    "full_address": "NEAR MAMTA VILLA UMBARI GAON BADLAPUR KATAI PIPELINE ROAD DOMBIVALI (E) Thane, Thane - 421203",
+    "short_address": "DOMBIVALI ( E )"
+  },
+  {
+    "customer_codes": [
+      "MUMC020252"
+    ],
+    "name": "SHAIFAN ENTERPRISE",
+    "full_address": "HOUSE NO 1534, VIKRAMGAD ZILLA PARISHAD SCHOOL KHADAKI, VIKRAMGAD Khadaki, Palghar, PALGHAR, Palghar - 401605",
+    "short_address": "PALGHAR"
+  },
+  {
+    "customer_codes": [
+      "MUMC019882"
+    ],
+    "name": "YASH ENETERPRISES",
+    "full_address": "SHOP NO 7 D WING PANVELKAR ROYAL SQUERE NEAR BHARAT COLLEGE HENDARPADA BADLAPUR WEST 421503",
+    "short_address": "BADLAPUR W"
+  },
+  {
+    "customer_codes": [
+      "MUMC020300"
+    ],
+    "name": "KUNAL ENTERPRISES",
+    "full_address": "SHOP NO 7 MANOHARKUNJ MANGESHI PHASE-1 KOLIVALI KALYAN WEST 421301",
+    "short_address": "KALYAN W"
+  },
+  {
+    "customer_codes": [
+      "MUMC020298"
+    ],
+    "name": "WELLING AGENCY",
+    "full_address": "SARSWAT COLONY AURUMANDIR ROAD PENDSE NAGAR DOMBIVALI EAST 421201",
+    "short_address": "DOMBIVALI E"
+  },
+  {
+    "customer_codes": [
+      "MUMC020307"
+    ],
+    "name": "AKANKSHA ENTERPRISES",
+    "full_address": "SHOP NO 1,2,3&4 NEW VIDYUT SAGAR CHS NR CHAITANYA SCHOOL SURYA NAGAR KATRAP BADLAPUR EAST 421503",
+    "short_address": "BADLAPUR E"
+  },
+  {
+    "customer_codes": [
+      "MUMC020352"
+    ],
+    "name": "PARESH TRADERS",
+    "full_address": "GALA NO 1 /20 B 08 A P M C KALYAN WEST 421301",
+    "short_address": "KALYAN WEST"
+  },
+  {
+    "customer_codes": [
+      "MUMC020299"
+    ],
+    "name": "VEDANT BHARAT TRADER",
+    "full_address": "40/687 EWS COLONY OPP BIRLA COLLAGE CHICKEN GHAR KALYAN WEST Thane, Thane - 421301",
+    "short_address": "KALYAN WEST"
+  },
+  {
+    "customer_codes": [
+      "MUMC019670"
+    ],
+    "name": "GUPTA ENTERPRISES",
+    "full_address": "SR NO 248 GUPTA HOUSE NEAR STAR CITY JUCHANDRA NAIGAON EAST VASAI VIRAR MUNICIPAL CORPORATION Thane, Thane - 401208",
+    "short_address": "NAIGAON EAST"
+  },
+  {
+    "customer_codes": [
+      "MUMC017560"
+    ],
+    "name": "RAGHAV HOSPITALITY PVT LTD-MANBHAVAN-N.MUMBAI",
+    "full_address": "NO F&B-11 2ND FLR NEXUS SEAWOODS PLOT BLDG NO R1 SECTOR 40 RAILWAY STATION ROAD THANE, Thane - 400706",
+    "short_address": "SEAWOODS"
+  },
+  {
+    "customer_codes": [
+      "MUMC020170"
+    ],
+    "name": "KAILASH PARBAT NX HOSPITALITY SERVICES",
+    "full_address": "SHOP NO 5 SATNAM H APARTMENT NR ROYAL ALFA MEDICAL GOLMAIDAN ULHASNAGAR-2 Thane, Thane - 421301",
+    "short_address": "ULHASNAGAR"
+  },
+  {
+    "customer_codes": [
+      "MUMC020234"
+    ],
+    "name": "NHAVA SHEVA BUSINESS PARK PRIVATE LIMITED",
+    "full_address": "PLOT NO406/FTWZ SECTOR 4 JNPT SEZ VILLAGE SAWARKHAR TALUKA URAN DISCT RAIGAD RAIGARH(MH), NAVI MUMBAI - 400707",
+    "short_address": "URAN"
+  },
+  {
+    "customer_codes": [
+      "MUMC020476"
+    ],
+    "name": "SHANTADURGA ENTERPRISES",
+    "full_address": "SURVE NO 1 90 FEET ROAD KRUSHNAI BUNGLOW NEAR MANGESHI DEZZLE CRICKET TURF DOMBIVALI EAST 421203",
+    "short_address": "DOMBIVALI EAST"
+  },
+  {
+    "customer_codes": [
+      "MUMC020630"
+    ],
+    "name": "SHIZA ENTERPRISES",
+    "full_address": "SHOP NO 6 KRISH APARTMENT  CTS NO 213 KOHOJGAON KAMLAKAR NAGAR AMBERNATH WEST Thane, Thane - 421505",
+    "short_address": "AMBERNATH W"
+  },
+  {
+    "customer_codes": [
+      "MUMC020713"
+    ],
+    "name": "A R ENTERPRISES",
+    "full_address": "SHOP NO 9 SANT MUKTA BLDG SANT NAGAR VIRAR EAST PALGHAR, Palghar - 401305",
+    "short_address": "VIRAR E"
+  },
+  {
+    "customer_codes": [
+      "MUMC020827"
+    ],
+    "name": "MS BLUE JELLY TRADERS",
+    "full_address": "Shop No 04, Krishna Kunj Gouraipada Road Nallasopara East Vasai Virar Palghar - 401209",
+    "short_address": "Nallasopara E"
+  },
+  {
+    "customer_codes": [
+      "MUMC020821"
+    ],
+    "name": "KUNAL ENTERPRISES",
+    "full_address": "SHOP NO 6 MANOHARKUNJ MANGESHI PHASE 1 KOLIVALI KALYAN WEST Thane - 421301",
+    "short_address": "KALYAN W"
+  },
+  {
+    "customer_codes": [
+      "MUMC020721"
+    ],
+    "name": "RADHA NAMKEENS AND DRYFRUITS",
+    "full_address": "SHANTIKUNJ APARTMENT SHOP NO 2 CHERPOLI TAL SHAHAPUR DIST THANE 421601",
+    "short_address": "SHAHAPUR"
+  },
+  {
+    "customer_codes": [
+      "MUMC020822"
+    ],
+    "name": "JAI BHAWANI TRADERS",
+    "full_address": "SHOP NO 10 YOGAM ENCLAVE NANDIVU ROAD DESLE PADA GAJANAN CHOWK DOMBIVLI EAST - 421204",
+    "short_address": "DOMBIVLI EAST"
+  },
+  {
+    "customer_codes": [
+      "MUMC020381"
+    ],
+    "name": "G S ENTERPRISES",
+    "full_address": "HOUSE NO 1029 JAMBHIVALI THAKUR PADA VILLAGE MIDC ANAND NANAGR AMBARNATH EAST 421501",
+    "short_address": "AMBARNATH EAST"
+  },
+  {
+    "customer_codes": [
+      "MUMC017786"
+    ],
+    "name": "FLIPKART INDIA PVT LTD",
+    "full_address": "SIDHAM G WARE HOUSE AT VILLAGE DOHALE POST PADGHA OPP VAISHNO DEVI MANDIR TALUKA BHIWANDI 421101",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "MUMC020992"
+    ],
+    "name": "SHAMIK ENTERPRISES",
+    "full_address": "SHOP NO 2 PLOT NO 131 SEC 21 GHANSOLI NAVI MUMBAI 400701",
+    "short_address": "GHANSOLI"
+  },
+  {
+    "customer_codes": [
+      "MUMC021024"
+    ],
+    "name": "COASTAL KINGS ENTERPRISE",
+    "full_address": "POLE NO M-7-B SHANI MANDIR ROAD VASAI 401201",
+    "short_address": "VASAI"
+  },
+  {
+    "customer_codes": [
+      "MUMC019905"
+    ],
+    "name": "HOTEL GURUPRASAD",
+    "full_address": "MHASA TAL MURBAD DIST,THANE THANE Thane, Thane - 421401",
+    "short_address": "MURBAD"
+  },
+  {
+    "customer_codes": [
+      "MUMC021170"
+    ],
+    "name": "NOBLE ORGANICS PVT LTD",
+    "full_address": "DELTA STELLAR PLOT NO 43/4 TTC MIDC INDUSTRIAL AREA VILLAGE SHRAVANE NERUL NAVI MUMBAI 400705",
+    "short_address": "NERUL"
+  },
+  {
+    "customer_codes": [
+      "MUMC020624"
+    ],
+    "name": "PRATISH ENTERPRISE LLP VASHI",
+    "full_address": "PALM BEACH GALLERY MALL 19 SEC VASHI Thane, Thane - 400703",
+    "short_address": "VASHI"
+  },
+  {
+    "customer_codes": [
+      "MUMC020849"
+    ],
+    "name": "NEW TRIMURTI DRY FRUIT AND GENERAL STORES",
+    "full_address": "SHOP NO 2 SURUEY NO 79/A SHIVAM APARTMENT KARANJA ROAD TAL URAN RAIGAD MAHARASHTRA RAIGARH(MH), NAVI MUMBAI - 400702",
+    "short_address": "URAN"
+  },
+  {
+    "customer_codes": [
+      "MUMC020823"
+    ],
+    "name": "AMUL ICE CREAM PARLOUR ND WATER SUPPLIERS",
+    "full_address": "BHAV RESIDENCY BUILDING NO 6 GALA NO 10 NEAR DATTA MANDIR KASHELI Thane - 421302",
+    "short_address": "Thane"
+  },
+  {
+    "customer_codes": [
+      "MUMC020591"
+    ],
+    "name": "HARI HARA HOSPITALITY",
+    "full_address": "SURVEY NO 19 & 20 PUNE EXP HIGHWAY KHOPOLI KHALAPUR RAIGAD 410203",
+    "short_address": "KHALAPUR"
+  },
+  {
+    "customer_codes": [
+      "MUMC002782"
+    ],
+    "name": "GLOBAL ENTERPRISES",
+    "full_address": "KRISHNA NAGAR RAJ KAPOOR CHOWK OPP. ANUSHAKTI GOVANDI, ANUSHAKTI NAGAR FLYOVER,VISHI HIGHWAY,DEONAR,MUMBAI, Mumbai - 400088",
+    "short_address": "GOVANDI"
+  },
+  {
+    "customer_codes": [
+      "MUMC018629"
+    ],
+    "name": "S T ENTERPRISES",
+    "full_address": "Shree Shree Krishna Nagar Nr Traffic Police, Sion-Panvel Hill No.4, Ghatkopar Mumbai, Mumbai - 400088",
+    "short_address": "Ghatkopar"
+  },
+  {
+    "customer_codes": [
+      "MUMC002951"
+    ],
+    "name": "MEGHA ENTERPRISES",
+    "full_address": "GROUND FLR,PLOT 227/229,228A,DIAMOND BUILDING RAMBHAU BHOGALE MARG,GHODAPDEV MUMBAI - 400033",
+    "short_address": "GHODAPDEV"
+  },
+  {
+    "customer_codes": [
+      "MUMC019040"
+    ],
+    "name": "MOAZZAM ENTERPRISES",
+    "full_address": "CHIRABAZAR KALBADEVI Mumbai, Mumbai - 400002",
+    "short_address": "KALBADEVI"
+  },
+  {
+    "customer_codes": [
+      "MUMC019003"
+    ],
+    "name": "PRATHAM MARKETING",
+    "full_address": "DALAL STREET FORT MUMBAI Mumbai - 400089",
+    "short_address": "FORT"
+  },
+  {
+    "customer_codes": [
+      "MUMC018030"
+    ],
+    "name": "R.M ENTERPRISES",
+    "full_address": "S/O MOHAMMED SIDDIQUE QURESHI ALAM MANZIL 3RD FLR FLAT NO 13 SUFIYA ZUBAIR NAGPADA Mumbai - 400008",
+    "short_address": "NAGPADA"
+  },
+  {
+    "customer_codes": [
+      "MUMC019014"
+    ],
+    "name": "ALIYA PACKAGING",
+    "full_address": "NR KERBALA MASJID MUMBAI Mumbai, Mumbai - 400007",
+    "short_address": "Grant Road"
+  },
+  {
+    "customer_codes": [
+      "MUMC002948"
+    ],
+    "name": "ALWAYS FRESH",
+    "full_address": "SNEH SAGAR SOCIETY,3/341/4124,TAGORE NAGAR KANNAMWAR NAGAR, VIKHROLI EAST,",
+    "short_address": "VIKHROLI E"
+  },
+  {
+    "customer_codes": [
+      "STOCK TRANSFER",
+      "BIPL- OWN WAREHOUSE - HINDUSTAN NAKA.."
+    ],
+    "name": "BIPL HINDUSTAN NAKA",
+    "full_address": "Plot No – 119-D, CTS NO.334 B, Government Industrial Estate Hindustan Naka Charkop Kandivali West, Mumbai, MUMBAI,MH - 400067",
+    "short_address": "KANDIVAI"
+  },
+  {
+    "customer_codes": [
+      "STOCK TRANSFER",
+      "BIPL - CP WAREHOUSE - ORSINO FOODS & BEVERAGES PVT LTD"
+    ],
+    "name": "BIPL Vidyavihar",
+    "full_address": "Sahney Compound Nausena Vihar Road, Khalai Village, Vidyavihar Society, Vidyavihar, Mumbai, Maharashtra",
+    "short_address": "VIDYAVIHAR"
+  },
+  {
+    "customer_codes": [
+      "STOCK TRANSFER",
+      "BIPL- THANE -WAREHOUSE(MANPADA)"
+    ],
+    "name": "BIPL Thane",
+    "full_address": "Godown no 14, Kothari Compound, Survey No.72 Gut No. 59/28, Kothari Compound, Thane",
+    "short_address": "MANPADA THANE ( W )"
+  },
+  {
+    "customer_codes": [
+      "STOCK TRANSFER",
+      "BIPL-OWN WAREHOUSE-BHIWANDI WAREHOUSE"
+    ],
+    "name": "BIPL Bhiwandi",
+    "full_address": "RK LOGI WORLD COMPOUND WAREHOUSE NO – F1, VILLAGE YEWAI, NEAR KHODIYAAR TEMPLE TAL. BHIWANDI– YEWAI, BHIWANDI, DIST THANE, Thane,MH - 421302",
+    "short_address": "BHIWANDI"
+  },
+  {
+    "customer_codes": [
+      "STOCK TRANSFER",
+      "BIPL- ANDHERI -NEW PLANMUM"
+    ],
+    "name": "BIPL Andheri",
+    "full_address": "Bisleri International Private Limited, Western Urban Rd, Parshiwada, Chakala, Andheri East, Mumbai, Maharashtra 400099",
+    "short_address": "ANDHERI"
+  }
+]

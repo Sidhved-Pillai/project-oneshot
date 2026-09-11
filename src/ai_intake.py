@@ -101,6 +101,10 @@ class UnifiedIntakeRow(BaseModel):
     ownership_type: str = ""
     from_location: str = ""
     to_location: str = ""
+    lr_number: str = ""
+    invoice_number: str = ""
+    # Retained for compatibility with any cached response created by an older
+    # schema. New extraction must use the two explicit fields above.
     lr_invoice_number: str = ""
     revenue: Optional[float] = None
     transporter_freight: Optional[float] = None
@@ -210,7 +214,7 @@ Marathi, or mixed. Do not infer a category or payment split that is not explicit
     if mode == "ENTRY":
         return common + """
 Populate one logistics trip-entry form. Extract branch, trip date, company, vehicle number and capacity,
-ownership (Own or Outside), origin, destination, LR/invoice number, transporter freight,
+ownership (Own or Outside), origin, destination, LR number, invoice number, transporter freight,
 payment amounts split across RTGS, cash, UPI and diesel, vehicle placed by, beneficiary banking details,
 transporter, and remarks. Spoken instructions may be English, Hindi, Marathi, or a natural mixture of them;
 follow their meaning but preserve names and identifiers exactly. If several values are stated for different
@@ -221,6 +225,10 @@ missing values and explain unclear readings in review_notes.
 - Populate company_name only when the customer or company is explicitly identifiable in the evidence.
   Never substitute a transporter, vehicle owner, beneficiary, bank-account holder, or a company inferred
   from the route. If multiple organisations are visible and the customer is ambiguous, leave company_name blank.
+- Read invoice_number from the document field explicitly labelled Invoice No/Invoice Number. Do not place it
+  in lr_number. Read lr_number only from a separately labelled LR/Consignment/Reference field.
+- For origin and destination, return the shortest identifiable locality or city name rather than copying a
+  street address. Customer codes and full delivery addresses may be used to identify that locality.
 """
     if mode == "DTR":
         return common + """

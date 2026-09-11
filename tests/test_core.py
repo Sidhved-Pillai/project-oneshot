@@ -34,7 +34,8 @@ from src.workflow_ai import convert_rtgs_to_dtr as workflow_convert_rtgs_to_dtr
 from src.workflow_pnl import branch_vehicle_pnl_summary as workflow_branch_vehicle_pnl_summary
 from src.workflow_store import RequestStore as WorkflowRequestStore
 from src.records_store_v10 import RequestStore as ActiveRequestStore
-from src.ai_intake import DTRIntakeResult, DTRIntakeRow, _model_unavailable, _prompt, extract_intake, result_to_records, should_autofill_field
+from src.ai_intake import DTRIntakeResult, DTRIntakeRow, UnifiedIntakeRow, _model_unavailable, _prompt, extract_intake, result_to_records, should_autofill_field
+from src.vijay_locations import canonical_vijay_location
 
 
 def vehicle_master():
@@ -270,6 +271,23 @@ def test_operational_text_normalization_is_conservative():
     assert canonical_vehicle_capacity("10 ton") == "10 MT"
     assert canonical_vehicle_capacity("12mt") == "12 MT"
     assert plain_remark("1234", "Pune-to-Wada", "10 MT", "TA") == "1234 Pune to Wada 10 MT TA"
+
+
+def test_vijay_master_converts_full_delivery_address_to_short_address():
+    full = "B-Shop No 14, Sambhav Tower, Padmavati Nagar, Virar, Palghar"
+    assert canonical_vijay_location(full) == "Virar W"
+    assert canonical_vijay_location(
+        "Vivan Neelam Print Compound Shed No 720 West Ex Highway Palghar", origin=True,
+    ) == "Palghar"
+    assert canonical_vijay_location("Palghar") == "Palghar"
+
+
+def test_trip_ai_has_separate_invoice_and_lr_fields():
+    row = UnifiedIntakeRow(invoice_number="MUMCIN270000412", lr_number="LR-12")
+    assert row.invoice_number == "MUMCIN270000412"
+    assert row.lr_number == "LR-12"
+    prompt = _prompt("ENTRY", "")
+    assert "Read invoice_number" in prompt and "Read lr_number" in prompt
 
 
 def test_duplicate_suffix_and_inactive_filtering():
