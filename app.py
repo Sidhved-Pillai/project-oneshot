@@ -23,7 +23,7 @@ from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, filt
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
-from src.transporter_profiles import VIJAY_TRANSPORTER_PROFILES, vijay_transporter_profile
+from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, vijay_transporter_freight, vijay_transporter_profile
 from src.vehicle_normalization import canonical_vehicle_number
 from src.current_pnl_report import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.records_store_v10 import RequestStore
@@ -115,9 +115,15 @@ def canonicalize_placer_state(key):
 
 
 def apply_vijay_transporter_profile(prefix):
-    profile = vijay_transporter_profile(st.session_state.get(f"{prefix}_vijay_transporter"))
+    profile = vijay_transporter_profile(st.session_state.get(f"{prefix}_transporter_name"))
     for field, value in profile.items():
-        st.session_state[f"{prefix}_{field}"] = value
+        if field != "transporter_name":
+            st.session_state[f"{prefix}_{field}"] = value
+
+
+def apply_vijay_freight_rate(prefix):
+    revenue = st.session_state.get(f"{prefix}_revenue")
+    st.session_state[f"{prefix}_transporter_freight"] = vijay_transporter_freight(revenue)
 
 
 def is_own_vehicle(ownership_type):
@@ -479,18 +485,19 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         v.update({"beneficiary_name": "", "transporter_name": "", "beneficiary_account_number": "", "beneficiary_ifsc_code": ""})
     else:
         st.markdown("#### 3. Beneficiary details")
-        if current_user == "Vijay":
-            st.selectbox(
-                "Select transporter",
-                ["", *VIJAY_TRANSPORTER_PROFILES],
-                key=f"{prefix}_vijay_transporter",
-                placeholder="Select Altaf Khan Transport or Nisar Anwar Shaikh",
-                on_change=apply_vijay_transporter_profile,
-                args=(prefix,),
-            )
         c1, c2 = st.columns(2)
         v["beneficiary_name"] = c1.text_input("Beneficiary name", key=f"{prefix}_beneficiary_name", placeholder="e.g., XYZ Transport")
-        v["transporter_name"] = c2.text_input("Transporter name", key=f"{prefix}_transporter_name", placeholder="e.g., XYZ Transport")
+        if current_user == "Vijay":
+            transporter_key = f"{prefix}_transporter_name"
+            if st.session_state.get(transporter_key) not in ("", *VIJAY_TRANSPORTER_PROFILES):
+                st.session_state[transporter_key] = ""
+            v["transporter_name"] = c2.selectbox(
+                "Transporter name", ["", *VIJAY_TRANSPORTER_PROFILES],
+                key=transporter_key, placeholder="Select a transporter",
+                on_change=apply_vijay_transporter_profile, args=(prefix,),
+            )
+        else:
+            v["transporter_name"] = c2.text_input("Transporter name", key=f"{prefix}_transporter_name", placeholder="e.g., XYZ Transport")
         c1, c2 = st.columns(2)
         v["beneficiary_account_number"] = c1.text_input("Account number", key=f"{prefix}_beneficiary_account_number", placeholder="e.g., 0206101019660")
         v["beneficiary_ifsc_code"] = c2.text_input("IFSC code", key=f"{prefix}_beneficiary_ifsc_code", placeholder="e.g., ICIC0001234")
@@ -499,16 +506,36 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         memory_prompt(prefix, f"Known beneficiary details for {v['beneficiary_name']}", f"beneficiary_{v['beneficiary_name']}", beneficiary_memory, ["beneficiary_account_number", "beneficiary_ifsc_code", "transporter_name"])
     st.markdown(f"#### {'3' if own_workflow else '4'}. Payment details")
     if own_workflow:
-        v["revenue"] = st.number_input("Revenue freight (₹)", min_value=0.0, value=None, placeholder="e.g., 50,000", key=f"{prefix}_revenue")
+        if current_user == "Vijay":
+            revenue_key = f"{prefix}_revenue"
+            if vijay_transporter_freight(st.session_state.get(revenue_key)) is None:
+                st.session_state[revenue_key] = None
+            v["revenue"] = st.selectbox(
+                "Revenue freight (₹)", [None, *VIJAY_FREIGHT_RATES], key=revenue_key,
+                format_func=lambda value: "Select revenue freight" if value is None else f"₹{value:,}",
+                on_change=apply_vijay_freight_rate, args=(prefix,),
+            )
+        else:
+            v["revenue"] = st.number_input("Revenue freight (₹)", min_value=0.0, value=None, placeholder="e.g., 50,000", key=f"{prefix}_revenue")
         v["transporter_freight"] = 0.0
     else:
         c1, c2 = st.columns(2)
-        v["revenue"] = c1.number_input("Revenue freight (₹)", min_value=0.0, value=None, placeholder="e.g., 50,000", key=f"{prefix}_revenue")
+        if current_user == "Vijay":
+            revenue_key = f"{prefix}_revenue"
+            if vijay_transporter_freight(st.session_state.get(revenue_key)) is None:
+                st.session_state[revenue_key] = None
+            v["revenue"] = c1.selectbox(
+                "Revenue freight (₹)", [None, *VIJAY_FREIGHT_RATES], key=revenue_key,
+                format_func=lambda value: "Select revenue freight" if value is None else f"₹{value:,}",
+                on_change=apply_vijay_freight_rate, args=(prefix,),
+            )
+        else:
+            v["revenue"] = c1.number_input("Revenue freight (₹)", min_value=0.0, value=None, placeholder="e.g., 50,000", key=f"{prefix}_revenue")
         own_vehicle = is_own_vehicle(v["ownership_type"])
         transporter_freight_key = f"{prefix}_transporter_freight"
         if own_vehicle:
             st.session_state[transporter_freight_key] = None
-        v["transporter_freight"] = c2.number_input("Transporter freight (₹)", min_value=0.0, value=None, placeholder="Not applicable for own vehicles" if own_vehicle else "e.g., 38,000", disabled=own_vehicle, key=transporter_freight_key)
+        v["transporter_freight"] = c2.number_input("Transporter freight (₹)", min_value=0.0, value=None, placeholder="Not applicable for own vehicles" if own_vehicle else "e.g., 38,000", disabled=own_vehicle or current_user == "Vijay", key=transporter_freight_key)
         if own_vehicle:
             c2.caption("Not applicable for an own vehicle.")
     st.caption("Enter amounts in every payment mode used. Repairs and maintenance are deducted from Profit / Loss." if own_workflow else "Enter amounts in every payment mode used. Billtee is also deducted before calculating the balance payable.")
