@@ -16,7 +16,7 @@ from src.business_memory import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
 from src.entry_state import clear_entry_state, entry_state_prefix
-from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series
+from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series, verified_bisleri_invoice_numbers
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
 from src.pending_invoice_matcher import suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
@@ -360,6 +360,21 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
                 result.rows = [merged] if merged else []
             else:
                 result, _ = extract_intake(secret("GEMINI_API_KEY"), mode, instruction, files, secret("GEMINI_MODEL"))
+            if mode == "ENTRY" and current_user == "Vijay" and result.rows:
+                row = result.rows[0]
+                raw_invoice_candidates = [*row.invoice_numbers, row.invoice_number]
+                if not row.invoice_number and not row.invoice_numbers:
+                    raw_invoice_candidates.append(row.lr_invoice_number)
+                verified_invoices = verified_bisleri_invoice_numbers(raw_invoice_candidates)
+                rejected = normalized_invoice_numbers(raw_invoice_candidates)
+                row.invoice_numbers = verified_invoices
+                row.invoice_number = verified_invoices[0] if verified_invoices else ""
+                row.lr_invoice_number = ""
+                if rejected and len(verified_invoices) < len(rejected):
+                    st.warning(
+                        "An extracted value did not match Bisleri's MUMCIN invoice-number format and was "
+                        "not inserted. Please enter any missing invoice number manually."
+                    )
         if not result.rows:
             st.warning("No clear trip details were found. Complete the form manually.")
             return

@@ -16,6 +16,18 @@ def combined_invoice_number(values):
     return " / ".join(normalized_invoice_numbers(values))
 
 
+def valid_bisleri_invoice_number(value):
+    """Vijay's Bisleri invoice IDs are MUMCIN plus exactly nine digits."""
+    cleaned = re.sub(r"\s+", "", str(value or "")).upper()
+    return cleaned if re.fullmatch(r"MUMCIN\d{9}", cleaned) else ""
+
+
+def verified_bisleri_invoice_numbers(values):
+    return normalized_invoice_numbers(
+        valid for value in (values or []) if (valid := valid_bisleri_invoice_number(value))
+    )
+
+
 def reconcile_sequential_invoice_series(values, known_values=()):
     """Repair one inconsistent series prefix only when saved history proves it.
 

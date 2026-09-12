@@ -261,6 +261,8 @@ missing values and explain unclear readings in review_notes.
 - Read each printed Invoice No character-by-character from the label at the top of its own invoice. Recheck
   every digit, especially visually similar 5/6, 3/8 and 0/8 digits. Do not derive an invoice number from IRN,
   Ack No, customer code, dates, amounts, QR content, or an adjacent uploaded invoice.
+- For Vijay/Bisleri evidence, a valid invoice number has the exact form MUMCIN followed by nine digits. A date
+  such as 27-04-2026 is never an invoice number; leave invoice_number blank if the labelled value is unreadable.
 - For origin and destination, return the shortest identifiable locality or city name rather than copying a
   street address. Customer codes and full delivery addresses may be used to identify that locality.
 - Separately extract the destination's printed Customer Code into delivery_customer_code and the complete
