@@ -43,8 +43,10 @@ def canonical_vijay_location(value, *, origin=False):
     tokens = _tokens(original)
 
     # Operationally the Neelam/Vasai compound is reported under Vasai even
-    # when the printed postal address includes Palghar district.
-    if origin and "neelam" in tokens and "compound" in tokens:
+    # when the printed postal address includes Palghar district. The vision
+    # extractor sometimes returns only that postal district, so normalize that
+    # shortened origin too.
+    if origin and (("neelam" in tokens and "compound" in tokens) or tokens == {"palghar"}):
         return "Vasai"
 
     best = (0.0, "")

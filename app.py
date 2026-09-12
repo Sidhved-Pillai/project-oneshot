@@ -11,7 +11,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from src.access_control import PRIVATE_RECORD_USERS, can_delete_record, can_view_record
-from src.ai_intake import extract_intake, should_autofill_field
+from src.ai_intake import extract_intake, merge_same_trip_intake_rows, should_autofill_field
 from src.business_memory import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
@@ -326,7 +326,22 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
     st.session_state[f"{prefix}_evidence_hash"] = signature
     try:
         with st.spinner("Reading the evidence and filling the form…"):
-            result, _ = extract_intake(secret("GEMINI_API_KEY"), mode, instruction, files, secret("GEMINI_MODEL"))
+            if mode == "ENTRY" and current_user == "Vijay" and len(files) > 1:
+                # Extract each invoice independently. A combined multimodal
+                # response can legally return one row yet overlook identifiers
+                # on later images, even when every image describes one trip.
+                individual_results = [
+                    extract_intake(
+                        secret("GEMINI_API_KEY"), mode, instruction, [item], secret("GEMINI_MODEL"),
+                    )[0]
+                    for item in files
+                ]
+                extracted_rows = [result.rows[0] for result in individual_results if result.rows]
+                result = individual_results[0]
+                merged = merge_same_trip_intake_rows(extracted_rows)
+                result.rows = [merged] if merged else []
+            else:
+                result, _ = extract_intake(secret("GEMINI_API_KEY"), mode, instruction, files, secret("GEMINI_MODEL"))
         if not result.rows:
             st.warning("No clear trip details were found. Complete the form manually.")
             return

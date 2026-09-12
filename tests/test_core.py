@@ -35,7 +35,7 @@ from src.workflow_ai import convert_rtgs_to_dtr as workflow_convert_rtgs_to_dtr
 from src.workflow_pnl import branch_vehicle_pnl_summary as workflow_branch_vehicle_pnl_summary
 from src.workflow_store import RequestStore as WorkflowRequestStore
 from src.records_store_v10 import RequestStore as ActiveRequestStore
-from src.ai_intake import DTRIntakeResult, DTRIntakeRow, UnifiedIntakeRow, _model_unavailable, _prompt, extract_intake, result_to_records, should_autofill_field
+from src.ai_intake import DTRIntakeResult, DTRIntakeRow, UnifiedIntakeRow, _model_unavailable, _prompt, extract_intake, merge_same_trip_intake_rows, result_to_records, should_autofill_field
 from src.vijay_locations import canonical_vijay_location
 
 
@@ -282,6 +282,7 @@ def test_vijay_master_converts_full_delivery_address_to_short_address():
     assert canonical_vijay_location(
         "Vivan Neelam Print Compound Shed No 720 West Ex Highway Palghar", origin=True,
     ) == "Vasai"
+    assert canonical_vijay_location("Palghar", origin=True) == "Vasai"
     assert canonical_vijay_location("Palghar") == "Palghar"
 
 
@@ -302,6 +303,23 @@ def test_multiple_invoice_numbers_remain_one_dtr_value():
         "MUMCIN270034867 / MUMCIN270034866 / MUMCIN270034865"
     )
     assert "invoice_numbers" in _prompt("ENTRY", "")
+
+
+def test_per_image_trip_results_merge_every_invoice_number():
+    rows = [
+        UnifiedIntakeRow(
+            invoice_number="MUMCIN270049475", date="2026-08-08",
+            vehicle_number="MH04LE8403", from_location="Palghar", to_location="Vasai",
+        ),
+        UnifiedIntakeRow(
+            invoice_number="MUMCIN270049474", date="2026-08-08",
+            vehicle_number="MH04LE8403", from_location="Palghar", to_location="Vasai",
+        ),
+    ]
+    merged = merge_same_trip_intake_rows(rows)
+    assert merged.invoice_numbers == ["MUMCIN270049475", "MUMCIN270049474"]
+    assert merged.invoice_number == "MUMCIN270049475"
+    assert merged.vehicle_number == "MH04LE8403"
 
 
 def test_vijay_vehicle_last_four_resolves_full_vehicle_and_transporter():

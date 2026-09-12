@@ -5,6 +5,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from .trip_dtr_report import DTR_REVIEW_COLUMNS
+from .invoice_numbers import normalized_invoice_numbers
 
 
 class DTRIntakeRow(BaseModel):
@@ -154,6 +155,30 @@ class DirectExpenseIntakeRow(BaseModel):
 class DirectExpenseIntakeResult(BaseModel):
     rows: list[DirectExpenseIntakeRow] = Field(default_factory=list)
     summary: str = ""
+
+
+def merge_same_trip_intake_rows(rows):
+    """Merge per-invoice extraction results without losing identifiers."""
+    if not rows:
+        return None
+    merged = rows[0].model_copy(deep=True)
+    identifiers = []
+    for row in rows:
+        identifiers.extend(row.invoice_numbers)
+        if row.invoice_number:
+            identifiers.append(row.invoice_number)
+        elif not row.invoice_numbers and row.lr_invoice_number:
+            identifiers.append(row.lr_invoice_number)
+        for field, value in row.model_dump().items():
+            if field in {"invoice_number", "invoice_numbers", "lr_invoice_number"}:
+                continue
+            current = getattr(merged, field)
+            if current in (None, "", [], 0, 0.0) and value not in (None, "", [], 0, 0.0):
+                setattr(merged, field, value)
+    merged.invoice_numbers = normalized_invoice_numbers(identifiers)
+    merged.invoice_number = merged.invoice_numbers[0] if merged.invoice_numbers else ""
+    merged.lr_invoice_number = ""
+    return merged
 
 
 def should_autofill_field(mode, field):
