@@ -16,7 +16,7 @@ from src.business_memory import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
 from src.entry_state import clear_entry_state, entry_state_prefix
-from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers
+from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
 from src.pending_invoice_matcher import suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
@@ -339,6 +339,24 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
                 extracted_rows = [result.rows[0] for result in individual_results if result.rows]
                 result = individual_results[0]
                 merged = merge_same_trip_intake_rows(extracted_rows)
+                if merged:
+                    known_invoice_values = [
+                        row.get("invoice_number") or unpack(row.get("dtr_data")).get("Invoice No.")
+                        for row in normalization_rows
+                    ]
+                    reconciled = reconcile_sequential_invoice_series(
+                        merged.invoice_numbers, known_invoice_values,
+                    )
+                    if reconciled is None:
+                        merged.invoice_numbers = []
+                        merged.invoice_number = ""
+                        st.warning(
+                            "The uploaded invoices appear sequential, but their printed series prefixes "
+                            "could not be verified. Please enter each invoice number manually."
+                        )
+                    else:
+                        merged.invoice_numbers = reconciled
+                        merged.invoice_number = reconciled[0] if reconciled else ""
                 result.rows = [merged] if merged else []
             else:
                 result, _ = extract_intake(secret("GEMINI_API_KEY"), mode, instruction, files, secret("GEMINI_MODEL"))

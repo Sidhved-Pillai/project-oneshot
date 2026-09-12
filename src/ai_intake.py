@@ -258,6 +258,9 @@ missing values and explain unclear readings in review_notes.
 - When multiple invoices describe the same trip (same date, vehicle and route), return one combined row and
   put every separately labelled invoice identifier in invoice_numbers, in upload order. Also put the first
   identifier in invoice_number for compatibility. Never merge invoice identifiers into one invented number.
+- Read each printed Invoice No character-by-character from the label at the top of its own invoice. Recheck
+  every digit, especially visually similar 5/6, 3/8 and 0/8 digits. Do not derive an invoice number from IRN,
+  Ack No, customer code, dates, amounts, QR content, or an adjacent uploaded invoice.
 - For origin and destination, return the shortest identifiable locality or city name rather than copying a
   street address. Customer codes and full delivery addresses may be used to identify that locality.
 - Separately extract the destination's printed Customer Code into delivery_customer_code and the complete

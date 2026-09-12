@@ -18,7 +18,7 @@ from src.gemini_parser import parse_with_gemini
 from src.historical_suggester import HistoricalSuggester
 from src.entry_finance import advance_summary, diesel_expense, financial_values
 from src.entry_state import clear_entry_state, entry_state_prefix
-from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers
+from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series
 from src.expense_periods import allocate_expenses_for_period, serialize_period
 from src.pending_invoice_matcher import score_invoice_match, suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
@@ -324,6 +324,18 @@ def test_per_image_trip_results_merge_every_invoice_number():
     assert merged.invoice_number == "MUMCIN270049475"
     assert merged.vehicle_number == "MH04LE8403"
     assert merged.delivery_customer_code == "MUMC017916"
+
+
+def test_sequential_invoice_series_repairs_only_with_clear_history():
+    misread = ["MUMCIN270062148", "MUMCIN270052149"]
+    known = ["MUMCIN270052141", "MUMCIN270052142 / MUMCIN270052143"]
+    assert reconcile_sequential_invoice_series(misread, known) == [
+        "MUMCIN270052148", "MUMCIN270052149",
+    ]
+    assert reconcile_sequential_invoice_series(misread, []) is None
+    assert reconcile_sequential_invoice_series(
+        ["MUMCIN270052148", "MUMCIN270052149"], [],
+    ) == ["MUMCIN270052148", "MUMCIN270052149"]
 
 
 def test_vijay_vehicle_last_four_resolves_full_vehicle_and_transporter():
