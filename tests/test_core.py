@@ -284,6 +284,7 @@ def test_vijay_master_converts_full_delivery_address_to_short_address():
     ) == "Vasai"
     assert canonical_vijay_location("Palghar", origin=True) == "Vasai"
     assert canonical_vijay_location("Palghar") == "Palghar"
+    assert canonical_vijay_location("MUMC017916 Palghar") == "Virar W"
 
 
 def test_trip_ai_has_separate_invoice_and_lr_fields():
@@ -309,7 +310,9 @@ def test_per_image_trip_results_merge_every_invoice_number():
     rows = [
         UnifiedIntakeRow(
             invoice_number="MUMCIN270049475", date="2026-08-08",
-            vehicle_number="MH04LE8403", from_location="Palghar", to_location="Vasai",
+            vehicle_number="MH04LE8403", from_location="Palghar", to_location="Palghar",
+            delivery_customer_code="MUMC017916",
+            delivery_address="B-Shop No 14 Sambhav Tower Padmavati Nagar Agashi Road Palghar",
         ),
         UnifiedIntakeRow(
             invoice_number="MUMCIN270049474", date="2026-08-08",
@@ -320,6 +323,7 @@ def test_per_image_trip_results_merge_every_invoice_number():
     assert merged.invoice_numbers == ["MUMCIN270049475", "MUMCIN270049474"]
     assert merged.invoice_number == "MUMCIN270049475"
     assert merged.vehicle_number == "MH04LE8403"
+    assert merged.delivery_customer_code == "MUMC017916"
 
 
 def test_vijay_vehicle_last_four_resolves_full_vehicle_and_transporter():

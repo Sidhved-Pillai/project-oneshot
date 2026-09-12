@@ -368,6 +368,14 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
             extracted_invoices = normalized_invoice_numbers(result.rows[0].invoice_numbers)
             if extracted_invoices:
                 st.session_state[f"{prefix}_invoice_numbers"] = extracted_invoices
+            if current_user == "Vijay":
+                destination_evidence = " ".join(filter(None, (
+                    result.rows[0].delivery_customer_code,
+                    result.rows[0].delivery_address,
+                    result.rows[0].to_location,
+                )))
+                if destination_evidence:
+                    st.session_state[f"{prefix}_to_location"] = canonical_vijay_location(destination_evidence)
             legacy = clean_text(getattr(result.rows[0], "lr_invoice_number", ""))
             if legacy and not clean_text(st.session_state.get(f"{prefix}_invoice_number")) and not clean_text(st.session_state.get(f"{prefix}_lr_number")):
                 st.session_state[f"{prefix}_invoice_number"] = legacy

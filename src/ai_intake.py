@@ -102,6 +102,8 @@ class UnifiedIntakeRow(BaseModel):
     ownership_type: str = ""
     from_location: str = ""
     to_location: str = ""
+    delivery_customer_code: str = ""
+    delivery_address: str = ""
     lr_number: str = ""
     invoice_number: str = ""
     invoice_numbers: list[str] = Field(default_factory=list)
@@ -258,6 +260,9 @@ missing values and explain unclear readings in review_notes.
   identifier in invoice_number for compatibility. Never merge invoice identifiers into one invented number.
 - For origin and destination, return the shortest identifiable locality or city name rather than copying a
   street address. Customer codes and full delivery addresses may be used to identify that locality.
+- Separately extract the destination's printed Customer Code into delivery_customer_code and the complete
+  Shipped To/Delivery Address block into delivery_address. Do not confuse the postal district in that block
+  with the operational destination locality.
 """
     if mode == "DTR":
         return common + """

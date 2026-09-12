@@ -49,6 +49,16 @@ def canonical_vijay_location(value, *, origin=False):
     if origin and (("neelam" in tokens and "compound" in tokens) or tokens == {"palghar"}):
         return "Vasai"
 
+    # Customer codes are the strongest link to the supplied master. They avoid
+    # mistaking a postal district (for example Palghar) for the route locality.
+    compact = re.sub(r"[^a-z0-9]", "", original.casefold())
+    for row in _master_rows():
+        if any(
+            re.sub(r"[^a-z0-9]", "", str(code).casefold()) in compact
+            for code in row.get("customer_codes", []) if code
+        ):
+            return _display_short(row["short_address"])
+
     best = (0.0, "")
     for row in _master_rows():
         address_tokens = _tokens(row["full_address"])
