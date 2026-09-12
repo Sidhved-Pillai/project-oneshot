@@ -1067,6 +1067,11 @@ def test_business_memory_uses_repeated_verified_records_without_guessing():
     assert vehicle["transporter_name"] == ("XYZ", 2)
     assert recall(memory, "companies", "sg")["branch"] == ("Pune", 2)
     assert recall(memory, "beneficiaries", "demo")["account_number"] == ("00123", 2)
+    transporter = recall(memory, "transporters", "x-y-z")
+    assert transporter["transporter_name"] == ("XYZ", 2)
+    assert transporter["beneficiary_name"] == ("Demo", 2)
+    assert transporter["account_number"] == ("00123", 2)
+    assert transporter["ifsc"] == ("ICIC0001", 2)
     assert recall(memory, "vehicles", "UNKNOWN") == {}
 
 

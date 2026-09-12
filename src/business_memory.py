@@ -31,7 +31,8 @@ def _winner(records, field):
 
 def build_business_memory(rows):
     """Learn deterministic associations from records explicitly saved by users."""
-    vehicles, companies, beneficiaries = defaultdict(list), defaultdict(list), defaultdict(list)
+    vehicles, companies = defaultdict(list), defaultdict(list)
+    beneficiaries, transporters = defaultdict(list), defaultdict(list)
     for row in reversed(rows):  # oldest to newest; newest spelling wins ties
         if row.get("status") not in {"Verified", "Submitted"} or row.get("report_scope") == "Expense":
             continue
@@ -50,6 +51,8 @@ def build_business_memory(rows):
             companies[_key(row["company_name"])].append(record)
         if _key(row.get("beneficiary_name")):
             beneficiaries[_key(row["beneficiary_name"])].append(record)
+        if _key(record.get("transporter_name")):
+            transporters[_key(record["transporter_name"])].append(record)
 
     def compile_group(groups, fields):
         return {
@@ -61,6 +64,10 @@ def build_business_memory(rows):
         "vehicles": compile_group(vehicles, ["vehicle_capacity", "transporter_name", "ownership_type", "vehicle_placed_by"]),
         "companies": compile_group(companies, ["branch"]),
         "beneficiaries": compile_group(beneficiaries, ["account_number", "ifsc", "transporter_name"]),
+        "transporters": compile_group(
+            transporters,
+            ["transporter_name", "beneficiary_name", "account_number", "ifsc"],
+        ),
     }
 
 

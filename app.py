@@ -123,6 +123,23 @@ def apply_vijay_transporter_profile(prefix):
             st.session_state[f"{prefix}_{field}"] = value
 
 
+def apply_saved_transporter_profile(prefix):
+    profile = recall(
+        business_memory, "transporters",
+        st.session_state.get(f"{prefix}_transporter_name"),
+    )
+    state_fields = {
+        "beneficiary_name": "beneficiary_name",
+        "account_number": "beneficiary_account_number",
+        "ifsc": "beneficiary_ifsc_code",
+    }
+    for source_field, state_field in state_fields.items():
+        value = profile.get(source_field, ("", 0))[0]
+        # Clear details from the previous transporter when the selected/new
+        # transporter has no saved value; never carry banking data across.
+        st.session_state[f"{prefix}_{state_field}"] = value
+
+
 def apply_vijay_freight_rate(prefix):
     revenue = st.session_state.get(f"{prefix}_revenue")
     st.session_state[f"{prefix}_transporter_freight"] = vijay_transporter_freight(revenue)
@@ -550,8 +567,8 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     else:
         st.markdown("#### 3. Beneficiary details")
         c1, c2 = st.columns(2)
-        v["beneficiary_name"] = c1.text_input("Beneficiary name", key=f"{prefix}_beneficiary_name", placeholder="e.g., XYZ Transport")
         if current_user == "Vijay":
+            v["beneficiary_name"] = c1.text_input("Beneficiary name", key=f"{prefix}_beneficiary_name", placeholder="e.g., XYZ Transport")
             transporter_key = f"{prefix}_transporter_name"
             if st.session_state.get(transporter_key) not in ("", *VIJAY_TRANSPORTER_PROFILES):
                 st.session_state[transporter_key] = ""
@@ -561,7 +578,22 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
                 on_change=apply_vijay_transporter_profile, args=(prefix,),
             )
         else:
-            v["transporter_name"] = c2.text_input("Transporter name", key=f"{prefix}_transporter_name", placeholder="e.g., XYZ Transport")
+            transporter_key = f"{prefix}_transporter_name"
+            transporter_options = sorted({
+                profile.get("transporter_name", ("", 0))[0]
+                for profile in memory.get("transporters", {}).values()
+                if profile.get("transporter_name", ("", 0))[0]
+            }, key=str.casefold)
+            current_transporter = clean_text(st.session_state.get(transporter_key))
+            options = ["", *transporter_options]
+            if current_transporter and current_transporter not in options:
+                options.append(current_transporter)
+            v["transporter_name"] = c1.selectbox(
+                "Transporter name", options, key=transporter_key,
+                placeholder="Type or select a transporter", accept_new_options=True,
+                on_change=apply_saved_transporter_profile, args=(prefix,),
+            )
+            v["beneficiary_name"] = c2.text_input("Beneficiary name", key=f"{prefix}_beneficiary_name", placeholder="e.g., XYZ Transport")
         c1, c2 = st.columns(2)
         v["beneficiary_account_number"] = c1.text_input("Account number", key=f"{prefix}_beneficiary_account_number", placeholder="e.g., 0206101019660")
         v["beneficiary_ifsc_code"] = c2.text_input("IFSC code", key=f"{prefix}_beneficiary_ifsc_code", placeholder="e.g., ICIC0001234")
