@@ -18,6 +18,7 @@ from src.gemini_parser import parse_with_gemini
 from src.historical_suggester import HistoricalSuggester
 from src.entry_finance import advance_summary, diesel_expense, financial_values
 from src.entry_state import clear_entry_state, entry_state_prefix
+from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers
 from src.expense_periods import allocate_expenses_for_period, serialize_period
 from src.pending_invoice_matcher import score_invoice_match, suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
@@ -288,6 +289,17 @@ def test_trip_ai_has_separate_invoice_and_lr_fields():
     assert row.lr_number == "LR-12"
     prompt = _prompt("ENTRY", "")
     assert "Read invoice_number" in prompt and "Read lr_number" in prompt
+
+
+def test_multiple_invoice_numbers_remain_one_dtr_value():
+    invoices = ["MUMCIN270034867", " MUMCIN270034866 ", "MUMCIN270034865"]
+    assert normalized_invoice_numbers(invoices) == [
+        "MUMCIN270034867", "MUMCIN270034866", "MUMCIN270034865",
+    ]
+    assert combined_invoice_number(invoices) == (
+        "MUMCIN270034867 / MUMCIN270034866 / MUMCIN270034865"
+    )
+    assert "invoice_numbers" in _prompt("ENTRY", "")
 
 
 def test_vijay_vehicle_last_four_resolves_full_vehicle_and_transporter():

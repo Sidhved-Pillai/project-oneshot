@@ -103,6 +103,7 @@ class UnifiedIntakeRow(BaseModel):
     to_location: str = ""
     lr_number: str = ""
     invoice_number: str = ""
+    invoice_numbers: list[str] = Field(default_factory=list)
     # Retained for compatibility with any cached response created by an older
     # schema. New extraction must use the two explicit fields above.
     lr_invoice_number: str = ""
@@ -227,6 +228,9 @@ missing values and explain unclear readings in review_notes.
   from the route. If multiple organisations are visible and the customer is ambiguous, leave company_name blank.
 - Read invoice_number from the document field explicitly labelled Invoice No/Invoice Number. Do not place it
   in lr_number. Read lr_number only from a separately labelled LR/Consignment/Reference field.
+- When multiple invoices describe the same trip (same date, vehicle and route), return one combined row and
+  put every separately labelled invoice identifier in invoice_numbers, in upload order. Also put the first
+  identifier in invoice_number for compatibility. Never merge invoice identifiers into one invented number.
 - For origin and destination, return the shortest identifiable locality or city name rather than copying a
   street address. Customer codes and full delivery addresses may be used to identify that locality.
 """

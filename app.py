@@ -16,6 +16,7 @@ from src.business_memory import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
 from src.entry_state import clear_entry_state, entry_state_prefix
+from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
 from src.pending_invoice_matcher import suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
@@ -320,6 +321,8 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
             "beneficiary_name": "beneficiary", "vehicle_number": "vehicle",
         }
         for field, value in result.rows[0].model_dump().items():
+            if field == "invoice_numbers":
+                continue
             if value not in (None, "") and should_autofill_field(mode, field):
                 state_field = expense_keys.get(field, field) if mode == "EXPENSE" else field
                 state_key = f"{prefix}_{state_field}"
@@ -330,6 +333,9 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
         # Older cached AI responses used one combined identifier. Preserve it
         # as an invoice only when neither explicit field was extracted.
         if mode == "ENTRY":
+            extracted_invoices = normalized_invoice_numbers(result.rows[0].invoice_numbers)
+            if extracted_invoices:
+                st.session_state[f"{prefix}_invoice_numbers"] = extracted_invoices
             legacy = clean_text(getattr(result.rows[0], "lr_invoice_number", ""))
             if legacy and not clean_text(st.session_state.get(f"{prefix}_invoice_number")) and not clean_text(st.session_state.get(f"{prefix}_lr_number")):
                 st.session_state[f"{prefix}_invoice_number"] = legacy
@@ -498,7 +504,21 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     v["to_location"] = c2.text_input("To *", key=f"{prefix}_to_location", placeholder="e.g., Bhiwandi, Thane")
     c1, c2 = st.columns(2)
     v["lr_number"] = c1.text_input("LR number", key=f"{prefix}_lr_number", placeholder="e.g., LR-12234")
-    v["invoice_number"] = c2.text_input("Invoice number", key=f"{prefix}_invoice_number", placeholder="e.g., INV-10595976")
+    if current_user == "Vijay":
+        extracted_invoices = normalized_invoice_numbers(st.session_state.get(f"{prefix}_invoice_numbers", []))
+        invoice_slots = max(1, int(st.session_state.get(f"{prefix}_invoice_slots", 1)), len(extracted_invoices))
+        invoice_values = []
+        for index in range(invoice_slots):
+            key = f"{prefix}_invoice_number" if index == 0 else f"{prefix}_invoice_number_{index + 1}"
+            if index < len(extracted_invoices) and not clean_text(st.session_state.get(key)):
+                st.session_state[key] = extracted_invoices[index]
+            invoice_values.append(c2.text_input(
+                "Invoice number" if index == 0 else f"Invoice number {index + 1}",
+                key=key, placeholder="e.g., MUMCIN270034867",
+            ))
+        v["invoice_number"] = combined_invoice_number(invoice_values)
+    else:
+        v["invoice_number"] = c2.text_input("Invoice number", key=f"{prefix}_invoice_number", placeholder="e.g., INV-10595976")
     st.markdown("#### 2. Vehicle information")
     c1, c2, c3 = st.columns(3)
     vehicle_input_kwargs = {
@@ -980,6 +1000,8 @@ with new_tab:
             "Invoice evidence shown in Records", [item.name for item in upload], index=len(upload) - 1,
             key=f"{entry_prefix}_invoice_evidence", help="All files are used for autofill; only this invoice file is displayed in Records.",
         )
+    if current_user == "Vijay":
+        st.session_state[f"{entry_prefix}_invoice_slots"] = max(1, len(upload or []))
     audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key=f"{entry_prefix}_audio")
     voice_autofill = c2.button("Autofill with Voice Prompt", type="primary", use_container_width=True, disabled=audio is None, key=f"{entry_prefix}_voice_autofill", icon="🎙️")
     files = evidence(upload, audio)
