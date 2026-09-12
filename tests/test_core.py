@@ -27,7 +27,7 @@ from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, r
 from src.trip_dtr_report import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
 from src.pnl_report import BRANCH_PNL_COLUMNS, DIRECT_EXPENSE_COLUMNS, VEHICLE_NO_PNL_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl, pnl_summary, vehicle_pnl_summary
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
-from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, VIJAY_VEHICLE_TRANSPORTERS, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
+from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, VIJAY_VEHICLE_TRANSPORTERS, resolve_vijay_vehicle_number, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
 from src.vehicle_normalization import canonical_vehicle_number
 from src.business_memory import build_business_memory, recall
 from src.workflow_ai import convert_rtgs_to_dtr as workflow_convert_rtgs_to_dtr
@@ -278,7 +278,7 @@ def test_vijay_master_converts_full_delivery_address_to_short_address():
     assert canonical_vijay_location(full) == "Virar W"
     assert canonical_vijay_location(
         "Vivan Neelam Print Compound Shed No 720 West Ex Highway Palghar", origin=True,
-    ) == "Palghar"
+    ) == "Vasai"
     assert canonical_vijay_location("Palghar") == "Palghar"
 
 
@@ -288,6 +288,14 @@ def test_trip_ai_has_separate_invoice_and_lr_fields():
     assert row.lr_number == "LR-12"
     prompt = _prompt("ENTRY", "")
     assert "Read invoice_number" in prompt and "Read lr_number" in prompt
+
+
+def test_vijay_vehicle_last_four_resolves_full_vehicle_and_transporter():
+    assert resolve_vijay_vehicle_number("8412") == "MH04LE8412"
+    assert vijay_transporter_for_vehicle("8412") == "Altaf Khan Transport"
+    assert resolve_vijay_vehicle_number("3997") == "MH04HD3997"
+    assert vijay_transporter_for_vehicle("3997") == "Nisar Anwar Shaikh"
+    assert resolve_vijay_vehicle_number("9999") == "9999"
 
 
 def test_duplicate_suffix_and_inactive_filtering():

@@ -54,4 +54,17 @@ def vijay_transporter_freight(revenue):
 
 
 def vijay_transporter_for_vehicle(vehicle_number):
-    return VIJAY_VEHICLE_TRANSPORTERS.get(canonical_vehicle_number(vehicle_number), "")
+    resolved = resolve_vijay_vehicle_number(vehicle_number)
+    return VIJAY_VEHICLE_TRANSPORTERS.get(resolved, "")
+
+
+def resolve_vijay_vehicle_number(vehicle_number):
+    """Resolve a full registration or an unambiguous final four digits."""
+    normalized = canonical_vehicle_number(vehicle_number)
+    if normalized in VIJAY_VEHICLE_TRANSPORTERS:
+        return normalized
+    if normalized.isdigit() and len(normalized) == 4:
+        matches = [vehicle for vehicle in VIJAY_VEHICLE_TRANSPORTERS if vehicle.endswith(normalized)]
+        if len(matches) == 1:
+            return matches[0]
+    return normalized

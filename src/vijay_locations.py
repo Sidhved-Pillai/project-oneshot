@@ -42,9 +42,10 @@ def canonical_vijay_location(value, *, origin=False):
         return ""
     tokens = _tokens(original)
 
-    # Vijay loads from Bisleri's Palghar print compound; keep only its locality.
-    if origin and "palghar" in tokens and ({"vivan", "neelam", "compound"} & tokens):
-        return "Palghar"
+    # Operationally the Neelam/Vasai compound is reported under Vasai even
+    # when the printed postal address includes Palghar district.
+    if origin and "neelam" in tokens and "compound" in tokens:
+        return "Vasai"
 
     best = (0.0, "")
     for row in _master_rows():
@@ -61,4 +62,3 @@ def canonical_vijay_location(value, *, origin=False):
         if score > best[0]:
             best = (score, row["short_address"])
     return _display_short(best[1]) if best[0] >= 0.62 else original
-
