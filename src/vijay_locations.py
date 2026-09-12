@@ -7,6 +7,10 @@ from pathlib import Path
 
 
 _DATA_FILE = Path(__file__).resolve().parent.parent / "data" / "vijay_delivery_addresses.json"
+_CUSTOMER_SHORT_OVERRIDES = {
+    "MUMC021438": "Panvel",  # The Forest Club Resort, Kiravali/Karjat
+    "MUMC021442": "Panvel",  # Stonewater Resort and Spa, Salwad/Karjat
+}
 _NOISE = {
     "address", "and", "at", "dist", "district", "india", "maharashtra", "near",
     "no", "road", "shop", "state", "tal", "the",
@@ -52,6 +56,9 @@ def canonical_vijay_location(value, *, origin=False):
     # Customer codes are the strongest link to the supplied master. They avoid
     # mistaking a postal district (for example Palghar) for the route locality.
     compact = re.sub(r"[^a-z0-9]", "", original.casefold())
+    for customer_code, short_address in _CUSTOMER_SHORT_OVERRIDES.items():
+        if customer_code.casefold() in compact:
+            return short_address
     for row in _master_rows():
         if any(
             re.sub(r"[^a-z0-9]", "", str(code).casefold()) in compact

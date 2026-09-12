@@ -1,5 +1,6 @@
 from io import BytesIO
 import datetime as dt
+import json
 from decimal import Decimal
 import pandas as pd
 from openpyxl import Workbook, load_workbook
@@ -23,6 +24,7 @@ from src.expense_periods import allocate_expenses_for_period, serialize_period
 from src.pending_invoice_matcher import score_invoice_match, suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
 from src.record_filters import DIRECT_EXPENSES, TRIP_RECORDS, filter_record_type, filter_without_invoice_evidence, has_invoice_evidence, sort_records_by_date
+from src.records_export import RECORD_EXPORT_COLUMNS, export_records_excel, records_export_rows
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
 from src.trip_dtr_report import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
@@ -285,6 +287,8 @@ def test_vijay_master_converts_full_delivery_address_to_short_address():
     assert canonical_vijay_location("Palghar", origin=True) == "Vasai"
     assert canonical_vijay_location("Palghar") == "Palghar"
     assert canonical_vijay_location("MUMC017916 Palghar") == "Virar W"
+    assert canonical_vijay_location("MUMC021442 Stonewater Resort Raigad") == "Panvel"
+    assert canonical_vijay_location("MUMC021438 The Forest Club Resort Raigad") == "Panvel"
 
 
 def test_trip_ai_has_separate_invoice_and_lr_fields():
@@ -560,6 +564,37 @@ def test_financial_mapping_and_persistent_request_roundtrip(tmp_path):
     }
     dtr = rows_to_dtr(rows)
     assert dtr.iloc[0]["UPI"] == 1250 and dtr.iloc[0]["Invoice No."] == "INV-7"
+
+
+def test_filtered_records_excel_contains_complete_trip_and_expense_fields():
+    records = [{
+        "request_number": "REQ-1", "report_scope": "Both", "trip_date": dt.date(2026, 4, 27),
+        "status": "Submitted", "created_by": "Vijay", "branch": "Andheri",
+        "company_name": "Bisleri International Private Limited", "vehicle_number": "MH04HY7998",
+        "vehicle_type": "9 MT", "ownership_type": "Outside", "from_location": "Bhiwandi",
+        "to_location": "Panvel", "invoice_number": "MUMCIN270008058 / MUMCIN270008059",
+        "beneficiary_name": "Altaf Khan Transport", "transporter_name": "Altaf Khan Transport",
+        "revenue": 4509, "transporter_freight": 3862, "rtgs_advance": 1000,
+        "cash_advance": 0, "upi": 100, "diesel_advance": 200, "diesel_quantity": 2,
+        "total_advance": 1300, "balance_amount": 2562, "payment": 0,
+        "payment_mode": "RTGS, UPI, Diesel", "notes": "7998 Bhiwandi to Panvel",
+        "source_filename": "invoice.jpg",
+        "dtr_data": json.dumps({
+            "LR No.": "LR-1", "Invoice No.": "MUMCIN270008058 / MUMCIN270008059",
+            "Veh Placed by": "Vijay", "Diesel Rate": 100, "Toll Expense": 50,
+            "Repairs & Maintenance": 25, "Repair Reason": "Tyre", "Billtee": 10,
+            "Diesel Pump Name": "Pump", "Card Name": "Card",
+        }),
+        "rtgs_data": json.dumps({"BENE_ACC_NO": "60350673934", "BENE_IFSC": "MAHB0000979"}),
+    }]
+    exported = records_export_rows(records)
+    assert list(exported[0]) == RECORD_EXPORT_COLUMNS
+    assert exported[0]["To"] == "Panvel"
+    assert exported[0]["Invoice Number"] == "MUMCIN270008058 / MUMCIN270008059"
+    assert exported[0]["Account Number"] == "60350673934"
+    workbook = load_workbook(BytesIO(export_records_excel(records)))
+    assert [cell.value for cell in workbook["Records"][1]] == RECORD_EXPORT_COLUMNS
+    assert workbook["Records"].freeze_panes == "A2"
 
 
 def test_pending_invoice_attachment_never_overwrites_existing_evidence(tmp_path):

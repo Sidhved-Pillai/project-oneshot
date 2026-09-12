@@ -21,6 +21,7 @@ from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for
 from src.pending_invoice_matcher import suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
 from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
+from src.records_export import export_records_excel
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
@@ -1430,6 +1431,13 @@ with records_tab:
         st.info("No records match the selected filters.")
     else:
         rows = sort_records_by_date(rows, "Oldest first" if sort_arrow == "↑" else "Newest first")
+        if current_user == "Vijay":
+            st.download_button(
+                "Download Excel", export_records_excel(rows),
+                f"Vijay-Records-{filter_from}-{filter_to}.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="download_vijay_filtered_records",
+            )
         with st.container(height=420, border=True):
             has_delete_column = current_user in {"Sid", "Manish", "Vijay"}
             record_widths = [1.35, .8, .9, 1.1, 1.15, 1, .85, .65] if has_delete_column else [1.35, .8, .9, 1.1, 1.15, 1, .85]
