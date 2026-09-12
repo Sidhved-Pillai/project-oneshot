@@ -10,7 +10,7 @@ import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
-from src.access_control import PRIVATE_RECORD_USERS, can_delete_record, can_view_record
+from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record
 from src.ai_intake import extract_intake, merge_same_trip_intake_rows, should_autofill_field
 from src.business_memory import build_business_memory, recall
 from src.config import ROOT
@@ -1439,7 +1439,7 @@ with records_tab:
                 key="download_vijay_filtered_records",
             )
         with st.container(height=420, border=True):
-            has_delete_column = current_user in {"Sid", "Manish", "Vijay"}
+            has_delete_column = current_user == "Sid" or current_user in SELF_DELETE_USERS
             record_widths = [1.35, .8, .9, 1.1, 1.15, 1, .85, .65] if has_delete_column else [1.35, .8, .9, 1.1, 1.15, 1, .85]
             record_titles = ("Record", "Date", "Branch", "Vehicle", "Placed by", "Revenue", "", "") if has_delete_column else ("Record", "Date", "Branch", "Vehicle", "Placed by", "Revenue", "")
             header = st.columns(record_widths)
