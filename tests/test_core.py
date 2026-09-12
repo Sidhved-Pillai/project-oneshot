@@ -18,8 +18,8 @@ from src.excel_exporter import export_dtr
 from src.gemini_parser import parse_with_gemini
 from src.historical_suggester import HistoricalSuggester
 from src.entry_finance import advance_summary, diesel_expense, financial_values
-from src.entry_state import clear_entry_state, entry_state_prefix
-from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series, valid_bisleri_invoice_number, verified_bisleri_invoice_numbers
+from src.entry_state import clear_entry_state, clear_expense_state, entry_state_prefix, expense_state_prefix
+from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series, user_invoice_duplicates, valid_bisleri_invoice_number, verified_bisleri_invoice_numbers
 from src.expense_periods import allocate_expenses_for_period, serialize_period
 from src.pending_invoice_matcher import score_invoice_match, suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
@@ -157,6 +157,29 @@ def test_completed_entry_gets_a_fresh_widget_namespace_and_full_reset():
     }
     clear_entry_state(state)
     assert state == {"new_entry_generation": 9, "authenticated_user": "Manish"}
+
+
+def test_completed_direct_expense_gets_a_fresh_widget_namespace_and_full_reset():
+    assert expense_state_prefix(3) != expense_state_prefix(4)
+    state = {
+        "expense_3_beneficiary": "Previous Payee",
+        "expense_3_upload": b"old receipt",
+        "expense_3_category_0": 500,
+        "direct_expense_generation": 4,
+        "authenticated_user": "Nitish",
+    }
+    clear_expense_state(state)
+    assert state == {"direct_expense_generation": 4, "authenticated_user": "Nitish"}
+
+
+def test_duplicate_invoice_detection_is_normalized_and_owner_scoped():
+    records = [
+        {"request_number": "REQ-1", "created_by": "Nitish", "invoice_number": "INV-100 / INV-101"},
+        {"request_number": "REQ-2", "created_by": "Ajit", "invoice_number": "INV-200"},
+    ]
+    assert [row["request_number"] for row in user_invoice_duplicates(records, "Nitish", " inv - 101 ")] == ["REQ-1"]
+    assert user_invoice_duplicates(records, "Nitish", "INV-200") == []
+    assert user_invoice_duplicates(records, "Nitish", "") == []
 
 
 def test_trip_leaderboard_aggregates_branch_performance():

@@ -16,6 +16,29 @@ def combined_invoice_number(values):
     return " / ".join(normalized_invoice_numbers(values))
 
 
+def user_invoice_duplicates(records, user_name, invoice_value):
+    """Return the user's saved records sharing any entered invoice identifier."""
+    entered = {
+        re.sub(r"\s+", "", part).strip("/").casefold()
+        for part in re.split(r"\s*/\s*", str(invoice_value or ""))
+        if re.sub(r"\s+", "", part).strip("/")
+    }
+    if not entered:
+        return []
+    matches = []
+    for record in records or []:
+        if str(record.get("created_by") or "").strip() != str(user_name or "").strip():
+            continue
+        saved = {
+            re.sub(r"\s+", "", part).strip("/").casefold()
+            for part in re.split(r"\s*/\s*", str(record.get("invoice_number") or ""))
+            if re.sub(r"\s+", "", part).strip("/")
+        }
+        if entered & saved:
+            matches.append(record)
+    return matches
+
+
 def valid_bisleri_invoice_number(value):
     """Vijay's Bisleri invoice IDs are MUMCIN plus exactly nine digits."""
     cleaned = re.sub(r"\s+", "", str(value or "")).upper()

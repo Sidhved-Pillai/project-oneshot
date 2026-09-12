@@ -15,8 +15,8 @@ from src.ai_intake import extract_intake, merge_same_trip_intake_rows, should_au
 from src.business_memory import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
-from src.entry_state import clear_entry_state, entry_state_prefix
-from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series, verified_bisleri_invoice_numbers
+from src.entry_state import clear_entry_state, clear_expense_state, entry_state_prefix, expense_state_prefix
+from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series, user_invoice_duplicates, verified_bisleri_invoice_numbers
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
 from src.pending_invoice_matcher import suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
@@ -593,6 +593,10 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         v["invoice_number"] = combined_invoice_number(invoice_values)
     else:
         v["invoice_number"] = c2.text_input("Invoice number", key=f"{prefix}_invoice_number", placeholder="e.g., INV-10595976")
+    duplicate_invoices = user_invoice_duplicates(normalization_rows, current_user, v["invoice_number"])
+    if duplicate_invoices:
+        labels = ", ".join(request_label(row) for row in duplicate_invoices[:3])
+        c2.error(f"Duplicate detected: this invoice number already exists in {labels}.")
     st.markdown("#### 2. Vehicle information")
     c1, c2, c3 = st.columns(3)
     vehicle_input_kwargs = {
@@ -804,6 +808,9 @@ allowed_entry_branches = [record_branch_scope] if record_branch_scope else BRANC
 if st.session_state.pop("reset_trip_form", False):
     clear_entry_state(st.session_state)
 saved_entry_notice = st.session_state.pop("saved_entry_notice", None)
+if st.session_state.pop("reset_expense_form", False):
+    clear_expense_state(st.session_state)
+saved_expense_notice = st.session_state.pop("saved_expense_notice", None)
 
 
 def audit_action(action, request_number="", details=""):
@@ -1113,24 +1120,28 @@ with expense_tab:
     if not can_use_direct_expenses:
         st.warning("Direct Expenses is not available for your account.")
     page_intro("Expense capture", "Direct expense", "Turn bills and spoken notes into clean, categorised expense records.", "₹")
-    workflow_steps(["Add receipt", "Categorise", "Save expense"], 0)
+    workflow_steps(["Add receipt", "Categorise", "Save and add another"], 0)
+    if saved_expense_notice:
+        st.success(saved_expense_notice, icon="✅")
+    expense_generation = st.session_state.setdefault("direct_expense_generation", 0)
+    expense_prefix = expense_state_prefix(expense_generation)
     c1, c2 = st.columns(2)
-    expense_upload = c1.file_uploader("Attach bills or receipts", type=["jpg", "jpeg", "png", "webp", "pdf"], accept_multiple_files=True, key="expense_upload", disabled=not can_use_direct_expenses)
-    expense_audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key="expense_audio", disabled=not can_use_direct_expenses)
-    expense_voice_autofill = c2.button("Autofill with Voice Prompt", type="primary", use_container_width=True, disabled=expense_audio is None or not can_use_direct_expenses, key="expense_voice_autofill", icon="🎙️")
+    expense_upload = c1.file_uploader("Attach bills or receipts", type=["jpg", "jpeg", "png", "webp", "pdf"], accept_multiple_files=True, key=f"{expense_prefix}_upload", disabled=not can_use_direct_expenses)
+    expense_audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key=f"{expense_prefix}_audio", disabled=not can_use_direct_expenses)
+    expense_voice_autofill = c2.button("Autofill with Voice Prompt", type="primary", use_container_width=True, disabled=expense_audio is None or not can_use_direct_expenses, key=f"{expense_prefix}_voice_autofill", icon="🎙️")
     expense_files = evidence(expense_upload, expense_audio)
     if expense_upload:
-        autofill(evidence(expense_upload, None), "", "expense", "EXPENSE")
+        autofill(evidence(expense_upload, None), "", expense_prefix, "EXPENSE")
     if expense_voice_autofill:
-        autofill(evidence(None, expense_audio), "", "expense", "EXPENSE")
+        autofill(evidence(None, expense_audio), "", expense_prefix, "EXPENSE")
     with st.container(border=True):
         is_manish = current_user == "Manish"
-        if clean_text(st.session_state.get("expense_vehicle")):
-            st.session_state["expense_vehicle"] = canonical_vehicle_number(st.session_state["expense_vehicle"])
+        if clean_text(st.session_state.get(f"{expense_prefix}_vehicle")):
+            st.session_state[f"{expense_prefix}_vehicle"] = canonical_vehicle_number(st.session_state[f"{expense_prefix}_vehicle"])
         c1, c2, c3 = st.columns(3)
-        v = {"date": c1.date_input("Date *", format="DD/MM/YYYY", key="expense_date"), "beneficiary_name": c2.text_input("Beneficiary name", key="expense_beneficiary", placeholder="e.g., Rajesh Kumar"), "vehicle_number": c3.text_input("Vehicle name / number", key="expense_vehicle", placeholder="e.g., MH14JL9818")}
+        v = {"date": c1.date_input("Date *", format="DD/MM/YYYY", key=f"{expense_prefix}_date"), "beneficiary_name": c2.text_input("Beneficiary name", key=f"{expense_prefix}_beneficiary", placeholder="e.g., Rajesh Kumar"), "vehicle_number": c3.text_input("Vehicle name / number", key=f"{expense_prefix}_vehicle", placeholder="e.g., MH14JL9818")}
         branch_choices = allowed_entry_branches
-        expense_branch_key = "expense_branch"
+        expense_branch_key = f"{expense_prefix}_branch"
         if len(branch_choices) == 1:
             st.session_state[expense_branch_key] = branch_choices[0]
         current_expense_branch = clean_text(st.session_state.get(expense_branch_key))
@@ -1143,11 +1154,11 @@ with expense_tab:
             index=["", *branch_choices].index(current_expense_branch), key=expense_branch_key,
             disabled=len(branch_choices) == 1, placeholder="Select a branch",
         )
-        v["vehicle_capacity"] = c2.text_input("Vehicle Capacity", key="expense_vehicle_capacity", placeholder="e.g., 10 MT")
-        v["ownership_type"] = c3.selectbox("Own or Outside", ["", "Own", "Outside"], key="expense_ownership_type", placeholder="Select ownership")
+        v["vehicle_capacity"] = c2.text_input("Vehicle Capacity", key=f"{expense_prefix}_vehicle_capacity", placeholder="e.g., 10 MT")
+        v["ownership_type"] = c3.selectbox("Own or Outside", ["", "Own", "Outside"], key=f"{expense_prefix}_ownership_type", placeholder="Select ownership")
         c1, c2 = st.columns(2)
-        v["beneficiary_account_number"] = c1.text_input("Bank A/C No:", key="expense_bank_account", placeholder="e.g., 0206101019660")
-        v["beneficiary_ifsc_code"] = c2.text_input("IFSC Code", key="expense_ifsc", placeholder="e.g., ICIC0001234")
+        v["beneficiary_account_number"] = c1.text_input("Bank A/C No:", key=f"{expense_prefix}_bank_account", placeholder="e.g., 0206101019660")
+        v["beneficiary_ifsc_code"] = c2.text_input("IFSC Code", key=f"{expense_prefix}_ifsc", placeholder="e.g., ICIC0001234")
         st.markdown("#### Expense breakdown")
         cols = st.columns(3)
         visible_expense_columns = MANISH_DIRECT_EXPENSE_COLUMNS if is_manish else STANDARD_DIRECT_EXPENSE_COLUMNS
@@ -1155,14 +1166,14 @@ with expense_tab:
             v[category] = 0.0
         for i, category in enumerate(visible_expense_columns):
             category_key = DIRECT_EXPENSE_COLUMNS.index(category) if category in DIRECT_EXPENSE_COLUMNS else "passing_expense"
-            v[category] = cols[i % 3].number_input(f"{category} (₹)", min_value=0.0, value=None, placeholder="e.g., 5,000", key=f"expense_category_{category_key}")
+            v[category] = cols[i % 3].number_input(f"{category} (₹)", min_value=0.0, value=None, placeholder="e.g., 5,000", key=f"{expense_prefix}_category_{category_key}")
         active_period_categories = [category for category in PERIOD_EXPENSE_CATEGORIES if number(v.get(category))]
         period_columns = st.columns(2)
         for index, category in enumerate(active_period_categories):
             period_columns[index].caption(category)
             v[f"{category}_period"] = period_columns[index].date_input(
                 "Period", value=(v["date"], v["date"]), format="DD/MM/YYYY",
-                key=f"expense_period_{category.casefold().replace(' ', '_')}",
+                key=f"{expense_prefix}_period_{category.casefold().replace(' ', '_')}",
             )
         invalid_period = any(not normalize_period(v.get(f"{category}_period")) for category in active_period_categories)
         if invalid_period:
@@ -1170,22 +1181,22 @@ with expense_tab:
         expense_categories = [category for category in visible_expense_columns if number(v[category])]
         expense_generated_remark = expense_auto_remark(v["vehicle_number"], v["beneficiary_name"], expense_categories, v["date"])
         if clean_text(v["vehicle_number"]) or clean_text(v["beneficiary_name"]) or expense_categories:
-            sync_auto_remark("expense_remarks", expense_generated_remark)
-        v["remarks"] = st.text_area("Remarks", key="expense_remarks", placeholder="Auto-filled from the expense details")
+            sync_auto_remark(f"{expense_prefix}_remarks", expense_generated_remark)
+        v["remarks"] = st.text_area("Remarks", key=f"{expense_prefix}_remarks", placeholder="Auto-filled from the expense details")
         st.markdown("#### Mode of payment")
         st.caption("Fill every mode used for this expense.")
         payment_columns = st.columns(5 if is_manish else 4)
         for col, (label, field) in zip(payment_columns, PAYMENT_FIELDS.items()):
-            v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 5,000", key=f"expense_{field}")
+            v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 5,000", key=f"{expense_prefix}_{field}")
         if is_manish:
-            v["card"] = payment_columns[-1].number_input("Card (₹)", min_value=0.0, value=None, placeholder="e.g., 5,000", key="expense_card")
-            v["cardholders_name"] = st.text_input("Cardholders Name", key="expense_cardholders_name", placeholder="e.g., Manish Jha")
+            v["card"] = payment_columns[-1].number_input("Card (₹)", min_value=0.0, value=None, placeholder="e.g., 5,000", key=f"{expense_prefix}_card")
+            v["cardholders_name"] = st.text_input("Cardholders Name", key=f"{expense_prefix}_cardholders_name", placeholder="e.g., Manish Jha")
         else:
             v["card"], v["cardholders_name"] = 0.0, ""
         if number(v["diesel_advance"]) > 0:
             pump_col, card_col = st.columns(2)
-            v["diesel_pump_name"] = pump_col.text_input("Add Pumps", key="expense_diesel_pump_name", placeholder="e.g., HP Petrol Pump")
-            v["card_name"] = card_col.text_input("Card Name", key="expense_card_name", placeholder="e.g., HPCL DriveTrack")
+            v["diesel_pump_name"] = pump_col.text_input("Add Pumps", key=f"{expense_prefix}_diesel_pump_name", placeholder="e.g., HP Petrol Pump")
+            v["card_name"] = card_col.text_input("Card Name", key=f"{expense_prefix}_card_name", placeholder="e.g., HPCL DriveTrack")
         else:
             v["diesel_pump_name"], v["card_name"] = "", ""
         expense_total = sum(number(v[name]) for name in ALL_DIRECT_EXPENSE_COLUMNS)
@@ -1195,11 +1206,19 @@ with expense_tab:
         c2.metric("Payment modes total", f"₹{paid_total:,.2f}")
         if paid_total and abs(expense_total - paid_total) > 0.01:
             st.warning("Expense total and payment-mode total do not match. Review before saving.")
-        if st.button("Save direct expense", type="primary", key="save_expense", disabled=not can_use_direct_expenses or not v["branch"] or invalid_period):
+        save_col, another_col = st.columns(2)
+        save_expense = save_col.button("Save direct expense", type="primary", key=f"{expense_prefix}_save", disabled=not can_use_direct_expenses or not v["branch"] or invalid_period)
+        save_another_expense = another_col.button("Save & Add Another", key=f"{expense_prefix}_save_another", disabled=not can_use_direct_expenses or not v["branch"] or invalid_period)
+        if save_expense or save_another_expense:
             saved = store.create({
                 **expense_payload(v, expense_files), "created_by": current_user,
             })
             audit_action("Created direct expense", saved, request_label(saved, v["date"]))
+            if save_another_expense:
+                st.session_state["saved_expense_notice"] = f"Saved {request_label(saved, v['date'])}. Ready for another expense."
+                st.session_state["reset_expense_form"] = True
+                st.session_state["direct_expense_generation"] = expense_generation + 1
+                st.rerun()
             st.success(f"Saved {request_label(saved, v['date'])}.")
 
 with records_tab:
