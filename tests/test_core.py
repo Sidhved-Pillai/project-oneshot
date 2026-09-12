@@ -247,9 +247,11 @@ def test_prorated_expense_without_a_trip_still_appears_in_pnl_groupings():
     both = branch_pnl_summary([], allocated)
     own = branch_vehicle_pnl_summary([], allocated, "Own")
     vehicles = vehicle_number_pnl_summary([], allocated)
-    assert both[0]["Branch"] == "Andheri" and both[0]["Ins/Tax"] == 3000
+    assert both[0]["Branch"] == "Andheri" and both[0]["Insurance"] == 3000
+    assert both[0]["Vehicle Tax"] == 0
     assert own[0]["Branch"] == "Andheri" and own[0]["Insurance"] == -3000
-    assert vehicles[0]["Vehicle No."] == "MH04LE8409" and vehicles[0]["Ins/Tax"] == 3000
+    assert vehicles[0]["Vehicle No."] == "MH04LE8409" and vehicles[0]["Insurance"] == 3000
+    assert vehicles[0]["Vehicle Tax"] == 0
 
 
 def test_column_mappings():
@@ -1001,6 +1003,27 @@ def test_both_vehicle_pnl_is_horizontal_and_branch_wise():
     assert (pune["Expense"], pune["Profit"]) == (8500, 11500)
     assert (wada["Revenue OS"], wada["Transporter Freight"], wada["Profit"]) == (30000, 22000, 8000)
     assert (total["Total Revenue"], total["Expense"], total["Profit"]) == (50000, 30500, 19500)
+
+
+def test_both_pnl_splits_insurance_and_vehicle_tax_and_rounds_currency():
+    rows = branch_pnl_summary([], [{
+        "branch": "Pune",
+        "categories": {"Insurance": 1289.7220708446866, "Vehicle Tax": 100.128},
+    }])
+    pune = rows[0]
+    assert "Ins/Tax" not in pune
+    assert pune["Insurance"] == 1289.72
+    assert pune["Vehicle Tax"] == 100.13
+    assert pune["Expense"] == 1389.85
+    assert pune["Profit"] == -1389.85
+
+    workbook = load_workbook(BytesIO(export_pnl(
+        [], [{"branch": "Pune", "categories": {
+            "Insurance": 1289.7220708446866, "Vehicle Tax": 100.128,
+        }}], dt.date(2026, 9, 1), dt.date(2026, 9, 30), "Both",
+    )))
+    headers = [cell.value for cell in workbook["P&L"][3]]
+    assert "Insurance" in headers and "Vehicle Tax" in headers and "Ins/Tax" not in headers
 
 
 def test_vehicle_number_wise_pnl_groups_normalized_numbers_and_reconciles_total():

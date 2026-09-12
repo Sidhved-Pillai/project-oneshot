@@ -18,10 +18,21 @@ REPORT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense"]
 BRANCH_PNL_COLUMNS = [
     "Branch", "Revenue-Own", "Revenue OS", "Total Revenue", "Transporter Freight",
     "Extra Exp", "Passing Exp", "Bill Discounting", "UPI", "Salary", "Rent",
-    "Office Expense", "Conveyance", "EMI", "Ins/Tax", "R & M", "Toll",
+    "Office Expense", "Conveyance", "EMI", "Insurance", "Vehicle Tax", "R & M", "Toll",
     "Driver's Salary", "Diesel", "Interest", "Expense", "Profit",
 ]
 VEHICLE_NO_PNL_COLUMNS = ["Vehicle No.", "Branch", "Ownership", *BRANCH_PNL_COLUMNS[1:]]
+
+
+def _rounded_money_rows(rows):
+    """Limit calculated report values to currency precision for UI and export."""
+    return [
+        {
+            key: round(value, 2) if isinstance(value, (int, float)) and not isinstance(value, bool) else value
+            for key, value in row.items()
+        }
+        for row in rows
+    ]
 
 
 def pnl_summary(trip_rows, expense_rows):
@@ -37,7 +48,7 @@ def pnl_summary(trip_rows, expense_rows):
                 categories[name] += float(value or 0)
     direct_total = sum(categories.values())
     gross = revenue - transporter
-    return [
+    return _rounded_money_rows([
         {"Particular": "Branch", "Amount": ", ".join(branches) or "—"},
         {"Particular": "Revenue", "Amount": revenue},
         {"Particular": "Transporter Freight", "Amount": -transporter},
@@ -48,7 +59,7 @@ def pnl_summary(trip_rows, expense_rows):
         {"Particular": "Additional expenses", "Amount": -direct_total},
         {"Particular": "Total Direct Expenses", "Amount": -direct_total},
         {"Particular": "Net Profit / (Loss)", "Amount": gross - toll - diesel - direct_total},
-    ]
+    ])
 
 
 def _amount(row, field):
@@ -133,7 +144,8 @@ def branch_pnl_summary(trip_rows, expense_rows):
             "Office Expense": categories["Office & General expenses"],
             "Conveyance": categories["Conveyance"],
             "EMI": categories["EMI"],
-            "Ins/Tax": categories["Insurance"] + categories["Vehicle Tax"],
+            "Insurance": categories["Insurance"],
+            "Vehicle Tax": categories["Vehicle Tax"],
             "R & M": repairs,
             "Toll": toll,
             "Driver's Salary": categories["Driver's salary"],
@@ -147,7 +159,7 @@ def branch_pnl_summary(trip_rows, expense_rows):
     total = {"Branch": "Total"}
     for column in BRANCH_PNL_COLUMNS[1:]:
         total[column] = sum(row[column] for row in rows)
-    return [*rows, total] if rows else []
+    return _rounded_money_rows([*rows, total]) if rows else []
 
 
 def vehicle_pnl_summary(trip_rows, expense_rows, ownership):
@@ -204,9 +216,9 @@ def vehicle_pnl_summary(trip_rows, expense_rows, ownership):
     own = own_rows()
     outside = outside_rows()
     if ownership == "Own":
-        return own
+        return _rounded_money_rows(own)
     if ownership == "Outside":
-        return outside
+        return _rounded_money_rows(outside)
     return pnl_summary(trip_rows, expense_rows)
 
 
@@ -243,7 +255,7 @@ def branch_vehicle_pnl_summary(trip_rows, expense_rows, ownership):
             if column != "Branch":
                 total[column] = sum(float(row.get(column) or 0) for row in rows)
         rows.append(total)
-    return rows
+    return _rounded_money_rows(rows)
 
 
 def vehicle_number_pnl_summary(trip_rows, expense_rows):
@@ -285,7 +297,7 @@ def vehicle_number_pnl_summary(trip_rows, expense_rows):
         for column in BRANCH_PNL_COLUMNS[1:]:
             total[column] = sum(float(row.get(column) or 0) for row in rows)
         rows.append(total)
-    return rows
+    return _rounded_money_rows(rows)
 
 
 def export_pnl(trip_rows, expense_rows, start_date, end_date, ownership=None):
