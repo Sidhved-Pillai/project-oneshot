@@ -8,7 +8,10 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from .pnl_report import DIRECT_EXPENSE_COLUMNS
-from .text_normalization import canonical_branch
+
+def canonical_branch(value):
+    original = " ".join(str(value or "").split()).strip()
+    return "Vadodara" if original.casefold() in {"vadodra", "vadodara"} else original
 
 
 EXPENSE_EXPORT_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense"]

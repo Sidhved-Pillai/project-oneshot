@@ -24,7 +24,7 @@ from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, filt
 from src.records_export import export_records_excel
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
-from src.text_normalization import canonical_branch, canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
+from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
 from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, resolve_vijay_vehicle_number, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
 from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
@@ -66,6 +66,12 @@ ASCII_BOLD = str.maketrans(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
     "𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝗮𝗯𝗰𝗱𝗲𝗳𝗴𝗵𝗶𝗷𝗸𝗹𝗺𝗻𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝟬𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵",
 )
+
+
+def canonical_branch(value):
+    """Correct the temporary Vadodra label while retaining old saved records."""
+    original = re.sub(r"\s+", " ", str(value or "")).strip()
+    return "Vadodara" if original.casefold() in {"vadodra", "vadodara"} else original
 
 
 def secret(name):

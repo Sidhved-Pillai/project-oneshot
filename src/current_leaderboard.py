@@ -1,6 +1,9 @@
 """Branch leaderboard kept separate for safe Streamlit hot deployment."""
 
-from .text_normalization import canonical_branch
+
+def canonical_branch(value):
+    original = " ".join(str(value or "").split()).strip()
+    return "Vadodara" if original.casefold() in {"vadodra", "vadodara"} else original
 
 
 def branch_trip_leaderboard(rows, branches=()):
