@@ -41,13 +41,14 @@ MANISH_DIRECT_EXPENSE_COLUMNS = [
     "Insurance", "Vehicle Tax", "Repair and maintenance", "Passing expense", "Extra Expense", "RTO Challan & Fine",
 ]
 ALL_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense"]
-BRANCHES = ["Wada", "Pune", "Andheri"]
+BRANCHES = ["Wada", "Pune", "Andheri", "Vadodra"]
 SPECIAL_CODE_SALT = bytes.fromhex("28d7f0e0dfb9b32fecf4f4656d309042")
 SPECIAL_CODE_HASH = bytes.fromhex("b17d745a7cfdb8fad453e479e3950b905f0505478fe8268461ae74fdbc2248fb")
 MEMBER_CODE_HASHES = {
     "Ajit": "a25be184e5abecae4f87eef475fbecf9b2b51c9dc3e11a9022a0196798b1e88f",
     "Nikhat": "e94e52a5680d444dafa229a26b9f7abb3f8672074febc3926c8449b11884d0f3",
     "Nitish": "ea565453a2706b0e72df78364c854e9aaaf62848ef6b292efe341dea3b207177",
+    "Ashok": "0ac64d08afcfeebdaa68faf51eeae036b5bf4547dd9f9466ec3a10975c18354c",
     "Gopal": "8422d601483b1cda8d20f11b17b482c756fb005912c2ac6f83baca98d6554e5c",
     "Shyam": "37d9997a10e64c52c8dfa34f66ffb078531f04cd9af2f6f455d45a3125068dba",
     "Nikhil": "40ed3b8fb38df58e9bef001c1bab0d0c9b08a4b13a84a9e7a9b4d549bb2c5e90",
@@ -58,7 +59,7 @@ MEMBER_CODE_HASHES = {
 SPECIAL_MEMBERS = {"Sid", "Ajit", "Vinod", "Nikhil", "Shyam", "Nikhat"}
 PNL_MEMBERS = {"Sid", "Ajit", "Vinod", "Nikhil"}
 AUDITED_MEMBERS = {"Ajit", "Nikhat", "Shyam"}
-LIMITED_RECORD_BRANCH = {"Nitish": "Pune", "Gopal": "Pune", "Manish": "Wada", "Vijay": "Andheri"}
+LIMITED_RECORD_BRANCH = {"Nitish": "Pune", "Gopal": "Pune", "Manish": "Wada", "Vijay": "Andheri", "Ashok": "Vadodra"}
 CANONICAL_VEHICLE_PLACERS = ("Nitish Jha", "Ajit Thakur", "Manish Jha")
 LOGIN_VEHICLE_PLACERS = {"Nitish": "Nitish Jha", "Ajit": "Ajit Thakur", "Manish": "Manish Jha"}
 ASCII_BOLD = str.maketrans(

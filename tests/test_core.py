@@ -74,10 +74,14 @@ def test_record_delete_permissions_are_owner_scoped_for_manish():
     assert not can_delete_record("Manish", ajit_record)
     assert not can_delete_record("Nitish", manish_record)
     nitish_record = {"created_by": "Nitish"}
-    assert SELF_DELETE_USERS == {"Manish", "Nitish", "Vijay"}
+    assert SELF_DELETE_USERS == {"Ashok", "Manish", "Nitish", "Vijay"}
     assert can_delete_record("Nitish", nitish_record)
     assert not can_delete_record("Nitish", ajit_record)
     assert can_view_record("Nitish", ajit_record)
+    ashok_record = {"created_by": "Ashok"}
+    assert can_delete_record("Ashok", ashok_record)
+    assert not can_delete_record("Ashok", nitish_record)
+    assert can_view_record("Ashok", nitish_record)
     assert can_view_record("Manish", manish_record)
     assert not can_view_record("Manish", ajit_record)
     assert [row for row in (manish_record, ajit_record) if can_view_record("Manish", row)] == [manish_record]
@@ -195,7 +199,9 @@ def test_trip_leaderboard_aggregates_branch_performance():
         ("Pune", 2, 25000.0),
         ("Wada", 2, 20000.0),
     ]
-    assert branch_trip_leaderboard(rows, ["Wada", "Pune", "Andheri"])[-1] == ("Andheri", 0, 0.0)
+    leaderboard = branch_trip_leaderboard(rows, ["Wada", "Pune", "Andheri", "Vadodra"])
+    assert ("Andheri", 0, 0.0) in leaderboard
+    assert ("Vadodra", 0, 0.0) in leaderboard
 
 
 def test_diesel_expense_is_quantity_times_rate():

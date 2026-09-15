@@ -1,5 +1,5 @@
 PRIVATE_RECORD_USERS = {"Manish", "Vijay"}
-SELF_DELETE_USERS = {"Manish", "Nitish", "Vijay"}
+SELF_DELETE_USERS = {"Ashok", "Manish", "Nitish", "Vijay"}
 
 
 def can_delete_record(user_name, record):
