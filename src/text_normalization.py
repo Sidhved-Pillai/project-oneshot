@@ -48,6 +48,12 @@ def canonical_location(value, known=()):
     return original.title() if re.fullmatch(r"[A-Za-z ]+", original) else original
 
 
+def canonical_branch(value):
+    """Return the corrected branch label, including legacy spelling aliases."""
+    original = re.sub(r"\s+", " ", str(value or "")).strip()
+    return "Vadodara" if _comparison(original) in {"vadodra", "vadodara"} else original
+
+
 def canonical_vehicle_capacity(value):
     original = re.sub(r"\s+", " ", str(value or "")).strip()
     match = re.search(r"\b0*(\d{1,3})\s*(?:M\s*T|TONS?)\b", original, re.I)

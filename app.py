@@ -24,7 +24,7 @@ from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, filt
 from src.records_export import export_records_excel
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
-from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
+from src.text_normalization import canonical_branch, canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
 from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, resolve_vijay_vehicle_number, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
 from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
@@ -41,7 +41,7 @@ MANISH_DIRECT_EXPENSE_COLUMNS = [
     "Insurance", "Vehicle Tax", "Repair and maintenance", "Passing expense", "Extra Expense", "RTO Challan & Fine",
 ]
 ALL_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense"]
-BRANCHES = ["Wada", "Pune", "Andheri", "Vadodra"]
+BRANCHES = ["Wada", "Pune", "Andheri", "Vadodara"]
 SPECIAL_CODE_SALT = bytes.fromhex("28d7f0e0dfb9b32fecf4f4656d309042")
 SPECIAL_CODE_HASH = bytes.fromhex("b17d745a7cfdb8fad453e479e3950b905f0505478fe8268461ae74fdbc2248fb")
 MEMBER_CODE_HASHES = {
@@ -59,7 +59,7 @@ MEMBER_CODE_HASHES = {
 SPECIAL_MEMBERS = {"Sid", "Ajit", "Vinod", "Nikhil", "Shyam", "Nikhat"}
 PNL_MEMBERS = {"Sid", "Ajit", "Vinod", "Nikhil"}
 AUDITED_MEMBERS = {"Ajit", "Nikhat", "Shyam"}
-LIMITED_RECORD_BRANCH = {"Nitish": "Pune", "Gopal": "Pune", "Manish": "Wada", "Vijay": "Andheri", "Ashok": "Vadodra"}
+LIMITED_RECORD_BRANCH = {"Nitish": "Pune", "Gopal": "Pune", "Manish": "Wada", "Vijay": "Andheri", "Ashok": "Vadodara"}
 CANONICAL_VEHICLE_PLACERS = ("Nitish Jha", "Ajit Thakur", "Manish Jha")
 LOGIN_VEHICLE_PLACERS = {"Nitish": "Nitish Jha", "Ajit": "Ajit Thakur", "Manish": "Manish Jha"}
 ASCII_BOLD = str.maketrans(
@@ -837,7 +837,7 @@ def view_record(row):
         and clean_text(row.get("created_by")) == current_user
         and not clean_text(row.get("branch"))
     )
-    if record_branch_scope and clean_text(row.get("branch")).casefold() != record_branch_scope.casefold() and not legacy_own_expense:
+    if record_branch_scope and canonical_branch(row.get("branch")).casefold() != canonical_branch(record_branch_scope).casefold() and not legacy_own_expense:
         st.error("You are not authorized to view this record.")
         return
     request_number = row["request_number"]
@@ -1229,7 +1229,7 @@ with records_tab:
     if record_branch_scope:
         rows = [
             row for row in rows
-            if clean_text(row.get("branch")).casefold() == record_branch_scope.casefold()
+            if canonical_branch(row.get("branch")).casefold() == canonical_branch(record_branch_scope).casefold()
             or (
                 row.get("report_scope") == "Expense"
                 and clean_text(row.get("created_by")) == current_user
@@ -1471,7 +1471,7 @@ with records_tab:
                 columns = st.columns(record_widths, vertical_alignment="center")
                 columns[0].write(request_label(record))
                 columns[1].write(f"{as_date(record.get('trip_date')):%d/%m/%y}")
-                columns[2].write(clean_text(record.get("branch")) or "—")
+                columns[2].write(canonical_branch(record.get("branch")) or "—")
                 columns[3].write(canonical_vehicle_number(record.get("vehicle_number")) or "—")
                 columns[4].write(canonical_vehicle_placer(raw.get("Veh Placed by")) or "—")
                 columns[5].write(f"₹{number(record.get('revenue')):,.0f}")

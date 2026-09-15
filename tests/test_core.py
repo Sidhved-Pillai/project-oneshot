@@ -29,7 +29,7 @@ from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
 from src.trip_dtr_report import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
 from src.pnl_report import BRANCH_PNL_COLUMNS, DIRECT_EXPENSE_COLUMNS, VEHICLE_NO_PNL_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl, pnl_summary, vehicle_pnl_summary
-from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
+from src.text_normalization import canonical_branch, canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
 from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, VIJAY_VEHICLE_TRANSPORTERS, resolve_vijay_vehicle_number, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
 from src.vehicle_normalization import canonical_vehicle_number
 from src.business_memory import build_business_memory, recall
@@ -199,9 +199,17 @@ def test_trip_leaderboard_aggregates_branch_performance():
         ("Pune", 2, 25000.0),
         ("Wada", 2, 20000.0),
     ]
-    leaderboard = branch_trip_leaderboard(rows, ["Wada", "Pune", "Andheri", "Vadodra"])
+    leaderboard = branch_trip_leaderboard(rows, ["Wada", "Pune", "Andheri", "Vadodara"])
     assert ("Andheri", 0, 0.0) in leaderboard
-    assert ("Vadodra", 0, 0.0) in leaderboard
+    assert ("Vadodara", 0, 0.0) in leaderboard
+
+
+def test_vadodara_branch_spelling_preserves_legacy_records():
+    assert canonical_branch("Vadodara") == "Vadodara"
+    assert canonical_branch("Vadodra") == "Vadodara"
+    assert branch_trip_leaderboard(
+        [{"branch": "Vadodra", "revenue": 1000, "report_scope": "Both"}], ["Vadodara"]
+    ) == [("Vadodara", 1, 1000.0)]
 
 
 def test_diesel_expense_is_quantity_times_rate():

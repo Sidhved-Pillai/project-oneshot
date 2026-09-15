@@ -1,13 +1,15 @@
 """Branch leaderboard kept separate for safe Streamlit hot deployment."""
 
+from .text_normalization import canonical_branch
+
 
 def branch_trip_leaderboard(rows, branches=()):
-    totals = {str(branch).strip().casefold(): (0, 0.0) for branch in branches if str(branch).strip()}
-    labels = {str(branch).strip().casefold(): str(branch).strip() for branch in branches if str(branch).strip()}
+    totals = {canonical_branch(branch).casefold(): (0, 0.0) for branch in branches if canonical_branch(branch)}
+    labels = {canonical_branch(branch).casefold(): canonical_branch(branch) for branch in branches if canonical_branch(branch)}
     for row in rows:
         if row.get("report_scope") == "Expense":
             continue
-        branch = str(row.get("branch") or "").strip() or "Not specified"
+        branch = canonical_branch(row.get("branch")) or "Not specified"
         key = branch.casefold()
         labels.setdefault(key, branch)
         count, revenue = totals.get(key, (0, 0.0))

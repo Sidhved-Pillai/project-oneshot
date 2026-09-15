@@ -8,6 +8,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from .pnl_report import DIRECT_EXPENSE_COLUMNS
+from .text_normalization import canonical_branch
 
 
 EXPENSE_EXPORT_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense"]
@@ -54,7 +55,7 @@ def records_export_rows(records):
             "Record": row.get("request_number", ""),
             "Record Type": "Direct Expense" if row.get("report_scope") == "Expense" else "Trip",
             "Date": row.get("trip_date"), "Status": row.get("status", ""),
-            "Created By": row.get("created_by", ""), "Branch": row.get("branch", ""),
+            "Created By": row.get("created_by", ""), "Branch": canonical_branch(row.get("branch")),
             "Company Name": row.get("company_name", ""), "Vehicle Number": row.get("vehicle_number", ""),
             "Vehicle Capacity": row.get("vehicle_type", ""), "Own / Outside": row.get("ownership_type", ""),
             "From": row.get("from_location", ""), "To": row.get("to_location", ""),
