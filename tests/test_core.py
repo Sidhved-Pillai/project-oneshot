@@ -80,6 +80,7 @@ def test_record_delete_permissions_are_owner_scoped_for_manish():
     assert can_view_record("Nitish", ajit_record)
     assert can_view_record("Manish", manish_record)
     assert not can_view_record("Manish", ajit_record)
+    assert [row for row in (manish_record, ajit_record) if can_view_record("Manish", row)] == [manish_record]
     assert can_view_record("Sid", ajit_record)
     vijay_record = {"created_by": "Vijay"}
     assert PRIVATE_RECORD_USERS == {"Manish", "Vijay"}

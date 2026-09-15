@@ -1450,12 +1450,13 @@ with records_tab:
         st.info("No records match the selected filters.")
     else:
         rows = sort_records_by_date(rows, "Oldest first" if sort_arrow == "↑" else "Newest first")
-        if current_user == "Vijay":
+        if current_user in {"Manish", "Vijay"}:
+            export_rows = [row for row in rows if can_view_record(current_user, row)]
             st.download_button(
-                "Download Excel", export_records_excel(rows),
-                f"Vijay-Records-{filter_from}-{filter_to}.xlsx",
+                "Download Excel", export_records_excel(export_rows),
+                f"{current_user}-Records-{filter_from}-{filter_to}.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="download_vijay_filtered_records",
+                key=f"download_{current_user.casefold()}_filtered_records",
             )
         with st.container(height=420, border=True):
             has_delete_column = current_user == "Sid" or current_user in SELF_DELETE_USERS
