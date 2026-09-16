@@ -87,6 +87,31 @@ def get_store(url, interface_version):
     return RequestStore(url)
 
 
+@st.cache_data(show_spinner=False, max_entries=12)
+def cached_business_memory(rows):
+    return build_business_memory(rows)
+
+
+@st.cache_data(show_spinner=False, max_entries=12)
+def cached_records_excel(rows):
+    return export_records_excel(rows)
+
+
+@st.cache_data(show_spinner=False, max_entries=12)
+def cached_dtr_excel(frame):
+    return export_operational_dtr(frame)
+
+
+@st.cache_data(show_spinner=False, max_entries=12)
+def cached_rtgs_excel(frame, report_date):
+    return export_rtgs(frame, report_date)
+
+
+@st.cache_data(show_spinner=False, max_entries=12)
+def cached_pnl_excel(trips, expenses, start, end, ownership_filter):
+    return export_pnl(trips, expenses, start, end, ownership_filter)
+
+
 def clean_text(value):
     return "" if value is None or (not isinstance(value, str) and pd.isna(value)) else str(value).strip()
 
@@ -777,7 +802,7 @@ except Exception as exc:
     st.stop()
 
 normalization_rows = store.list(status="All active")
-business_memory = build_business_memory(normalization_rows)
+business_memory = cached_business_memory(normalization_rows)
 KNOWN_COMPANIES = sorted({clean_text(row.get("company_name")) for row in normalization_rows} - {""}, key=str.casefold)
 KNOWN_LOCATIONS = sorted({
     clean_text(row.get(field))
@@ -1208,7 +1233,7 @@ with expense_tab:
 
 with records_tab:
     page_intro("", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
-    all_record_rows = store.list(status="All active")
+    all_record_rows = list(normalization_rows)
     rows = list(all_record_rows)
     if record_branch_scope:
         rows = [
@@ -1472,11 +1497,27 @@ with records_tab:
         if current_user in {"Manish", "Vijay"}:
             export_rows = [row for row in rows if can_view_record(current_user, row)]
             st.download_button(
-                "Download Excel", export_records_excel(export_rows),
+                "Download Excel", cached_records_excel(export_rows),
                 f"{current_user}-Records-{filter_from}-{filter_to}.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key=f"download_{current_user.casefold()}_filtered_records",
             )
+        records_per_page = 50
+        page_count = max(1, (len(rows) + records_per_page - 1) // records_per_page)
+        record_page = 1
+        if page_count > 1:
+            page_key = "records_result_page"
+            if int(st.session_state.get(page_key, 1)) > page_count:
+                st.session_state[page_key] = 1
+            record_page = st.selectbox(
+                "Record page", list(range(1, page_count + 1)),
+                format_func=lambda page: f"Page {page} of {page_count}", key=page_key,
+            )
+            first = (record_page - 1) * records_per_page + 1
+            last = min(record_page * records_per_page, len(rows))
+            st.caption(f"Showing records {first}–{last} of {len(rows)}.")
+        page_start = (record_page - 1) * records_per_page
+        visible_rows = rows[page_start:page_start + records_per_page]
         with st.container(height=420, border=True):
             has_delete_column = current_user == "Sid" or current_user in SELF_DELETE_USERS
             record_widths = [1.35, .8, .9, 1.1, 1.15, 1, .85, .65] if has_delete_column else [1.35, .8, .9, 1.1, 1.15, 1, .85]
@@ -1484,7 +1525,7 @@ with records_tab:
             header = st.columns(record_widths)
             for column, title in zip(header, record_titles):
                 column.markdown(f"**{title}**")
-            for record in rows:
+            for record in visible_rows:
                 raw = unpack(record.get("dtr_data"))
                 columns = st.columns(record_widths, vertical_alignment="center")
                 columns[0].write(request_label(record))
@@ -1535,13 +1576,10 @@ with reports_tab:
         pnl_ownership_filter = st.segmented_control(
             "Own or outside vehicle", ["Both", "Own", "Outside", "Vehicle No. Wise"], default="Both", key="pnl_ownership_filter",
         )
-    report_rows = (
-        store.list(status="All active") if report_type == "P&L"
-        else store.list(start, end, status="All active")
-    ) if can_generate_reports and start <= end else []
+    report_rows = list(normalization_rows) if can_generate_reports and start <= end else []
     selected_rows = [
         row for row in report_rows if start <= as_date(row.get("trip_date")) <= end
-    ] if report_type == "P&L" else report_rows
+    ]
     trips = [row for row in selected_rows if row.get("report_scope") != "Expense"]
     if report_type == "P&L":
         if pnl_ownership_filter != "Vehicle No. Wise":
@@ -1597,7 +1635,7 @@ with reports_tab:
             key=f"dtr_live_editor_{start.isoformat()}_{end.isoformat()}",
         )
         edited_frame = edited_dtr_frame(edited_display_frame)
-        st.download_button("Download DTR report", export_operational_dtr(edited_frame), f"DTR-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=edited_frame.empty or not can_generate_reports, on_click=audit_action, args=("Downloaded DTR report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
+        st.download_button("Download DTR report", cached_dtr_excel(edited_frame), f"DTR-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=edited_frame.empty or not can_generate_reports, on_click=audit_action, args=("Downloaded DTR report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
     elif report_type == "RTGS":
         rtgs_candidates = list(reversed([item for item in trips if number(item.get("rtgs_advance")) > 0]))
         select_all_rtgs = st.checkbox("Select all", key="rtgs_select_all")
@@ -1653,7 +1691,7 @@ with reports_tab:
         frame = pd.DataFrame(records, columns=RTGS_REVIEW_COLUMNS)
         st.dataframe(frame, hide_index=True, width="stretch")
         st.download_button(
-            "Download selected RTGS report", export_rtgs(frame, dt.date.today()),
+            "Download selected RTGS report", cached_rtgs_excel(frame, dt.date.today()),
             f"RTGS-{start}-{end}.xls", "application/vnd.ms-excel", type="primary",
             disabled=frame.empty or not can_generate_reports,
             on_click=complete_rtgs_download,
@@ -1668,7 +1706,7 @@ with reports_tab:
             pnl_rows = branch_vehicle_pnl_summary(trips, expense_data, pnl_ownership_filter)
         frame = pd.DataFrame(pnl_rows)
         st.dataframe(frame, hide_index=True, width="stretch")
-        st.download_button("Download P&L report", export_pnl(trips, expense_data, start, end, pnl_ownership_filter), f"PNL-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=not can_generate_pnl, on_click=audit_action, args=("Downloaded P&L report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
+        st.download_button("Download P&L report", cached_pnl_excel(trips, expense_data, start, end, pnl_ownership_filter), f"PNL-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=not can_generate_pnl, on_click=audit_action, args=("Downloaded P&L report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
 
 with logs_tab:
     page_intro("Restricted audit", "Logs", "Review record changes and report activity across the workspace.", "⌁")
