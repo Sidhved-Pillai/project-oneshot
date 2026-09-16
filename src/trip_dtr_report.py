@@ -19,6 +19,11 @@ OPERATIONAL_DTR_COLUMNS = [column for column in DTR_REVIEW_COLUMNS if column != 
 EXPORT_NAMES = {"Compnay Name": "Company Name", "UPI": "UPI "}
 
 
+def edited_dtr_frame(display_frame):
+    """Restore internal DTR columns after users edit the readable preview."""
+    return display_frame.rename(columns={"Company Name": "Compnay Name"}).reindex(columns=DTR_REVIEW_COLUMNS)
+
+
 def export_operational_dtr(df):
     output = BytesIO()
     safe = df.reindex(columns=OPERATIONAL_DTR_COLUMNS).copy()
@@ -47,4 +52,3 @@ def export_operational_dtr(df):
                 elif name in text_columns:
                     cell.number_format = "@"
     return output.getvalue()
-

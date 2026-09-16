@@ -27,7 +27,7 @@ from src.record_filters import DIRECT_EXPENSES, TRIP_RECORDS, filter_record_type
 from src.records_export import RECORD_EXPORT_COLUMNS, export_records_excel, records_export_rows
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
-from src.trip_dtr_report import OPERATIONAL_DTR_COLUMNS, export_operational_dtr
+from src.trip_dtr_report import OPERATIONAL_DTR_COLUMNS, edited_dtr_frame, export_operational_dtr
 from src.pnl_report import BRANCH_PNL_COLUMNS, DIRECT_EXPENSE_COLUMNS, VEHICLE_NO_PNL_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl, pnl_summary, vehicle_pnl_summary
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
 from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, VIJAY_VEHICLE_TRANSPORTERS, resolve_vijay_vehicle_number, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
@@ -1211,6 +1211,20 @@ def test_operational_dtr_export_uses_full_reference_shape():
     assert ws.cell(2, payment_index + 2).value == 750
     assert ws.cell(2, payment_index + 3).value == 1250
     assert ws["I2"].value == "00127" and ws["I2"].number_format == "@"
+
+
+def test_edited_dtr_preview_values_feed_the_download():
+    preview = pd.DataFrame([{column: "" for column in OPERATIONAL_DTR_COLUMNS}]).rename(
+        columns={"Compnay Name": "Company Name"}
+    )
+    preview.loc[0, "Company Name"] = "Edited Company"
+    preview.loc[0, "Revenue"] = 9876.5
+    edited = edited_dtr_frame(preview)
+    assert edited.loc[0, "Compnay Name"] == "Edited Company"
+    workbook = load_workbook(BytesIO(export_operational_dtr(edited)))["DTR"]
+    headers = [cell.value for cell in workbook[1]]
+    assert workbook.cell(2, headers.index("Company Name") + 1).value == "Edited Company"
+    assert workbook.cell(2, headers.index("Revenue") + 1).value == 9876.5
 
 
 def test_hot_deploy_modules_expose_current_workflow_contract():

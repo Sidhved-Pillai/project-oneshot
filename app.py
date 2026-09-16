@@ -22,7 +22,7 @@ from src.pending_invoice_matcher import suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
 from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
 from src.records_export import export_records_excel
-from src.trip_dtr_report import DTR_REVIEW_COLUMNS, export_operational_dtr
+from src.trip_dtr_report import DTR_REVIEW_COLUMNS, edited_dtr_frame, export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
 from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, resolve_vijay_vehicle_number, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
@@ -1577,8 +1577,15 @@ with reports_tab:
             records.append({column: data.get(column, "") for column in DTR_REVIEW_COLUMNS} | {"Sr No.": i})
         frame = pd.DataFrame(records, columns=DTR_REVIEW_COLUMNS)
         display_frame = frame.rename(columns={"Compnay Name": "Company Name"})
-        st.dataframe(display_frame, hide_index=True, width="stretch")
-        st.download_button("Download DTR report", export_operational_dtr(frame), f"DTR-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=frame.empty or not can_generate_reports, on_click=audit_action, args=("Downloaded DTR report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
+        edited_display_frame = st.data_editor(
+            display_frame,
+            hide_index=True,
+            width="stretch",
+            num_rows="fixed",
+            key=f"dtr_live_editor_{start.isoformat()}_{end.isoformat()}",
+        )
+        edited_frame = edited_dtr_frame(edited_display_frame)
+        st.download_button("Download DTR report", export_operational_dtr(edited_frame), f"DTR-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=edited_frame.empty or not can_generate_reports, on_click=audit_action, args=("Downloaded DTR report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
     elif report_type == "RTGS":
         rtgs_candidates = list(reversed([item for item in trips if number(item.get("rtgs_advance")) > 0]))
         select_all_rtgs = st.checkbox("Select all", key="rtgs_select_all")
