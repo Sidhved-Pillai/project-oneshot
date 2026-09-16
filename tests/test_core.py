@@ -25,6 +25,7 @@ from src.pending_invoice_matcher import score_invoice_match, suggest_invoice_mat
 from src.current_leaderboard import branch_trip_leaderboard
 from src.record_filters import DIRECT_EXPENSES, TRIP_RECORDS, filter_record_type, filter_without_invoice_evidence, has_invoice_evidence, sort_records_by_date
 from src.records_export import RECORD_EXPORT_COLUMNS, export_records_excel, records_export_rows
+from src.records_import import read_records_excel, records_import_payloads
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
 from src.trip_dtr_report import OPERATIONAL_DTR_COLUMNS, edited_dtr_frame, export_operational_dtr
@@ -636,6 +637,51 @@ def test_filtered_records_excel_contains_complete_trip_and_expense_fields():
     workbook = load_workbook(BytesIO(export_records_excel(records)))
     assert [cell.value for cell in workbook["Records"][1]] == RECORD_EXPORT_COLUMNS
     assert workbook["Records"].freeze_panes == "A2"
+
+
+def test_vijay_records_excel_round_trip_builds_owner_scoped_payload():
+    records = [{
+        "request_number": "REQ-OLD", "report_scope": "Both", "trip_date": dt.date(2026, 9, 15),
+        "status": "Verified", "created_by": "Vijay", "branch": "Andheri",
+        "company_name": "Bisleri International Private Limited", "vehicle_number": "MH04LE8405",
+        "vehicle_type": "10 MT", "ownership_type": "Outside", "from_location": "Vasai",
+        "to_location": "Panvel", "invoice_number": "MUMCIN270000777",
+        "beneficiary_name": "Altaf Khan Transport", "transporter_name": "Altaf Khan Transport",
+        "revenue": 4509, "transporter_freight": 3862, "rtgs_advance": 1000,
+        "cash_advance": 200, "upi": 100, "diesel_advance": 300, "diesel_quantity": 3,
+        "total_advance": 1600, "balance_amount": 2262, "payment": 0,
+        "payment_mode": "RTGS, Cash, UPI, Diesel", "notes": "Imported trip",
+        "dtr_data": json.dumps({
+            "LR No.": "LR-77", "Invoice No.": "MUMCIN270000777", "Veh Placed by": "Vijay",
+            "Diesel Rate": 100, "Toll Expense": 50, "Repairs & Maintenance": 25,
+            "Repair Reason": "Tyre", "Billtee": 10,
+        }),
+        "rtgs_data": json.dumps({"BENE_ACC_NO": "060350673934", "BENE_IFSC": "MAHB0000979"}),
+    }]
+    frame = read_records_excel(export_records_excel(records))
+    # Spreadsheet ownership/branch values are never trusted for Vijay imports.
+    frame.loc[0, "Created By"] = "Someone Else"
+    frame.loc[0, "Branch"] = "Pune"
+    payloads, issues = records_import_payloads(frame, [], owner="Vijay")
+    assert issues == [] and len(payloads) == 1
+    payload = payloads[0]
+    assert payload["created_by"] == "Vijay" and payload["branch"] == "Andheri"
+    assert payload["invoice_number"] == "MUMCIN270000777"
+    assert payload["rtgs_data"]["BENE_ACC_NO"] == "060350673934"
+    assert payload["dtr_data"]["LR No."] == "LR-77"
+    assert "source_filename" not in payload and "source_image" not in payload
+
+
+def test_vijay_records_excel_import_skips_existing_and_invalid_rows():
+    frame = pd.DataFrame([
+        {"Date": "15/09/2026", "Record Type": "Trip", "Invoice Number": "INV-1", "Vehicle Number": "MH01AA0001"},
+        {"Date": "", "Record Type": "Trip", "Invoice Number": "INV-2"},
+    ])
+    existing = [{"created_by": "Vijay", "status": "Verified", "invoice_number": "INV-1"}]
+    payloads, issues = records_import_payloads(frame, existing, owner="Vijay")
+    assert payloads == []
+    assert any("already exists" in issue for issue in issues)
+    assert any("invalid Date" in issue for issue in issues)
 
 
 def test_pending_invoice_attachment_never_overwrites_existing_evidence(tmp_path):
