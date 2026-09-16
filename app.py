@@ -4,7 +4,6 @@ import hmac
 import json
 import os
 import re
-from difflib import SequenceMatcher
 
 import pandas as pd
 import streamlit as st
@@ -29,6 +28,7 @@ from src.text_normalization import canonical_company, canonical_location, canoni
 from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, resolve_vijay_vehicle_number, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
 from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
+from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.records_store_v10 import RequestStore
 
@@ -61,8 +61,6 @@ SPECIAL_MEMBERS = {"Sid", "Ajit", "Vinod", "Nikhil", "Shyam", "Nikhat"}
 PNL_MEMBERS = {"Sid", "Ajit", "Vinod", "Nikhil"}
 AUDITED_MEMBERS = {"Ajit", "Nikhat", "Shyam"}
 LIMITED_RECORD_BRANCH = {"Nitish": "Pune", "Gopal": "Pune", "Manish": "Wada", "Vijay": "Andheri", "Ashok": "Vadodara"}
-CANONICAL_VEHICLE_PLACERS = ("Nitish Jha", "Ajit Thakur", "Manish Jha")
-LOGIN_VEHICLE_PLACERS = {"Nitish": "Nitish Jha", "Ajit": "Ajit Thakur", "Manish": "Manish Jha"}
 ASCII_BOLD = str.maketrans(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
     "𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝗮𝗯𝗰𝗱𝗲𝗳𝗴𝗵𝗶𝗷𝗸𝗹𝗺𝗻𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝟬𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵",
@@ -98,27 +96,6 @@ def number(value):
         return float(value or 0)
     except (TypeError, ValueError):
         return 0.0
-
-
-def canonical_vehicle_placer(value):
-    original = clean_text(value)
-    normalized = " ".join(re.findall(r"[a-z]+", original.casefold()))
-    if not normalized:
-        return original
-    words = normalized.split()
-    for canonical in CANONICAL_VEHICLE_PLACERS:
-        target = canonical.casefold()
-        if normalized == target:
-            return canonical
-        target_words = target.split()
-        full_score = SequenceMatcher(None, normalized, target).ratio()
-        word_match = len(words) == 2 and all(
-            SequenceMatcher(None, word, target_word).ratio() >= 0.78
-            for word, target_word in zip(words, target_words)
-        )
-        if full_score >= 0.82 or word_match:
-            return canonical
-    return original
 
 
 def canonicalize_placer_state(key):

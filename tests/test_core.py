@@ -33,6 +33,7 @@ from src.pnl_report import BRANCH_PNL_COLUMNS, DIRECT_EXPENSE_COLUMNS, VEHICLE_N
 from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
 from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, VIJAY_VEHICLE_TRANSPORTERS, resolve_vijay_vehicle_number, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
 from src.vehicle_normalization import canonical_vehicle_number
+from src.vehicle_placer import canonical_vehicle_placer
 from src.business_memory import build_business_memory, recall
 from src.workflow_ai import convert_rtgs_to_dtr as workflow_convert_rtgs_to_dtr
 from src.workflow_pnl import branch_vehicle_pnl_summary as workflow_branch_vehicle_pnl_summary
@@ -64,6 +65,13 @@ def source(remarks):
 def test_header_detection_with_blank_rows():
     ws = Workbook().active; ws.append([]); ws.append(["report title"]); ws.append(["Remark", "Beneficiary Name"])
     assert detect_header_row(ws, ["Remark", "Beneficiary Name"]) == 3
+
+
+def test_short_vehicle_placer_login_names_are_canonicalized():
+    assert canonical_vehicle_placer("Nitish") == "Nitish Jha"
+    assert canonical_vehicle_placer("nitish jha") == "Nitish Jha"
+    assert canonical_vehicle_placer("Ajit") == "Ajit Thakur"
+    assert canonical_vehicle_placer("Manish") == "Manish Jha"
 
 
 def test_record_delete_permissions_are_owner_scoped_for_manish():
