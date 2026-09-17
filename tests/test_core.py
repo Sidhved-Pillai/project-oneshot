@@ -23,7 +23,7 @@ from src.invoice_numbers import combined_invoice_number, normalized_invoice_numb
 from src.expense_periods import allocate_expenses_for_period, serialize_period
 from src.pending_invoice_matcher import score_invoice_match, suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
-from src.record_filters import DIRECT_EXPENSES, TRIP_RECORDS, filter_record_type, filter_without_invoice_evidence, has_invoice_evidence, sort_records_by_date, valid_page_number
+from src.record_filters import DIRECT_EXPENSES, TRIP_RECORDS, filter_record_type, filter_without_invoice_evidence, has_invoice_evidence, sort_records_by_date
 from src.records_export import RECORD_EXPORT_COLUMNS, export_records_excel, records_export_rows
 from src.records_import import read_records_excel, records_import_payloads
 from src.request_store import RequestStore, rows_to_dtr
@@ -327,13 +327,6 @@ def test_operational_text_normalization_is_conservative():
     assert canonical_vehicle_capacity("10 ton") == "10 MT"
     assert canonical_vehicle_capacity("12mt") == "12 MT"
     assert plain_remark("1234", "Pune-to-Wada", "10 MT", "TA") == "1234 Pune to Wada 10 MT TA"
-
-
-@pytest.mark.parametrize("value, count, expected", [
-    (None, 2, 1), ("", 2, 1), ("not-a-page", 2, 1), (5, 2, 1), (2, 2, 2),
-])
-def test_record_page_number_handles_blank_and_stale_widget_state(value, count, expected):
-    assert valid_page_number(value, count) == expected
 
 
 def test_vijay_master_converts_full_delivery_address_to_short_address():

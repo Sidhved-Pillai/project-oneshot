@@ -9,15 +9,6 @@ RECORD_TYPES = (TRIP_RECORDS, DIRECT_EXPENSES)
 SORT_ORDERS = ("Newest first", "Oldest first")
 
 
-def valid_page_number(value, page_count):
-    """Return a valid page number even when widget state is blank or stale."""
-    try:
-        page = int(value)
-    except (TypeError, ValueError):
-        return 1
-    return page if 1 <= page <= max(1, int(page_count)) else 1
-
-
 def is_direct_expense(record):
     return record.get("report_scope") == "Expense"
 
