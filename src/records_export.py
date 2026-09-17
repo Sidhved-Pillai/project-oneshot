@@ -8,6 +8,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from .pnl_report import DIRECT_EXPENSE_COLUMNS
+from .text_normalization import canonical_ownership
 
 def canonical_branch(value):
     original = " ".join(str(value or "").split()).strip()
@@ -60,7 +61,7 @@ def records_export_rows(records):
             "Date": row.get("trip_date"), "Status": row.get("status", ""),
             "Created By": row.get("created_by", ""), "Branch": canonical_branch(row.get("branch")),
             "Company Name": row.get("company_name", ""), "Vehicle Number": row.get("vehicle_number", ""),
-            "Vehicle Capacity": row.get("vehicle_type", ""), "Own / Outside": row.get("ownership_type", ""),
+            "Vehicle Capacity": row.get("vehicle_type", ""), "Own / Outside": canonical_ownership(row.get("ownership_type")),
             "From": row.get("from_location", ""), "To": row.get("to_location", ""),
             "LR Number": dtr.get("LR No.", ""), "Invoice Number": dtr.get("Invoice No.") or row.get("invoice_number", ""),
             "Beneficiary Name": row.get("beneficiary_name", ""), "Account Number": rtgs.get("BENE_ACC_NO", ""),

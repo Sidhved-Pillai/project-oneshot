@@ -30,7 +30,7 @@ from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
 from src.trip_dtr_report import OPERATIONAL_DTR_COLUMNS, edited_dtr_frame, export_operational_dtr
 from src.pnl_report import BRANCH_PNL_COLUMNS, DIRECT_EXPENSE_COLUMNS, VEHICLE_NO_PNL_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl, pnl_summary, vehicle_pnl_summary
-from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
+from src.text_normalization import canonical_company, canonical_location, canonical_ownership, canonical_vehicle_capacity, plain_remark
 from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, VIJAY_VEHICLE_TRANSPORTERS, resolve_vijay_vehicle_number, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import canonical_vehicle_placer
@@ -326,6 +326,8 @@ def test_operational_text_normalization_is_conservative():
     assert canonical_vehicle_capacity("03 tons") == "3 MT"
     assert canonical_vehicle_capacity("10 ton") == "10 MT"
     assert canonical_vehicle_capacity("12mt") == "12 MT"
+    assert canonical_ownership("Outside Vehicle") == "Outside"
+    assert canonical_ownership("Own Vehicle") == "Own"
     assert plain_remark("1234", "Pune-to-Wada", "10 MT", "TA") == "1234 Pune to Wada 10 MT TA"
 
 
@@ -622,7 +624,7 @@ def test_filtered_records_excel_contains_complete_trip_and_expense_fields():
         "request_number": "REQ-1", "report_scope": "Both", "trip_date": dt.date(2026, 4, 27),
         "status": "Submitted", "created_by": "Vijay", "branch": "Andheri",
         "company_name": "Bisleri International Private Limited", "vehicle_number": "MH04HY7998",
-        "vehicle_type": "9 MT", "ownership_type": "Outside", "from_location": "Bhiwandi",
+        "vehicle_type": "9 MT", "ownership_type": "Outside Vehicle", "from_location": "Bhiwandi",
         "to_location": "Panvel", "invoice_number": "MUMCIN270008058 / MUMCIN270008059",
         "beneficiary_name": "Altaf Khan Transport", "transporter_name": "Altaf Khan Transport",
         "revenue": 4509, "transporter_freight": 3862, "rtgs_advance": 1000,
@@ -641,6 +643,7 @@ def test_filtered_records_excel_contains_complete_trip_and_expense_fields():
     exported = records_export_rows(records)
     assert list(exported[0]) == RECORD_EXPORT_COLUMNS
     assert exported[0]["To"] == "Panvel"
+    assert exported[0]["Own / Outside"] == "Outside"
     assert exported[0]["Invoice Number"] == "MUMCIN270008058 / MUMCIN270008059"
     assert exported[0]["Account Number"] == "60350673934"
     workbook = load_workbook(BytesIO(export_records_excel(records)))
@@ -697,7 +700,7 @@ def test_ashok_dtr_excel_import_maps_headers_and_forces_vadodara_branch():
     dtr = pd.DataFrame([{
         "Sr No.": 1, "Branch": "Baroda", "Compnay Name": "SG",
         "Date": dt.date(2026, 9, 1), "Vehicle No.": "GJ06AB1234", "Vehicle Type": "10 MT",
-        "Own/Outside Veh.": "Outside", "From": "Baroda", "To": "Ahmedabad",
+        "Own/Outside Veh.": "Outside Vehicle", "From": "Baroda", "To": "Ahmedabad",
         "LR No.": "LR-1", "Invoice No.": "INV-ASHOK-1", "Revenue": 5000,
         "Transporter Freight": 4200, "RTGS ADVANCE": 1000, "Cash Adv.": 200,
         "UPI": 100, "Diesel Adv.": 300, "Total Adv.": 1600, "Balance Amt.": 2600,
@@ -718,6 +721,8 @@ def test_ashok_dtr_excel_import_maps_headers_and_forces_vadodara_branch():
     assert payload["branch"] == "Vadodara"
     assert payload["company_name"] == "Saint-Gobain India Private Limited"
     assert payload["dtr_data"]["Compnay Name"] == "Saint-Gobain India Private Limited"
+    assert payload["ownership_type"] == "Outside"
+    assert payload["dtr_data"]["Own/Outside Veh."] == "Outside"
     assert payload["vehicle_number"] == "GJ06AB1234"
     assert payload["dtr_data"]["Veh Placed by"] == "Ashok"
     assert payload["rtgs_advance"] == 1000

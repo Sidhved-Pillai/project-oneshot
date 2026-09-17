@@ -56,6 +56,17 @@ def canonical_branch(value):
     return "Vadodara" if _comparison(original) in {"vadodra", "vadodara"} else original
 
 
+def canonical_ownership(value):
+    """Normalize verbose ownership labels used by imported master sheets."""
+    original = re.sub(r"\s+", " ", str(value or "")).strip()
+    comparison = _comparison(original)
+    if comparison.startswith("outside"):
+        return "Outside"
+    if comparison.startswith("own"):
+        return "Own"
+    return original
+
+
 def canonical_vehicle_capacity(value):
     original = re.sub(r"\s+", " ", str(value or "")).strip()
     match = re.search(r"\b0*(\d{1,3})\s*(?:M\s*T|TONS?)\b", original, re.I)

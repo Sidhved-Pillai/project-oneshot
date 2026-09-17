@@ -24,7 +24,7 @@ from src.records_export import export_records_excel
 from src.records_import import import_preview, read_records_excel, records_import_payloads
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, edited_dtr_frame, export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
-from src.text_normalization import canonical_company, canonical_location, canonical_vehicle_capacity, plain_remark
+from src.text_normalization import canonical_company, canonical_location, canonical_ownership, canonical_vehicle_capacity, plain_remark
 from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, resolve_vijay_vehicle_number, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
 from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
@@ -1619,6 +1619,7 @@ with reports_tab:
             data["Compnay Name"] = canonical_company(data.get("Compnay Name") or row.get("company_name"), KNOWN_COMPANIES)
             data["Vehicle No."] = canonical_vehicle_number(data.get("Vehicle No.") or row.get("vehicle_number"))
             data["Vehicle Type"] = canonical_vehicle_capacity(data.get("Vehicle Type") or row.get("vehicle_type"))
+            data["Own/Outside Veh."] = canonical_ownership(data.get("Own/Outside Veh.") or row.get("ownership_type"))
             data["From"] = canonical_location(data.get("From") or row.get("from_location"), KNOWN_LOCATIONS)
             data["To"] = canonical_location(data.get("To") or row.get("to_location"), KNOWN_LOCATIONS)
             data["Toll Expense"] = data.get("Toll Expense", "")

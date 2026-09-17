@@ -6,7 +6,7 @@ from io import BytesIO
 import pandas as pd
 
 from .records_export import EXPENSE_EXPORT_COLUMNS, RECORD_EXPORT_COLUMNS
-from .text_normalization import canonical_company
+from .text_normalization import canonical_company, canonical_ownership
 
 
 DTR_HEADER_MAP = {
@@ -161,10 +161,11 @@ def records_import_payloads(frame, existing_records=(), owner="Vijay"):
         categories = {column: _number(get(column)) for column in EXPENSE_EXPORT_COLUMNS}
         invoice = _text(get("Invoice Number"))
         company = canonical_company(get("Company Name"))
+        ownership = canonical_ownership(get("Own / Outside"))
         dtr = {
             "Branch": branch, "Compnay Name": company, "Date": trip_date.isoformat(),
             "Vehicle No.": _text(get("Vehicle Number")), "Vehicle Type": _text(get("Vehicle Capacity")),
-            "Own/Outside Veh.": _text(get("Own / Outside")), "From": _text(get("From")),
+            "Own/Outside Veh.": ownership, "From": _text(get("From")),
             "To": _text(get("To")), "LR No.": _text(get("LR Number")), "Invoice No.": invoice,
             "Revenue": _number(get("Revenue Freight")), "Transporter Freight": _number(get("Transporter Freight")),
             "RTGS ADVANCE": payments["RTGS"], "Cash Adv.": payments["Cash"], "UPI": payments["UPI"],
@@ -188,7 +189,7 @@ def records_import_payloads(frame, existing_records=(), owner="Vijay"):
         payload = {
             "report_scope": "Expense" if is_expense else "Both", "trip_date": trip_date,
             "vehicle_number": _text(get("Vehicle Number")), "vehicle_type": _text(get("Vehicle Capacity")),
-            "ownership_type": _text(get("Own / Outside")), "from_location": _text(get("From")),
+            "ownership_type": ownership, "from_location": _text(get("From")),
             "to_location": _text(get("To")), "company_name": company, "branch": branch,
             "invoice_number": invoice, "beneficiary_name": _text(get("Beneficiary Name")),
             "transporter_name": _text(get("Transporter Name")), "expense_type": ", ".join(
