@@ -15,7 +15,7 @@ from src.business_memory import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
 from src.entry_state import clear_entry_state, clear_expense_state, entry_state_prefix, expense_state_prefix
-from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series, user_invoice_duplicates, verified_bisleri_invoice_numbers
+from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series, user_invoice_duplicates, user_lr_duplicates, verified_bisleri_invoice_numbers
 from src.number_format import format_inr, indian_number
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
 from src.pending_invoice_matcher import suggest_invoice_match
@@ -589,13 +589,16 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     v["from_location"] = c1.text_input("From *", key=f"{prefix}_from_location", placeholder="e.g., Talegaon, Pune")
     v["to_location"] = c2.text_input("To *", key=f"{prefix}_to_location", placeholder="e.g., Bhiwandi, Thane")
     c1, c2 = st.columns(2)
-    v["lr_number"] = c1.text_input("LR number", key=f"{prefix}_lr_number", placeholder="e.g., LR-12234")
+    lr_key = f"{prefix}_lr_number"
+    v["lr_number"] = c1.text_input("LR number", key=lr_key, placeholder="e.g., LR-12234")
+    invoice_keys = []
     if current_user == "Vijay":
         extracted_invoices = normalized_invoice_numbers(st.session_state.get(f"{prefix}_invoice_numbers", []))
         invoice_slots = max(1, int(st.session_state.get(f"{prefix}_invoice_slots", 1)), len(extracted_invoices))
         invoice_values = []
         for index in range(invoice_slots):
             key = f"{prefix}_invoice_number" if index == 0 else f"{prefix}_invoice_number_{index + 1}"
+            invoice_keys.append(key)
             if index < len(extracted_invoices) and not clean_text(st.session_state.get(key)):
                 st.session_state[key] = extracted_invoices[index]
             invoice_values.append(c2.text_input(
@@ -604,11 +607,35 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
             ))
         v["invoice_number"] = combined_invoice_number(invoice_values)
     else:
-        v["invoice_number"] = c2.text_input("Invoice number", key=f"{prefix}_invoice_number", placeholder="e.g., INV-10595976")
-    duplicate_invoices = user_invoice_duplicates(normalization_rows, current_user, v["invoice_number"])
+        invoice_keys.append(f"{prefix}_invoice_number")
+        v["invoice_number"] = c2.text_input("Invoice number", key=invoice_keys[0], placeholder="e.g., INV-10595976")
+    duplicate_lrs = user_lr_duplicates(normalization_rows, current_user, v["lr_number"])
+    invoice_duplicates_by_key = {
+        key: user_invoice_duplicates(normalization_rows, current_user, st.session_state.get(key))
+        for key in invoice_keys
+    }
+    duplicate_invoices = []
+    for matches in invoice_duplicates_by_key.values():
+        for match in matches:
+            if match not in duplicate_invoices:
+                duplicate_invoices.append(match)
+    if duplicate_lrs:
+        labels = ", ".join(request_label(row) for row in duplicate_lrs[:3])
+        c1.error(f"This LR number already exists in {labels}. Change it before saving.", icon="🚫")
     if duplicate_invoices:
         labels = ", ".join(request_label(row) for row in duplicate_invoices[:3])
-        c2.error(f"Duplicate detected: this invoice number already exists in {labels}.")
+        c2.error(f"This invoice number already exists in {labels}. Change it before saving.", icon="🚫")
+    invalid_keys = ([lr_key] if duplicate_lrs else []) + [
+        key for key, matches in invoice_duplicates_by_key.items() if matches
+    ]
+    if invalid_keys:
+        selectors = ",".join(f'.st-key-{key} [data-baseweb="input"]' for key in invalid_keys)
+        st.markdown(
+            f"<style>{selectors}{{border:1px solid #dc2626!important;border-radius:.5rem;"
+            "box-shadow:0 0 0 1px #dc2626!important}}</style>",
+            unsafe_allow_html=True,
+        )
+    v["has_duplicate_identifiers"] = bool(duplicate_lrs or duplicate_invoices)
     st.markdown("#### 2. Vehicle information")
     c1, c2, c3 = st.columns(3)
     vehicle_input_kwargs = {
@@ -1124,7 +1151,8 @@ with new_tab:
     with st.container(border=True):
         values = trip_form(entry_prefix, business_memory, allowed_entry_branches, simplified=current_user == "Manish")
         repair_reason_missing = values["simplified"] and number(values["repairs_maintenance"]) > 0 and not clean_text(values["repair_reason"])
-        if st.button("Save and Another Entry", type="primary", disabled=not values["branch"] or not values["vehicle_number"] or repair_reason_missing, key=f"{entry_prefix}_save"):
+        save_disabled = not values["branch"] or not values["vehicle_number"] or repair_reason_missing or values["has_duplicate_identifiers"]
+        if st.button("Save and Another Entry", type="primary", disabled=save_disabled, key=f"{entry_prefix}_save"):
             saved = store.create({**trip_payload(values, files, invoice_filename), "created_by": current_user})
             audit_action("Created trip record", saved, request_label(saved, values["date"]))
             st.session_state["saved_entry_notice"] = f"Saved {request_label(saved, values['date'])}. Ready for another entry."

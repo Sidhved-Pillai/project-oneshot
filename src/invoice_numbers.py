@@ -1,3 +1,4 @@
+import json
 import re
 
 
@@ -16,27 +17,55 @@ def combined_invoice_number(values):
     return " / ".join(normalized_invoice_numbers(values))
 
 
-def user_invoice_duplicates(records, user_name, invoice_value):
-    """Return the user's saved records sharing any entered invoice identifier."""
-    entered = {
-        re.sub(r"\s+", "", part).strip("/").casefold()
-        for part in re.split(r"\s*/\s*", str(invoice_value or ""))
-        if re.sub(r"\s+", "", part).strip("/")
+def _identifier_parts(value):
+    return {
+        re.sub(r"[^a-z0-9]", "", part.casefold())
+        for part in re.split(r"\s*/\s*", str(value or ""))
+        if re.sub(r"[^a-z0-9]", "", part.casefold())
     }
+
+
+def _dtr_data(record):
+    value = record.get("dtr_data") or {}
+    if isinstance(value, dict):
+        return value
+    try:
+        parsed = json.loads(value)
+        return parsed if isinstance(parsed, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
+
+def _user_identifier_duplicates(records, user_name, entered_value, saved_value):
+    """Return active records owned by the user with the same identifier."""
+    entered = _identifier_parts(entered_value)
     if not entered:
         return []
     matches = []
     for record in records or []:
         if str(record.get("created_by") or "").strip() != str(user_name or "").strip():
             continue
-        saved = {
-            re.sub(r"\s+", "", part).strip("/").casefold()
-            for part in re.split(r"\s*/\s*", str(record.get("invoice_number") or ""))
-            if re.sub(r"\s+", "", part).strip("/")
-        }
-        if entered & saved:
+        if str(record.get("status") or "").strip().casefold() == "cancelled":
+            continue
+        if entered & _identifier_parts(saved_value(record)):
             matches.append(record)
     return matches
+
+
+def user_invoice_duplicates(records, user_name, invoice_value):
+    """Return the user's active records sharing any entered invoice identifier."""
+    return _user_identifier_duplicates(
+        records, user_name, invoice_value,
+        lambda record: record.get("invoice_number") or _dtr_data(record).get("Invoice No."),
+    )
+
+
+def user_lr_duplicates(records, user_name, lr_value):
+    """Return the user's active records sharing the entered LR identifier."""
+    return _user_identifier_duplicates(
+        records, user_name, lr_value,
+        lambda record: record.get("lr_number") or _dtr_data(record).get("LR No."),
+    )
 
 
 def valid_bisleri_invoice_number(value):
