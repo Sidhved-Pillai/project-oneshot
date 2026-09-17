@@ -3,6 +3,7 @@ import re
 from collections import Counter, defaultdict
 
 from .vehicle_placer import canonical_vehicle_placer
+from .transporter_profiles import canonical_transporter_name
 
 
 def _text(value):
@@ -42,7 +43,9 @@ def build_business_memory(rows):
         record = {
             **row,
             "vehicle_capacity": row.get("vehicle_type") or dtr.get("Vehicle Type"),
-            "transporter_name": row.get("transporter_name") or dtr.get("Transporter Name"),
+            "transporter_name": canonical_transporter_name(
+                row.get("transporter_name") or dtr.get("Transporter Name"), row.get("created_by"),
+            ),
             "vehicle_placed_by": canonical_vehicle_placer(dtr.get("Veh Placed by")),
             "account_number": rtgs.get("BENE_ACC_NO"),
             "ifsc": rtgs.get("BENE_IFSC"),

@@ -10,6 +10,7 @@ from openpyxl.utils import get_column_letter
 from .pnl_report import DIRECT_EXPENSE_COLUMNS
 from .text_normalization import canonical_ownership
 from .vehicle_placer import canonical_vehicle_placer
+from .transporter_profiles import canonical_transporter_name
 
 def canonical_branch(value):
     original = " ".join(str(value or "").split()).strip()
@@ -66,7 +67,8 @@ def records_export_rows(records):
             "From": row.get("from_location", ""), "To": row.get("to_location", ""),
             "LR Number": dtr.get("LR No.", ""), "Invoice Number": dtr.get("Invoice No.") or row.get("invoice_number", ""),
             "Beneficiary Name": row.get("beneficiary_name", ""), "Account Number": rtgs.get("BENE_ACC_NO", ""),
-            "IFSC Code": rtgs.get("BENE_IFSC", ""), "Transporter Name": row.get("transporter_name", ""),
+            "IFSC Code": rtgs.get("BENE_IFSC", ""),
+            "Transporter Name": canonical_transporter_name(row.get("transporter_name"), row.get("created_by")),
             "Vehicle Placed By": canonical_vehicle_placer(dtr.get("Veh Placed by")), "Revenue Freight": row.get("revenue", 0),
             "Transporter Freight": row.get("transporter_freight", 0), "RTGS": row.get("rtgs_advance", 0),
             "Cash": row.get("cash_advance", 0), "UPI": row.get("upi", 0),

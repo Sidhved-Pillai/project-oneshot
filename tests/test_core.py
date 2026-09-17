@@ -30,7 +30,7 @@ from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, r
 from src.trip_dtr_report import OPERATIONAL_DTR_COLUMNS, edited_dtr_frame, export_operational_dtr
 from src.pnl_report import BRANCH_PNL_COLUMNS, DIRECT_EXPENSE_COLUMNS, VEHICLE_NO_PNL_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl, pnl_summary, vehicle_pnl_summary
 from src.text_normalization import canonical_company, canonical_location, canonical_ownership, canonical_vehicle_capacity, plain_remark
-from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, VIJAY_VEHICLE_TRANSPORTERS, resolve_vijay_vehicle_number, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
+from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, VIJAY_VEHICLE_TRANSPORTERS, canonical_transporter_name, resolve_vijay_vehicle_number, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import canonical_vehicle_placer
 from src.business_memory import build_business_memory, recall
@@ -129,6 +129,12 @@ def test_vijay_transporter_profiles_fill_exact_bank_details():
     assert nisar["beneficiary_account_number"] == "917020048356986"
     assert nisar["beneficiary_ifsc_code"] == "UTIB0002168"
     assert vijay_transporter_profile("Unknown") == {}
+
+
+def test_ashok_import_placeholder_is_not_a_transporter_name():
+    assert canonical_transporter_name("A", "Ashok") == ""
+    assert canonical_transporter_name(" A ", "ashok") == ""
+    assert canonical_transporter_name("A", "Vijay") == "A"
 
 
 def test_vijay_revenue_dropdown_maps_to_transporter_freight():
@@ -1216,6 +1222,15 @@ def test_business_memory_never_reuses_ashokbhai_alias():
         "dtr_data": '{"Veh Placed by":"Ashokbhai"}',
     }])
     assert recall(memory, "vehicles", "GJ06AB1234")["vehicle_placed_by"] == ("Ashok", 1)
+
+
+def test_business_memory_ignores_ashok_transporter_placeholder():
+    memory = build_business_memory([{
+        "status": "Verified", "report_scope": "Both", "created_by": "Ashok",
+        "vehicle_number": "GJ06AB1234", "transporter_name": "A", "beneficiary_name": "Unknown",
+    }])
+    assert recall(memory, "transporters", "A") == {}
+    assert "transporter_name" not in recall(memory, "vehicles", "GJ06AB1234")
 
 
 def test_operational_dtr_export_uses_full_reference_shape():
