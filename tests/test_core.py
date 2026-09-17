@@ -692,6 +692,34 @@ def test_vijay_records_excel_import_skips_existing_and_invalid_rows():
     assert any("invalid Date" in issue for issue in issues)
 
 
+def test_ashok_dtr_excel_import_maps_headers_and_forces_vadodara_branch():
+    dtr = pd.DataFrame([{
+        "Sr No.": 1, "Branch": "Baroda", "Compnay Name": "Demo Company",
+        "Date": dt.date(2026, 9, 1), "Vehicle No.": "GJ06AB1234", "Vehicle Type": "10 MT",
+        "Own/Outside Veh.": "Outside", "From": "Baroda", "To": "Ahmedabad",
+        "LR No.": "LR-1", "Invoice No.": "INV-ASHOK-1", "Revenue": 5000,
+        "Transporter Freight": 4200, "RTGS ADVANCE": 1000, "Cash Adv.": 200,
+        "UPI": 100, "Diesel Adv.": 300, "Total Adv.": 1600, "Balance Amt.": 2600,
+        "Benificiary Name": "Demo Transport", "Transporter Name": "Demo Transport",
+        "Veh Placed by": "Ashok", "Remark": "Ashok import",
+    }])
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        dtr.to_excel(writer, index=False, sheet_name="DTR", startrow=2)
+        writer.book["DTR"]["A1"] = "Vadodara DTR · 1 to 16 September"
+    frame = read_records_excel(output.getvalue())
+    assert frame.loc[0, "Vehicle Number"] == "GJ06AB1234"
+    assert frame.loc[0, "Revenue Freight"] == 5000
+    payloads, issues = records_import_payloads(frame, [], owner="Ashok")
+    assert issues == [] and len(payloads) == 1
+    payload = payloads[0]
+    assert payload["created_by"] == "Ashok"
+    assert payload["branch"] == "Vadodara"
+    assert payload["vehicle_number"] == "GJ06AB1234"
+    assert payload["dtr_data"]["Veh Placed by"] == "Ashok"
+    assert payload["rtgs_advance"] == 1000
+
+
 def test_pending_invoice_attachment_never_overwrites_existing_evidence(tmp_path):
     store = RequestStore(f"sqlite:///{tmp_path / 'pending-invoice.db'}")
     number = store.create({

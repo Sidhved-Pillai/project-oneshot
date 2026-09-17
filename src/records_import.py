@@ -1,4 +1,4 @@
-"""Import records from the workbook produced by the Records tab."""
+"""Import records from Records exports or operational DTR workbooks."""
 
 import re
 from io import BytesIO
@@ -6,6 +6,32 @@ from io import BytesIO
 import pandas as pd
 
 from .records_export import EXPENSE_EXPORT_COLUMNS, RECORD_EXPORT_COLUMNS
+
+
+DTR_HEADER_MAP = {
+    "srno": "Record", "record": "Record", "recordtype": "Record Type",
+    "date": "Date", "status": "Status", "createdby": "Created By", "branch": "Branch",
+    "companyname": "Company Name", "compnayname": "Company Name",
+    "vehicleno": "Vehicle Number", "vehiclenumber": "Vehicle Number",
+    "vehicletype": "Vehicle Capacity", "vehiclecapacity": "Vehicle Capacity",
+    "ownoutsideveh": "Own / Outside", "ownoutside": "Own / Outside",
+    "from": "From", "to": "To", "lrno": "LR Number", "lrnumber": "LR Number",
+    "invoiceno": "Invoice Number", "invoicenumber": "Invoice Number",
+    "beneficiaryname": "Beneficiary Name", "benificiaryname": "Beneficiary Name",
+    "accountnumber": "Account Number", "beneficiaryaccountno": "Account Number",
+    "ifsccode": "IFSC Code", "ifsc": "IFSC Code", "transportername": "Transporter Name",
+    "vehplacedby": "Vehicle Placed By", "vehicleplacedby": "Vehicle Placed By",
+    "companyfreight": "Revenue Freight", "revenue": "Revenue Freight",
+    "revenuefreight": "Revenue Freight", "transporterfreight": "Transporter Freight",
+    "rtgsadvance": "RTGS", "rtgs": "RTGS", "cashadv": "Cash", "cash": "Cash",
+    "upi": "UPI", "dieseladv": "Diesel", "diesel": "Diesel", "dieselqty": "Diesel Qty",
+    "dieselrate": "Diesel Rate", "tollexpense": "Toll Expense",
+    "repairsmaintenance": "Repairs & Maintenance", "repairreason": "Repair Reason",
+    "billtee": "Billtee", "totaladv": "Total Advance", "totaladvance": "Total Advance",
+    "balanceamt": "Balance Amount", "balanceamount": "Balance Amount", "payment": "Payment",
+    "paymentmode": "Payment Mode", "dieselpumpname": "Diesel Pump Name",
+    "cardname": "Card Name", "remark": "Remarks", "remarks": "Remarks",
+}
 
 
 def _blank(value):
@@ -40,14 +66,41 @@ def _date(value):
     return None if pd.isna(parsed) else parsed.date()
 
 
+def _header_key(value):
+    return re.sub(r"[^a-z0-9]", "", _text(value).casefold())
+
+
 def read_records_excel(data):
-    frame = pd.read_excel(BytesIO(data), sheet_name="Records", dtype=object)
-    frame.columns = [_text(column) for column in frame.columns]
+    """Read either the Records download or a DTR-shaped Excel sheet."""
+    workbook = pd.ExcelFile(BytesIO(data))
+    sheet = "Records" if "Records" in workbook.sheet_names else workbook.sheet_names[0]
+    raw = pd.read_excel(workbook, sheet_name=sheet, header=None, dtype=object)
+    header_row = None
+    for index in range(min(30, len(raw))):
+        recognized = [DTR_HEADER_MAP.get(_header_key(value)) for value in raw.iloc[index].tolist()]
+        recognized = {value for value in recognized if value}
+        if "Date" in recognized and "Vehicle Number" in recognized and len(recognized) >= 4:
+            header_row = index
+            break
+    if header_row is None:
+        raise ValueError("Could not find a DTR or Records header row in this workbook.")
+    source = raw.iloc[header_row + 1:].copy()
+    source.columns = [_text(value) for value in raw.iloc[header_row].tolist()]
+    normalized = pd.DataFrame(index=source.index)
+    for column in source.columns:
+        target = DTR_HEADER_MAP.get(_header_key(column), _text(column))
+        if not target:
+            continue
+        if target in normalized:
+            normalized[target] = normalized[target].combine_first(source[column])
+        else:
+            normalized[target] = source[column]
+    frame = normalized
     frame = frame.dropna(how="all").reset_index(drop=True)
     if len(frame) > 2000:
         raise ValueError("The workbook contains more than 2,000 rows. Import it in smaller files.")
-    if not any(column in frame.columns for column in RECORD_EXPORT_COLUMNS):
-        raise ValueError("This does not match the Records Download Excel format.")
+    if "Date" not in frame.columns or "Vehicle Number" not in frame.columns:
+        raise ValueError("This does not match the DTR or Records Download Excel format.")
     return frame
 
 
@@ -90,7 +143,8 @@ def records_import_payloads(frame, existing_records=(), owner="Vijay"):
             issues.append(f"Row {row_number}: missing or invalid Date")
             continue
         is_expense = _text(get("Record Type")).casefold() in {"direct expense", "expense"}
-        branch = "Andheri" if owner == "Vijay" else (_text(get("Branch")) or "Andheri")
+        owner_branches = {"Vijay": "Andheri", "Ashok": "Vadodara"}
+        branch = owner_branches.get(owner) or _text(get("Branch")) or "Andheri"
         payments = {
             "RTGS": _number(get("RTGS")), "Cash": _number(get("Cash")),
             "UPI": _number(get("UPI")), "Diesel": _number(get("Diesel")),
