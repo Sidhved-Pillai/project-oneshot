@@ -23,7 +23,7 @@ from src.invoice_numbers import combined_invoice_number, normalized_invoice_numb
 from src.expense_periods import allocate_expenses_for_period, serialize_period
 from src.pending_invoice_matcher import score_invoice_match, suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
-from src.record_filters import DIRECT_EXPENSES, TRIP_RECORDS, filter_record_type, filter_without_invoice_evidence, has_invoice_evidence, sort_records_by_date
+from src.record_filters import DIRECT_EXPENSES, TRIP_RECORDS, filter_record_type, filter_without_invoice_evidence, has_invoice_evidence, sort_records_by_date, valid_page_number
 from src.records_export import RECORD_EXPORT_COLUMNS, export_records_excel, records_export_rows
 from src.records_import import read_records_excel, records_import_payloads
 from src.request_store import RequestStore, rows_to_dtr
@@ -318,6 +318,7 @@ def test_vehicle_normalization_and_last_four():
 
 
 def test_operational_text_normalization_is_conservative():
+    assert canonical_company("SG") == "Saint-Gobain India Private Limited"
     assert canonical_company("saint gobin") == "Saint-Gobain India Private Limited"
     assert canonical_company("saint gobain gyproc") == "Saint-Gobain India Private Limited - Gyproc"
     assert canonical_location("talegoan") == "Talegaon"
@@ -326,6 +327,13 @@ def test_operational_text_normalization_is_conservative():
     assert canonical_vehicle_capacity("10 ton") == "10 MT"
     assert canonical_vehicle_capacity("12mt") == "12 MT"
     assert plain_remark("1234", "Pune-to-Wada", "10 MT", "TA") == "1234 Pune to Wada 10 MT TA"
+
+
+@pytest.mark.parametrize("value, count, expected", [
+    (None, 2, 1), ("", 2, 1), ("not-a-page", 2, 1), (5, 2, 1), (2, 2, 2),
+])
+def test_record_page_number_handles_blank_and_stale_widget_state(value, count, expected):
+    assert valid_page_number(value, count) == expected
 
 
 def test_vijay_master_converts_full_delivery_address_to_short_address():
@@ -694,7 +702,7 @@ def test_vijay_records_excel_import_skips_existing_and_invalid_rows():
 
 def test_ashok_dtr_excel_import_maps_headers_and_forces_vadodara_branch():
     dtr = pd.DataFrame([{
-        "Sr No.": 1, "Branch": "Baroda", "Compnay Name": "Demo Company",
+        "Sr No.": 1, "Branch": "Baroda", "Compnay Name": "SG",
         "Date": dt.date(2026, 9, 1), "Vehicle No.": "GJ06AB1234", "Vehicle Type": "10 MT",
         "Own/Outside Veh.": "Outside", "From": "Baroda", "To": "Ahmedabad",
         "LR No.": "LR-1", "Invoice No.": "INV-ASHOK-1", "Revenue": 5000,
@@ -715,6 +723,8 @@ def test_ashok_dtr_excel_import_maps_headers_and_forces_vadodara_branch():
     payload = payloads[0]
     assert payload["created_by"] == "Ashok"
     assert payload["branch"] == "Vadodara"
+    assert payload["company_name"] == "Saint-Gobain India Private Limited"
+    assert payload["dtr_data"]["Compnay Name"] == "Saint-Gobain India Private Limited"
     assert payload["vehicle_number"] == "GJ06AB1234"
     assert payload["dtr_data"]["Veh Placed by"] == "Ashok"
     assert payload["rtgs_advance"] == 1000

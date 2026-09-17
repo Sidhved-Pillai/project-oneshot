@@ -31,6 +31,8 @@ def canonical_company(value, known=()):
     comparison = _comparison(original)
     if not comparison:
         return ""
+    if comparison == "sg":
+        return "Saint-Gobain India Private Limited"
     if SequenceMatcher(None, " ".join(comparison.split()[:2]), "saint gobain").ratio() >= 0.78:
         suffix = " - Gyproc" if "gyproc" in comparison else ""
         return f"Saint-Gobain India Private Limited{suffix}"

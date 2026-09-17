@@ -19,7 +19,7 @@ from src.invoice_numbers import combined_invoice_number, normalized_invoice_numb
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
 from src.pending_invoice_matcher import suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
-from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
+from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, filter_record_type, filter_without_invoice_evidence, sort_records_by_date, valid_page_number
 from src.records_export import export_records_excel
 from src.records_import import import_preview, read_records_excel, records_import_payloads
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, edited_dtr_frame, export_operational_dtr
@@ -1510,8 +1510,9 @@ with records_tab:
         record_page = 1
         if page_count > 1:
             page_key = "records_result_page"
-            if int(st.session_state.get(page_key, 1)) > page_count:
-                st.session_state[page_key] = 1
+            current_page = valid_page_number(st.session_state.get(page_key), page_count)
+            if st.session_state.get(page_key) != current_page:
+                st.session_state[page_key] = current_page
             record_page = st.selectbox(
                 "Record page", list(range(1, page_count + 1)),
                 format_func=lambda page: f"Page {page} of {page_count}", key=page_key,
