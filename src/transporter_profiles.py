@@ -2,9 +2,9 @@ from .vehicle_normalization import canonical_vehicle_number
 
 
 def canonical_transporter_name(value, created_by=""):
-    """Discard the one-letter placeholder from Ashok's imported records."""
+    """Discard the invalid one-letter placeholder from imported records."""
     original = " ".join(str(value or "").split()).strip()
-    if str(created_by or "").strip().casefold() == "ashok" and original.casefold() == "a":
+    if original.casefold() == "a":
         return ""
     return original
 

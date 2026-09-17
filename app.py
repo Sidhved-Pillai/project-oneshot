@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
-from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record
+from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record, can_view_trip_leaderboard
 from src.ai_intake import extract_intake, merge_same_trip_intake_rows, should_autofill_field
 from src.business_memory import build_business_memory, recall
 from src.config import ROOT
@@ -652,11 +652,14 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         else:
             transporter_key = f"{prefix}_transporter_name"
             transporter_options = sorted({
-                profile.get("transporter_name", ("", 0))[0]
+                canonical_transporter_name(profile.get("transporter_name", ("", 0))[0], current_user)
                 for profile in memory.get("transporters", {}).values()
-                if profile.get("transporter_name", ("", 0))[0]
-            }, key=str.casefold)
-            current_transporter = clean_text(st.session_state.get(transporter_key))
+            } - {""}, key=str.casefold)
+            current_transporter = canonical_transporter_name(
+                st.session_state.get(transporter_key), current_user,
+            )
+            if st.session_state.get(transporter_key) != current_transporter:
+                st.session_state[transporter_key] = current_transporter
             options = ["", *transporter_options]
             if current_transporter and current_transporter not in options:
                 options.append(current_transporter)
@@ -1291,7 +1294,7 @@ with records_tab:
                     f"{vehicle_filter} is saved with date {saved_dates}, outside the selected date range. "
                     "It is shown below so the record can be reviewed."
                 )
-        if record_type == TRIP_RECORDS:
+        if record_type == TRIP_RECORDS and can_view_trip_leaderboard(current_user):
             leaderboard_source = [
                 row for row in all_record_rows
                 if filter_from <= as_date(row.get("trip_date")) <= filter_to
@@ -1307,7 +1310,7 @@ with records_tab:
                 f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_rows}</tbody></table>',
                 unsafe_allow_html=True,
             )
-    elif record_branch_scope and current_user not in {"Ashok", "Ajit"}:
+    elif record_branch_scope and can_view_trip_leaderboard(current_user):
         today = dt.date.today()
         leaderboard_source = [
             row for row in all_record_rows

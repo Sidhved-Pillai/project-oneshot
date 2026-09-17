@@ -1,5 +1,10 @@
 PRIVATE_RECORD_USERS = {"Manish", "Vijay"}
 SELF_DELETE_USERS = {"Ashok", "Manish", "Nitish", "Vijay"}
+HIDDEN_LEADERBOARD_USERS = {"Ashok", "Ajit"}
+
+
+def can_view_trip_leaderboard(user_name):
+    return str(user_name or "").strip() not in HIDDEN_LEADERBOARD_USERS
 
 
 def can_delete_record(user_name, record):

@@ -6,7 +6,7 @@ import pandas as pd
 from openpyxl import Workbook, load_workbook
 import pytest
 from sqlalchemy import event
-from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record
+from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record, can_view_trip_leaderboard
 from src.excel_reader import detect_header_row
 from src.column_mapping import resolve_columns, DTR_ALIASES, CONSOLIDATED_ALIASES
 from src.remark_classifier import classify_remark
@@ -104,6 +104,13 @@ def test_record_delete_permissions_are_owner_scoped_for_manish():
     assert not can_delete_record("Vijay", manish_record)
 
 
+def test_trip_leaderboard_is_hidden_for_ashok_and_ajit_only():
+    assert not can_view_trip_leaderboard("Ashok")
+    assert not can_view_trip_leaderboard("Ajit")
+    assert can_view_trip_leaderboard("Vijay")
+    assert can_view_trip_leaderboard("Sid")
+
+
 def test_records_can_be_filtered_by_type_and_sorted_by_date():
     rows = [
         {"id": 3, "trip_date": dt.date(2026, 9, 8), "report_scope": "Both"},
@@ -134,7 +141,7 @@ def test_vijay_transporter_profiles_fill_exact_bank_details():
 def test_ashok_import_placeholder_is_not_a_transporter_name():
     assert canonical_transporter_name("A", "Ashok") == ""
     assert canonical_transporter_name(" A ", "ashok") == ""
-    assert canonical_transporter_name("A", "Vijay") == "A"
+    assert canonical_transporter_name("a", "Vijay") == ""
 
 
 def test_vijay_revenue_dropdown_maps_to_transporter_freight():
