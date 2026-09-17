@@ -15,7 +15,7 @@ from src.business_memory import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
 from src.entry_state import clear_entry_state, clear_expense_state, entry_state_prefix, expense_state_prefix
-from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series, user_invoice_duplicates, user_lr_duplicates, verified_bisleri_invoice_numbers
+from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series, user_invoice_duplicates, verified_bisleri_invoice_numbers
 from src.number_format import format_inr, indian_number
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
 from src.pending_invoice_matcher import suggest_invoice_match
@@ -246,6 +246,28 @@ def unpack(value):
         return json.loads(value or "{}")
     except (TypeError, json.JSONDecodeError):
         return {}
+
+
+def user_lr_duplicates(records, user_name, lr_value):
+    """Find the user's active records with the same normalized LR number.
+
+    This stays in the app module so a Streamlit hot reload does not depend on
+    a newly exported helper appearing in an already-cached support module.
+    """
+    entered = re.sub(r"[^a-z0-9]", "", clean_text(lr_value).casefold())
+    if not entered:
+        return []
+    matches = []
+    for record in records or []:
+        if clean_text(record.get("created_by")) != clean_text(user_name):
+            continue
+        if clean_text(record.get("status")).casefold() == "cancelled":
+            continue
+        saved_value = record.get("lr_number") or unpack(record.get("dtr_data")).get("LR No.")
+        saved = re.sub(r"[^a-z0-9]", "", clean_text(saved_value).casefold())
+        if saved == entered:
+            matches.append(record)
+    return matches
 
 
 def request_label(row_or_number, date=None):
