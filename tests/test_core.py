@@ -71,6 +71,8 @@ def test_short_vehicle_placer_login_names_are_canonicalized():
     assert canonical_vehicle_placer("nitish jha") == "Nitish Jha"
     assert canonical_vehicle_placer("Ajit") == "Ajit Thakur"
     assert canonical_vehicle_placer("Manish") == "Manish Jha"
+    assert canonical_vehicle_placer("Ashokbhai") == "Ashok"
+    assert canonical_vehicle_placer("Ashok Bhai") == "Ashok"
 
 
 def test_record_delete_permissions_are_owner_scoped_for_manish():
@@ -633,7 +635,7 @@ def test_filtered_records_excel_contains_complete_trip_and_expense_fields():
         "source_filename": "invoice.jpg",
         "dtr_data": json.dumps({
             "LR No.": "LR-1", "Invoice No.": "MUMCIN270008058 / MUMCIN270008059",
-            "Veh Placed by": "Vijay", "Diesel Rate": 100, "Toll Expense": 50,
+            "Veh Placed by": "Ashokbhai", "Diesel Rate": 100, "Toll Expense": 50,
             "Repairs & Maintenance": 25, "Repair Reason": "Tyre", "Billtee": 10,
             "Diesel Pump Name": "Pump", "Card Name": "Card",
         }),
@@ -643,6 +645,7 @@ def test_filtered_records_excel_contains_complete_trip_and_expense_fields():
     assert list(exported[0]) == RECORD_EXPORT_COLUMNS
     assert exported[0]["To"] == "Panvel"
     assert exported[0]["Own / Outside"] == "Outside"
+    assert exported[0]["Vehicle Placed By"] == "Ashok"
     assert exported[0]["Invoice Number"] == "MUMCIN270008058 / MUMCIN270008059"
     assert exported[0]["Account Number"] == "60350673934"
     workbook = load_workbook(BytesIO(export_records_excel(records)))
@@ -1205,6 +1208,14 @@ def test_business_memory_uses_repeated_verified_records_without_guessing():
     assert transporter["account_number"] == ("00123", 2)
     assert transporter["ifsc"] == ("ICIC0001", 2)
     assert recall(memory, "vehicles", "UNKNOWN") == {}
+
+
+def test_business_memory_never_reuses_ashokbhai_alias():
+    memory = build_business_memory([{
+        "status": "Verified", "report_scope": "Both", "vehicle_number": "GJ06AB1234",
+        "dtr_data": '{"Veh Placed by":"Ashokbhai"}',
+    }])
+    assert recall(memory, "vehicles", "GJ06AB1234")["vehicle_placed_by"] == ("Ashok", 1)
 
 
 def test_operational_dtr_export_uses_full_reference_shape():

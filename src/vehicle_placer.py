@@ -4,8 +4,11 @@ import re
 from difflib import SequenceMatcher
 
 
-CANONICAL_VEHICLE_PLACERS = ("Nitish Jha", "Ajit Thakur", "Manish Jha")
-LOGIN_VEHICLE_PLACERS = {"Nitish": "Nitish Jha", "Ajit": "Ajit Thakur", "Manish": "Manish Jha"}
+CANONICAL_VEHICLE_PLACERS = ("Nitish Jha", "Ajit Thakur", "Manish Jha", "Ashok")
+LOGIN_VEHICLE_PLACERS = {
+    "Nitish": "Nitish Jha", "Ajit": "Ajit Thakur", "Manish": "Manish Jha", "Ashok": "Ashok",
+}
+LEGACY_VEHICLE_PLACERS = {"ashokbhai": "Ashok", "ashok bhai": "Ashok"}
 
 
 def canonical_vehicle_placer(value):
@@ -13,6 +16,8 @@ def canonical_vehicle_placer(value):
     normalized = " ".join(re.findall(r"[a-z]+", original.casefold()))
     if not normalized:
         return original
+    if normalized in LEGACY_VEHICLE_PLACERS:
+        return LEGACY_VEHICLE_PLACERS[normalized]
     login_aliases = {login.casefold(): full_name for login, full_name in LOGIN_VEHICLE_PLACERS.items()}
     if normalized in login_aliases:
         return login_aliases[normalized]

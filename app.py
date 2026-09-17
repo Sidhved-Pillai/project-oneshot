@@ -866,7 +866,7 @@ def view_record(row):
         "Invoice No.": raw.get("Invoice No.") or row.get("invoice_number", ""),
         "Beneficiary": row.get("beneficiary_name", ""), "Account Number": rtgs_raw.get("BENE_ACC_NO", ""),
         "IFSC": rtgs_raw.get("BENE_IFSC", ""), "Transporter Name": row.get("transporter_name", ""),
-        "Vehicle Placed By": raw.get("Veh Placed by", ""),
+        "Vehicle Placed By": canonical_vehicle_placer(raw.get("Veh Placed by")),
         "Revenue": number(row.get("revenue")), "Transporter Freight": number(row.get("transporter_freight")),
         "RTGS": number(row.get("rtgs_advance")), "Cash": number(row.get("cash_advance")),
         "UPI": number(row.get("upi")), "Diesel": number(row.get("diesel_advance")),
@@ -1584,6 +1584,7 @@ with reports_tab:
             data["Own/Outside Veh."] = canonical_ownership(data.get("Own/Outside Veh.") or row.get("ownership_type"))
             data["From"] = canonical_location(data.get("From") or row.get("from_location"), KNOWN_LOCATIONS)
             data["To"] = canonical_location(data.get("To") or row.get("to_location"), KNOWN_LOCATIONS)
+            data["Veh Placed by"] = canonical_vehicle_placer(data.get("Veh Placed by"))
             data["Toll Expense"] = data.get("Toll Expense", "")
             data["Repairs & Maintenance"] = data.get("Repairs & Maintenance", "")
             data["Remark"] = trip_auto_remark(
