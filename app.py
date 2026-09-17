@@ -21,7 +21,6 @@ from src.pending_invoice_matcher import suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
 from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
 from src.records_export import export_records_excel
-from src.records_import import import_preview, read_records_excel, records_import_payloads
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, edited_dtr_frame, export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization import canonical_company, canonical_location, canonical_ownership, canonical_vehicle_capacity, plain_remark
@@ -1333,43 +1332,6 @@ with records_tab:
         "Record order", ["↓", "↑"], default="↓", key="records_sort_arrow",
         label_visibility="collapsed", help="↓ Newest to oldest · ↑ Oldest to newest",
     )
-    if current_user in {"Ashok", "Vijay"}:
-        import_user_key = current_user.casefold()
-        imported_notice = st.session_state.pop(f"{import_user_key}_excel_import_notice", None)
-        if imported_notice:
-            st.success(imported_notice, icon="✅")
-        with st.expander("Import Excel"):
-            st.caption(
-                "Upload a DTR spreadsheet or a file created from Download Excel. "
-                "Blank optional fields can be completed later in Records."
-            )
-            import_file = st.file_uploader(
-                "Records spreadsheet", type=["xlsx"], key=f"{import_user_key}_records_excel_import",
-            )
-            if import_file:
-                try:
-                    import_frame = read_records_excel(import_file.getvalue())
-                    import_payloads, import_issues = records_import_payloads(
-                        import_frame, all_record_rows, owner=current_user,
-                    )
-                    st.caption(f"{len(import_payloads)} new record(s) ready to import.")
-                    if import_payloads:
-                        st.dataframe(import_preview(import_payloads), hide_index=True, width="stretch")
-                    if import_issues:
-                        with st.expander(f"{len(import_issues)} skipped row(s)"):
-                            for issue in import_issues:
-                                st.write(issue)
-                    if st.button(
-                        "Import records", type="primary", key=f"confirm_{import_user_key}_records_excel_import",
-                        disabled=not import_payloads,
-                    ):
-                        created = store.create_many(import_payloads)
-                        st.session_state[f"{import_user_key}_excel_import_notice"] = (
-                            f"Imported {len(created)} record(s). They are now available in Records."
-                        )
-                        st.rerun()
-                except Exception as exc:
-                    st.error(f"Could not import this spreadsheet: {exc}")
     if current_user == "Vijay":
         pending_invoice_rows = [
             row for row in filter_without_invoice_evidence(scoped_rows, True)
