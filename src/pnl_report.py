@@ -325,5 +325,5 @@ def export_pnl(trip_rows, expense_rows, start_date, end_date, ownership=None):
         for column_index in range(2, final_column + 1):
             ws.column_dimensions[get_column_letter(column_index)].width = 18
             for row_index in range(4, ws.max_row + 1):
-                ws.cell(row=row_index, column=column_index).number_format = '₹#,##0.00;[Red]-₹#,##0.00'
+                ws.cell(row=row_index, column=column_index).number_format = '₹#,##,##0.00;[Red]-₹#,##,##0.00'
     return output.getvalue()

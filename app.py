@@ -16,6 +16,7 @@ from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
 from src.entry_state import clear_entry_state, clear_expense_state, entry_state_prefix, expense_state_prefix
 from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series, user_invoice_duplicates, verified_bisleri_invoice_numbers
+from src.number_format import format_inr, indian_number
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
 from src.pending_invoice_matcher import suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
@@ -262,7 +263,7 @@ def record_select_label(row):
     dtr = unpack(row.get("dtr_data"))
     placed_by = canonical_vehicle_placer(dtr.get("Veh Placed by")) or "Not specified"
     billtee = number(dtr.get("Billtee"))
-    billtee_text = f"{billtee:,.0f}" if billtee.is_integer() else f"{billtee:,.2f}"
+    billtee_text = indian_number(billtee, 0 if billtee.is_integer() else 2)
     details = f"{placed_by}, Billtee Amt: {billtee_text}".translate(ASCII_BOLD)
     return f"{request_label(row)} [{details}]"
 
@@ -683,7 +684,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
                 st.session_state[revenue_key] = None
             v["revenue"] = st.selectbox(
                 "Revenue freight (₹)", [None, *VIJAY_FREIGHT_RATES], key=revenue_key,
-                format_func=lambda value: "Select revenue freight" if value is None else f"₹{value:,}",
+                format_func=lambda value: "Select revenue freight" if value is None else format_inr(value, 0),
                 on_change=apply_vijay_freight_rate, args=(prefix,),
             )
         else:
@@ -697,7 +698,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
                 st.session_state[revenue_key] = None
             v["revenue"] = c1.selectbox(
                 "Revenue freight (₹)", [None, *VIJAY_FREIGHT_RATES], key=revenue_key,
-                format_func=lambda value: "Select revenue freight" if value is None else f"₹{value:,}",
+                format_func=lambda value: "Select revenue freight" if value is None else format_inr(value, 0),
                 on_change=apply_vijay_freight_rate, args=(prefix,),
             )
         else:
@@ -777,16 +778,16 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     summary = st.columns(2 if own_workflow else 3)
     metric_offset = 0
     if not own_workflow:
-        summary[0].metric("Transporter freight", f"₹{number(v['transporter_freight']):,.2f}")
+        summary[0].metric("Transporter freight", format_inr(number(v["transporter_freight"])))
         metric_offset = 1
-    summary[metric_offset].metric("Total expense" if own_workflow else "Total advance", f"₹{total:,.2f}")
+    summary[metric_offset].metric("Total expense" if own_workflow else "Total advance", format_inr(total))
     if own_workflow:
         loss_class = " negative" if balance < 0 else ""
-        summary[metric_offset + 1].markdown(f'<div class="profit-loss-card{loss_class}"><span>Profit / Loss</span><strong>₹{balance:,.2f}</strong></div>', unsafe_allow_html=True)
+        summary[metric_offset + 1].markdown(f'<div class="profit-loss-card{loss_class}"><span>Profit / Loss</span><strong>{format_inr(balance)}</strong></div>', unsafe_allow_html=True)
     else:
-        summary[metric_offset + 1].metric("Balance payable", f"₹{balance:,.2f}", help="Transporter freight minus RTGS, Cash, UPI, Diesel and Billtee deductions. A negative amount indicates an overpayment.")
+        summary[metric_offset + 1].metric("Balance payable", format_inr(balance), help="Transporter freight minus RTGS, Cash, UPI, Diesel and Billtee deductions. A negative amount indicates an overpayment.")
     if balance < 0 and not own_workflow:
-        st.warning(f"Advance exceeds transporter freight by ₹{abs(balance):,.2f}. Please review the payment amounts.")
+        st.warning(f"Advance exceeds transporter freight by {format_inr(abs(balance))}. Please review the payment amounts.")
     remark_key = f"{prefix}_remarks"
     generated_remark = trip_auto_remark(v["vehicle_number"], v["from_location"], v["to_location"], v["vehicle_capacity"], v["date"])
     if any(clean_text(v[field]) for field in ("vehicle_number", "from_location", "to_location", "vehicle_capacity")):
@@ -1217,8 +1218,8 @@ with expense_tab:
         expense_total = sum(number(v[name]) for name in ALL_DIRECT_EXPENSE_COLUMNS)
         paid_total = sum(number(v[field]) for field in PAYMENT_FIELDS.values()) + number(v["card"])
         c1, c2 = st.columns(2)
-        c1.metric("Total direct expense", f"₹{expense_total:,.2f}")
-        c2.metric("Payment modes total", f"₹{paid_total:,.2f}")
+        c1.metric("Total direct expense", format_inr(expense_total))
+        c2.metric("Payment modes total", format_inr(paid_total))
         if paid_total and abs(expense_total - paid_total) > 0.01:
             st.warning("Expense total and payment-mode total do not match. Review before saving.")
         save_col, another_col = st.columns(2)
@@ -1300,7 +1301,7 @@ with records_tab:
                 if filter_from <= as_date(row.get("trip_date")) <= filter_to
             ]
             leaderboard_rows = "".join(
-                f"<tr><td>{rank}</td><td>{branch}</td><td>{trip_count}</td><td>₹{revenue:,.2f}</td></tr>"
+                f"<tr><td>{rank}</td><td>{branch}</td><td>{trip_count}</td><td>{format_inr(revenue)}</td></tr>"
                 for rank, (branch, trip_count, revenue) in enumerate(
                     branch_trip_leaderboard(leaderboard_source, BRANCHES), 1
                 )
@@ -1317,7 +1318,7 @@ with records_tab:
             if today.replace(day=1) <= as_date(row.get("trip_date")) <= today
         ]
         empty_leaderboard_rows = "".join(
-            f"<tr><td>{rank}</td><td>{branch}</td><td>{trip_count}</td><td>₹{revenue:,.2f}</td></tr>"
+            f"<tr><td>{rank}</td><td>{branch}</td><td>{trip_count}</td><td>{format_inr(revenue)}</td></tr>"
             for rank, (branch, trip_count, revenue) in enumerate(
                 branch_trip_leaderboard(leaderboard_source, BRANCHES), 1
             )
@@ -1504,7 +1505,7 @@ with records_tab:
                 columns[2].write(canonical_branch(record.get("branch")) or "—")
                 columns[3].write(canonical_vehicle_number(record.get("vehicle_number")) or "—")
                 columns[4].write(canonical_vehicle_placer(raw.get("Veh Placed by")) or "—")
-                columns[5].write(f"₹{number(record.get('revenue')):,.0f}")
+                columns[5].write(format_inr(number(record.get("revenue")), 0))
                 if columns[6].button("View Evidence", key=f"view_record_{record['request_number']}", use_container_width=True):
                     view_record(record)
                 if can_delete_record(current_user, record) and columns[7].button("Delete", icon=":material/delete:", key=f"delete_record_{record['request_number']}", help="Delete record", use_container_width=True):
@@ -1621,7 +1622,7 @@ with reports_tab:
                 "Record": request_label(row),
                 "Date": f"{as_date(row.get('trip_date')):%d/%m/%y}",
                 "Beneficiary": clean_text(row.get("beneficiary_name")) or "—",
-                "Amount": number(row.get("rtgs_advance")),
+                "Amount": format_inr(number(row.get("rtgs_advance"))),
                 "Remarks": rtgs_remark(row),
                 "RTGS Status": "RTGS Done" if row.get("rtgs_done") else "Pending",
                 "_request_number": row.get("request_number"),
@@ -1638,7 +1639,7 @@ with reports_tab:
                 disabled=["Record", "Date", "Beneficiary", "Amount", "Remarks", "RTGS Status"],
                 column_config={
                     "Select": st.column_config.CheckboxColumn("Select", required=True),
-                    "Amount": st.column_config.NumberColumn("Amount", format="₹%.2f"),
+                    "Amount": st.column_config.TextColumn("Amount"),
                 },
             )
             selected_request_numbers = [
@@ -1665,7 +1666,11 @@ with reports_tab:
             records.append(data)
         records = normalize_rtgs_records(records, dt.date.today())
         frame = pd.DataFrame(records, columns=RTGS_REVIEW_COLUMNS)
-        st.dataframe(frame, hide_index=True, width="stretch")
+        rtgs_display = frame.copy()
+        for column in ("AMOUNT", "Transporter Freight"):
+            if column in rtgs_display:
+                rtgs_display[column] = rtgs_display[column].map(format_inr)
+        st.dataframe(rtgs_display, hide_index=True, width="stretch")
         st.download_button(
             "Download selected RTGS report", cached_rtgs_excel(frame, dt.date.today()),
             f"RTGS-{start}-{end}.xls", "application/vnd.ms-excel", type="primary",
@@ -1681,7 +1686,10 @@ with reports_tab:
         else:
             pnl_rows = pnl_reporting.branch_vehicle_pnl_summary(trips, expense_data, pnl_ownership_filter)
         frame = pd.DataFrame(pnl_rows)
-        st.dataframe(frame, hide_index=True, width="stretch")
+        pnl_display = frame.copy()
+        for column in pnl_display.select_dtypes(include="number").columns:
+            pnl_display[column] = pnl_display[column].map(format_inr)
+        st.dataframe(pnl_display, hide_index=True, width="stretch")
         st.download_button("Download P&L report", cached_pnl_excel(trips, expense_data, start, end, pnl_ownership_filter), f"PNL-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=not can_generate_pnl, on_click=audit_action, args=("Downloaded P&L report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
 
 with logs_tab:

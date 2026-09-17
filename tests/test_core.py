@@ -20,6 +20,7 @@ from src.historical_suggester import HistoricalSuggester
 from src.entry_finance import advance_summary, diesel_expense, financial_values
 from src.entry_state import clear_entry_state, clear_expense_state, entry_state_prefix, expense_state_prefix
 from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series, user_invoice_duplicates, valid_bisleri_invoice_number, verified_bisleri_invoice_numbers
+from src.number_format import format_inr, indian_number
 from src.expense_periods import allocate_expenses_for_period, serialize_period
 from src.pending_invoice_matcher import score_invoice_match, suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
@@ -64,6 +65,14 @@ def source(remarks):
 def test_header_detection_with_blank_rows():
     ws = Workbook().active; ws.append([]); ws.append(["report title"]); ws.append(["Remark", "Beneficiary Name"])
     assert detect_header_row(ws, ["Remark", "Beneficiary Name"]) == 3
+
+
+def test_indian_currency_format_uses_lakh_and_crore_grouping():
+    assert format_inr(5607194) == "₹56,07,194.00"
+    assert format_inr(1902308) == "₹19,02,308.00"
+    assert format_inr(123456789.5) == "₹12,34,56,789.50"
+    assert format_inr(-1289.7220708446866) == "₹-1,289.72"
+    assert indian_number(4509, 0) == "4,509"
 
 
 def test_short_vehicle_placer_login_names_are_canonicalized():
@@ -1172,6 +1181,7 @@ def test_both_pnl_splits_insurance_and_vehicle_tax_and_rounds_currency():
     )))
     headers = [cell.value for cell in workbook["P&L"][3]]
     assert "Insurance" in headers and "Vehicle Tax" in headers and "Ins/Tax" not in headers
+    assert workbook["P&L"].cell(row=4, column=2).number_format == "₹#,##,##0.00;[Red]-₹#,##,##0.00"
 
 
 def test_vehicle_number_wise_pnl_groups_normalized_numbers_and_reconciles_total():
