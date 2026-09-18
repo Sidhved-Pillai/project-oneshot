@@ -4,6 +4,7 @@ import hmac
 import json
 import os
 import re
+from numbers import Number
 
 import pandas as pd
 import streamlit as st
@@ -129,6 +130,84 @@ def number(value):
         return float(value or 0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def dtr_cell_value(value):
+    """Normalize editor values so unchanged rows are not written again."""
+    if value is None or (not isinstance(value, str) and pd.isna(value)):
+        return ""
+    if isinstance(value, (dt.date, dt.datetime, pd.Timestamp)):
+        return pd.Timestamp(value).date().isoformat()
+    if isinstance(value, Number) and not isinstance(value, bool):
+        return float(value)
+    return clean_text(value)
+
+
+def changed_dtr_rows(original, edited):
+    changed = []
+    for index in range(min(len(original), len(edited))):
+        if any(
+            dtr_cell_value(original.iloc[index].get(column)) != dtr_cell_value(edited.iloc[index].get(column))
+            for column in original.columns
+        ):
+            changed.append(index)
+    return changed
+
+
+def parse_dtr_date(value):
+    if isinstance(value, (dt.date, dt.datetime, pd.Timestamp)):
+        return pd.Timestamp(value).date()
+    parsed = pd.to_datetime(value, errors="coerce", dayfirst=True)
+    return None if pd.isna(parsed) else parsed.date()
+
+
+def dtr_record_update_values(saved_row, edited_row):
+    """Translate one edited DTR row back into its persisted record fields."""
+    data = dict(edited_row)
+    trip_date = parse_dtr_date(data.get("Date"))
+    branch = canonical_branch(data.get("Branch"))
+    company = canonical_company(data.get("Compnay Name"), KNOWN_COMPANIES)
+    vehicle = canonical_vehicle_number(data.get("Vehicle No."))
+    capacity = canonical_vehicle_capacity(data.get("Vehicle Type"))
+    ownership = canonical_ownership(data.get("Own/Outside Veh."))
+    origin = canonical_location(data.get("From"), KNOWN_LOCATIONS)
+    destination = canonical_location(data.get("To"), KNOWN_LOCATIONS)
+    beneficiary = clean_text(data.get("Benificiary Name"))
+    transporter = canonical_transporter_name(data.get("Transporter Name"), saved_row.get("created_by"))
+    remark = clean_text(data.get("Remark"))
+    total_advance = number(data.get("Total Adv."))
+    dtr = {
+        **unpack(saved_row.get("dtr_data")),
+        **{column: data.get(column, "") for column in DTR_REVIEW_COLUMNS if column != "Sr No."},
+        "Branch": branch, "Compnay Name": company, "Date": trip_date,
+        "Vehicle No.": vehicle, "Vehicle Type": capacity, "Own/Outside Veh.": ownership,
+        "From": origin, "To": destination, "Benificiary Name": beneficiary,
+        "Transporter Name": transporter,
+        "Veh Placed by": canonical_vehicle_placer(data.get("Veh Placed by")),
+    }
+    dtr["_beneficiary_profile_version"] = 2
+    rtgs = {
+        **unpack(saved_row.get("rtgs_data")),
+        "BNF_NAME": beneficiary, "AMOUNT": number(data.get("RTGS ADVANCE")),
+        "REMARK": remark, "Origin Area": branch,
+    }
+    return {
+        "trip_date": trip_date, "branch": branch, "company_name": company,
+        "vehicle_number": vehicle, "vehicle_type": capacity, "ownership_type": ownership,
+        "from_location": origin, "to_location": destination,
+        "invoice_number": clean_text(data.get("Invoice No.")),
+        "beneficiary_name": beneficiary, "transporter_name": transporter,
+        "revenue": number(data.get("Revenue")),
+        "transporter_freight": number(data.get("Transporter Freight")),
+        "rtgs_advance": number(data.get("RTGS ADVANCE")),
+        "cash_advance": number(data.get("Cash Adv.")), "upi": number(data.get("UPI")),
+        "diesel_quantity": number(data.get("Diesel Qty")) or None,
+        "diesel_advance": number(data.get("Diesel Adv.")),
+        "total_advance": total_advance, "amount": total_advance,
+        "balance_amount": number(data.get("Balance Amt.")),
+        "payment": number(data.get("Payment")), "notes": remark,
+        "dtr_data": dtr, "rtgs_data": rtgs,
+    }
 
 
 def canonicalize_placer_state(key):
@@ -1660,7 +1739,8 @@ with reports_tab:
     st.caption(f"{len(trips)} trip record(s) and {len(expenses)} direct expense record(s) selected.")
     if report_type == "DTR":
         records = []
-        for i, row in enumerate(reversed(trips), 1):
+        ordered_trips = list(reversed(trips))
+        for i, row in enumerate(ordered_trips, 1):
             data = unpack(row.get("dtr_data"))
             data["Compnay Name"] = canonical_company(data.get("Compnay Name") or row.get("company_name"), KNOWN_COMPANIES)
             data["Vehicle No."] = canonical_vehicle_number(data.get("Vehicle No.") or row.get("vehicle_number"))
@@ -1681,14 +1761,46 @@ with reports_tab:
             records.append({column: data.get(column, "") for column in DTR_REVIEW_COLUMNS} | {"Sr No.": i})
         frame = pd.DataFrame(records, columns=DTR_REVIEW_COLUMNS)
         display_frame = frame.rename(columns={"Compnay Name": "Company Name"})
+        editor_key = f"dtr_live_editor_{start.isoformat()}_{end.isoformat()}"
         edited_display_frame = st.data_editor(
             display_frame,
             hide_index=True,
             width="stretch",
             num_rows="fixed",
-            key=f"dtr_live_editor_{start.isoformat()}_{end.isoformat()}",
+            key=editor_key,
         )
         edited_frame = edited_dtr_frame(edited_display_frame)
+        changed_indices = changed_dtr_rows(frame, edited_frame)
+        invalid_date_rows = [
+            index + 1 for index in changed_indices
+            if parse_dtr_date(edited_frame.iloc[index].get("Date")) is None
+        ]
+        if current_user == "Ashok":
+            if st.session_state.pop("ashok_dtr_saved_notice", None):
+                st.success("DTR changes were saved to Records.", icon="✅")
+            if invalid_date_rows:
+                st.error(
+                    "Enter a valid date before saving row(s): "
+                    + ", ".join(str(row_number) for row_number in invalid_date_rows)
+                )
+            if st.button(
+                "Save DTR changes to Records", type="primary", key="save_ashok_dtr_changes",
+                disabled=not changed_indices or bool(invalid_date_rows),
+            ):
+                saved_count = 0
+                for index in changed_indices:
+                    saved_row = ordered_trips[index]
+                    if clean_text(saved_row.get("created_by")) != "Ashok":
+                        continue
+                    store.update(
+                        saved_row["request_number"],
+                        dtr_record_update_values(saved_row, edited_frame.iloc[index].to_dict()),
+                        "dtr_report_editor", current_user,
+                    )
+                    saved_count += 1
+                st.session_state.pop(editor_key, None)
+                st.session_state["ashok_dtr_saved_notice"] = saved_count
+                st.rerun()
         st.download_button("Download DTR report", cached_dtr_excel(edited_frame), f"DTR-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=edited_frame.empty or not can_generate_reports, on_click=audit_action, args=("Downloaded DTR report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
     elif report_type == "RTGS":
         rtgs_candidates = list(reversed([item for item in trips if number(item.get("rtgs_advance")) > 0]))
