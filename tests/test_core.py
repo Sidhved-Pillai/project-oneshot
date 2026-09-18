@@ -6,7 +6,7 @@ import pandas as pd
 from openpyxl import Workbook, load_workbook
 import pytest
 from sqlalchemy import event
-from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record, can_view_trip_leaderboard
+from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record, can_view_trip_leaderboard, scope_report_rows
 from src.excel_reader import detect_header_row
 from src.column_mapping import resolve_columns, DTR_ALIASES, CONSOLIDATED_ALIASES
 from src.remark_classifier import classify_remark
@@ -118,6 +118,15 @@ def test_trip_leaderboard_is_hidden_for_ashok_and_ajit_only():
     assert not can_view_trip_leaderboard("Ajit")
     assert can_view_trip_leaderboard("Vijay")
     assert can_view_trip_leaderboard("Sid")
+
+
+def test_ashok_reports_are_scoped_to_his_own_records():
+    rows = [
+        {"request_number": "A-1", "created_by": "Ashok"},
+        {"request_number": "N-1", "created_by": "Nitish"},
+    ]
+    assert scope_report_rows("Ashok", rows) == [rows[0]]
+    assert scope_report_rows("Shyam", rows) == rows
 
 
 def test_records_can_be_filtered_by_type_and_sorted_by_date():
@@ -1253,6 +1262,22 @@ def test_business_memory_ignores_ashok_transporter_placeholder():
     }])
     assert recall(memory, "transporters", "A") == {}
     assert "transporter_name" not in recall(memory, "vehicles", "GJ06AB1234")
+
+
+def test_new_ashok_profile_records_learn_transporter_beneficiary_details():
+    memory = build_business_memory([{
+        "status": "Verified", "report_scope": "Both", "created_by": "Ashok",
+        "vehicle_number": "GJ06AB1234", "transporter_name": "ABC Transport",
+        "beneficiary_name": "Correct Beneficiary",
+        "rtgs_data": '{"BENE_ACC_NO":"5678","BENE_IFSC":"NEW0001"}',
+        "dtr_data": '{"_beneficiary_profile_version":2}',
+    }])
+    assert recall(memory, "transporters", "ABC Transport") == {
+        "transporter_name": ("ABC Transport", 1),
+        "beneficiary_name": ("Correct Beneficiary", 1),
+        "account_number": ("5678", 1),
+        "ifsc": ("NEW0001", 1),
+    }
 
 
 def test_operational_dtr_export_uses_full_reference_shape():

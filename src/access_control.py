@@ -1,10 +1,21 @@
 PRIVATE_RECORD_USERS = {"Manish", "Vijay"}
 SELF_DELETE_USERS = {"Ashok", "Manish", "Nitish", "Vijay"}
 HIDDEN_LEADERBOARD_USERS = {"Ashok", "Ajit"}
+OWN_REPORT_USERS = {"Ashok"}
 
 
 def can_view_trip_leaderboard(user_name):
     return str(user_name or "").strip() not in HIDDEN_LEADERBOARD_USERS
+
+
+def scope_report_rows(user_name, records):
+    """Limit self-service reporting accounts to records they created."""
+    if str(user_name or "").strip() not in OWN_REPORT_USERS:
+        return list(records or [])
+    return [
+        record for record in records or []
+        if str(record.get("created_by") or "").strip() == str(user_name or "").strip()
+    ]
 
 
 def can_delete_record(user_name, record):

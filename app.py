@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
-from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record, can_view_trip_leaderboard
+from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record, can_view_trip_leaderboard, scope_report_rows
 from src.ai_intake import extract_intake, merge_same_trip_intake_rows, should_autofill_field
 from src.business_memory import build_business_memory, recall
 from src.config import ROOT
@@ -50,7 +50,7 @@ MEMBER_CODE_HASHES = {
     "Ajit": "a25be184e5abecae4f87eef475fbecf9b2b51c9dc3e11a9022a0196798b1e88f",
     "Nikhat": "e94e52a5680d444dafa229a26b9f7abb3f8672074febc3926c8449b11884d0f3",
     "Nitish": "ea565453a2706b0e72df78364c854e9aaaf62848ef6b292efe341dea3b207177",
-    "Ashok": "0ac64d08afcfeebdaa68faf51eeae036b5bf4547dd9f9466ec3a10975c18354c",
+    "Ashok": "2b73de44e822163f12e6c1fb0f9980a53e029cebae95329532aa38cf7d820970",
     "Gopal": "8422d601483b1cda8d20f11b17b482c756fb005912c2ac6f83baca98d6554e5c",
     "Shyam": "37d9997a10e64c52c8dfa34f66ffb078531f04cd9af2f6f455d45a3125068dba",
     "Nikhil": "40ed3b8fb38df58e9bef001c1bab0d0c9b08a4b13a84a9e7a9b4d549bb2c5e90",
@@ -219,10 +219,10 @@ def require_authentication():
     <div class="login-heading"><h1>Project Oneshot</h1><p>Enter the member access code to continue.</p></div>
     """, unsafe_allow_html=True)
     with st.form("special_member_login"):
-        access_code = st.text_input("6-digit access code", type="password", max_chars=6, key="special_access_code")
+        access_code = st.text_input("5 or 6-digit access code", type="password", max_chars=6, key="special_access_code")
         submitted = st.form_submit_button("Continue", use_container_width=True)
     if submitted:
-        member = identify_member(access_code) if len(access_code) == 6 and access_code.isdigit() else None
+        member = identify_member(access_code) if len(access_code) in {5, 6} and access_code.isdigit() else None
         if member:
             st.session_state["authenticated"] = True
             st.session_state["authenticated_user"] = member
@@ -489,6 +489,8 @@ def trip_payload(v, files, invoice_filename=None):
         "Diesel Pump Name": v["diesel_pump_name"], "Card Name": v["card_name"],
         "Transporter Name": transporter_name, "Veh Placed by": canonical_vehicle_placer(v["vehicle_placed_by"]), "Remark": remarks,
     }
+    if current_user == "Ashok":
+        dtr["_beneficiary_profile_version"] = 2
     rtgs = {"BNF_NAME": v["beneficiary_name"], "BENE_ACC_NO": v["beneficiary_account_number"], "BENE_IFSC": v["beneficiary_ifsc_code"], "AMOUNT": v["rtgs_advance"], "REMARK": remarks, "Origin Area": v["branch"]}
     return {
         "report_scope": "Both", "trip_date": v["date"], "vehicle_number": vehicle_number, "vehicle_type": capacity,
@@ -701,9 +703,10 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
             )
         else:
             transporter_key = f"{prefix}_transporter_name"
+            option_memory = historical_business_memory if current_user == "Ashok" else memory
             transporter_options = sorted({
                 canonical_transporter_name(profile.get("transporter_name", ("", 0))[0], current_user)
-                for profile in memory.get("transporters", {}).values()
+                for profile in option_memory.get("transporters", {}).values()
             } - {""}, key=str.casefold)
             current_transporter = canonical_transporter_name(
                 st.session_state.get(transporter_key), current_user,
@@ -856,16 +859,29 @@ except Exception as exc:
     st.stop()
 
 normalization_rows = store.list(status="All active")
-business_memory = cached_business_memory(normalization_rows)
+current_user = st.session_state.get("authenticated_user", "Unknown member")
+historical_business_memory = cached_business_memory(normalization_rows)
+business_memory = historical_business_memory
+if current_user == "Ashok":
+    new_ashok_profile_rows = [
+        row for row in normalization_rows
+        if clean_text(row.get("created_by")) == "Ashok"
+        and unpack(row.get("dtr_data")).get("_beneficiary_profile_version") == 2
+    ]
+    new_ashok_memory = cached_business_memory(new_ashok_profile_rows)
+    business_memory = {
+        **historical_business_memory,
+        "beneficiaries": new_ashok_memory["beneficiaries"],
+        "transporters": new_ashok_memory["transporters"],
+    }
 KNOWN_COMPANIES = sorted({clean_text(row.get("company_name")) for row in normalization_rows} - {""}, key=str.casefold)
 KNOWN_LOCATIONS = sorted({
     clean_text(row.get(field))
     for row in normalization_rows for field in ("from_location", "to_location")
 } - {""}, key=str.casefold)
-current_user = st.session_state.get("authenticated_user", "Unknown member")
 is_special_member = current_user in SPECIAL_MEMBERS
 can_use_direct_expenses = is_special_member or current_user in {"Manish", "Vijay"}
-can_generate_reports = is_special_member
+can_generate_reports = is_special_member or current_user == "Ashok"
 can_generate_pnl = current_user in PNL_MEMBERS
 record_branch_scope = LIMITED_RECORD_BRANCH.get(current_user)
 allowed_entry_branches = [record_branch_scope] if record_branch_scope else BRANCHES
@@ -1086,6 +1102,8 @@ def view_record(row):
                 "Diesel Qty": number(item.get("Diesel Qty")), "Diesel Rate": number(item.get("Diesel Rate")),
                 "Veh Placed by": canonical_vehicle_placer(item["Vehicle Placed By"]), "Remark": normalized_remark,
             }
+            if current_user == "Ashok" and clean_text(row.get("created_by")) == "Ashok":
+                updated_dtr["_beneficiary_profile_version"] = 2
             updated_rtgs = {
                 **rtgs_raw, "BNF_NAME": item["Beneficiary"], "BENE_ACC_NO": item["Account Number"],
                 "BENE_IFSC": item["IFSC"], "AMOUNT": item["RTGS"], "REMARK": normalized_remark,
@@ -1590,7 +1608,9 @@ with reports_tab:
     today = dt.date.today()
     start = c1.date_input("Records from", value=today.replace(day=1), format="DD/MM/YYYY", key="report_from_v2")
     end = c2.date_input("Records to", value=today, format="DD/MM/YYYY", key="report_to_v2")
-    report_options = ["DTR", "RTGS", *(["P&L"] if can_generate_pnl else [])]
+    report_options = ["DTR"] if current_user == "Ashok" else ["DTR", "RTGS", *(["P&L"] if can_generate_pnl else [])]
+    if st.session_state.get("report_type") not in (None, *report_options):
+        st.session_state["report_type"] = "DTR"
     report_type = st.segmented_control("Report type", report_options, default="DTR", key="report_type")
     pnl_ownership_filter = "Both"
     pnl_vehicle_filter = "All"
@@ -1598,7 +1618,7 @@ with reports_tab:
         pnl_ownership_filter = st.segmented_control(
             "Own or outside vehicle", ["Both", "Own", "Outside", "Vehicle No. Wise"], default="Both", key="pnl_ownership_filter",
         )
-    report_rows = list(normalization_rows) if can_generate_reports and start <= end else []
+    report_rows = scope_report_rows(current_user, normalization_rows) if can_generate_reports and start <= end else []
     selected_rows = [
         row for row in report_rows if start <= as_date(row.get("trip_date")) <= end
     ]
