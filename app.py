@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
-from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record, can_view_trip_leaderboard, scope_report_rows
+from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record, can_view_trip_leaderboard
 from src.ai_intake import extract_intake, merge_same_trip_intake_rows, should_autofill_field
 from src.business_memory import build_business_memory, recall
 from src.config import ROOT
@@ -115,6 +115,13 @@ def cached_pnl_excel(trips, expenses, start, end, ownership_filter):
 
 def clean_text(value):
     return "" if value is None or (not isinstance(value, str) and pd.isna(value)) else str(value).strip()
+
+
+def scope_report_rows(user_name, records):
+    """Keep Ashok's self-service reports limited to records he created."""
+    if clean_text(user_name) != "Ashok":
+        return list(records or [])
+    return [row for row in records or [] if clean_text(row.get("created_by")) == "Ashok"]
 
 
 def number(value):
