@@ -1659,7 +1659,7 @@ with records_tab:
         page_start = (record_page - 1) * records_per_page
         visible_rows = rows[page_start:page_start + records_per_page]
         with st.container(height=420, border=True):
-            has_delete_column = current_user == "Sid" or current_user in SELF_DELETE_USERS
+            has_delete_column = current_user in {"Sid", "Ajit"} or current_user in SELF_DELETE_USERS
             record_widths = [1.35, .8, .9, 1.1, 1.15, 1, .85, .65] if has_delete_column else [1.35, .8, .9, 1.1, 1.15, 1, .85]
             record_titles = ("Record", "Date", "Branch", "Vehicle", "Placed by", "Revenue", "", "") if has_delete_column else ("Record", "Date", "Branch", "Vehicle", "Placed by", "Revenue", "")
             header = st.columns(record_widths)
@@ -1676,7 +1676,8 @@ with records_tab:
                 columns[5].write(format_inr(number(record.get("revenue")), 0))
                 if columns[6].button("View Evidence", key=f"view_record_{record['request_number']}", use_container_width=True):
                     view_record(record)
-                if can_delete_record(current_user, record) and columns[7].button("Delete", icon=":material/delete:", key=f"delete_record_{record['request_number']}", help="Delete record", use_container_width=True):
+                can_delete_visible_record = current_user == "Ajit" or can_delete_record(current_user, record)
+                if can_delete_visible_record and columns[7].button("Delete", icon=":material/delete:", key=f"delete_record_{record['request_number']}", help="Delete record", use_container_width=True):
                     request_number = record["request_number"]
                     if store.delete_request(request_number):
                         audit_action("Deleted record", request_number, request_label(record))
