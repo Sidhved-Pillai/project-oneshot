@@ -93,13 +93,16 @@ def test_record_delete_permissions_are_owner_scoped_for_manish():
     assert not can_delete_record("Manish", ajit_record)
     assert not can_delete_record("Nitish", manish_record)
     nitish_record = {"created_by": "Nitish"}
-    assert SELF_DELETE_USERS == {"Ashok", "Manish", "Nitish", "Vijay"}
+    assert SELF_DELETE_USERS == {"Ashok", "Manish", "Nikhat", "Nitish", "Vijay"}
     assert can_delete_record("Nitish", nitish_record)
     assert not can_delete_record("Nitish", ajit_record)
     assert can_view_record("Nitish", ajit_record)
     ashok_record = {"created_by": "Ashok"}
     assert can_delete_record("Ashok", ashok_record)
     assert not can_delete_record("Ashok", nitish_record)
+    nikhat_record = {"created_by": "Nikhat"}
+    assert can_delete_record("Nikhat", nikhat_record)
+    assert not can_delete_record("Nikhat", nitish_record)
     assert can_view_record("Ashok", nitish_record)
     assert can_view_record("Manish", manish_record)
     assert not can_view_record("Manish", ajit_record)

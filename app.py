@@ -1376,9 +1376,23 @@ with expense_tab:
         c2.metric("Payment modes total", format_inr(paid_total))
         if paid_total and abs(expense_total - paid_total) > 0.01:
             st.warning("Expense total and payment-mode total do not match. Review before saving.")
-        save_col, another_col = st.columns(2)
-        save_expense = save_col.button("Save direct expense", type="primary", key=f"{expense_prefix}_save", disabled=not can_use_direct_expenses or not v["branch"] or invalid_period)
-        save_another_expense = another_col.button("Save & Add Another", key=f"{expense_prefix}_save_another", disabled=not can_use_direct_expenses or not v["branch"] or invalid_period)
+        save_disabled = not can_use_direct_expenses or not v["branch"] or invalid_period
+        if current_user == "Nikhat":
+            save_expense = False
+            save_another_expense = st.button(
+                "Save & Add Another", type="primary", key=f"{expense_prefix}_save_another",
+                disabled=save_disabled,
+            )
+        else:
+            save_col, another_col = st.columns(2)
+            save_expense = save_col.button(
+                "Save direct expense", type="primary", key=f"{expense_prefix}_save",
+                disabled=save_disabled,
+            )
+            save_another_expense = another_col.button(
+                "Save & Add Another", key=f"{expense_prefix}_save_another",
+                disabled=save_disabled,
+            )
         if save_expense or save_another_expense:
             saved = store.create({
                 **expense_payload(v, expense_files), "created_by": current_user,
