@@ -185,7 +185,8 @@ def dtr_record_update_values(saved_row, edited_row):
         "Transporter Name": transporter,
         "Veh Placed by": canonical_vehicle_placer(data.get("Veh Placed by")),
     }
-    dtr["_beneficiary_profile_version"] = 2
+    if clean_text(saved_row.get("created_by")) == "Ashok":
+        dtr["_beneficiary_profile_version"] = 2
     rtgs = {
         **unpack(saved_row.get("rtgs_data")),
         "BNF_NAME": beneficiary, "AMOUNT": number(data.get("RTGS ADVANCE")),
@@ -207,6 +208,50 @@ def dtr_record_update_values(saved_row, edited_row):
         "balance_amount": number(data.get("Balance Amt.")),
         "payment": number(data.get("Payment")), "notes": remark,
         "dtr_data": dtr, "rtgs_data": rtgs,
+    }
+
+
+def record_dtr_row(row, serial_number):
+    """Build one editable DTR-shaped row while retaining its stable record ID."""
+    data = unpack(row.get("dtr_data"))
+    data.update({
+        "Branch": canonical_branch(data.get("Branch") or row.get("branch")),
+        "Compnay Name": canonical_company(data.get("Compnay Name") or row.get("company_name"), KNOWN_COMPANIES),
+        "Date": parse_dtr_date(data.get("Date") or row.get("trip_date")),
+        "Vehicle No.": canonical_vehicle_number(data.get("Vehicle No.") or row.get("vehicle_number")),
+        "Vehicle Type": canonical_vehicle_capacity(data.get("Vehicle Type") or row.get("vehicle_type")),
+        "Own/Outside Veh.": canonical_ownership(data.get("Own/Outside Veh.") or row.get("ownership_type")),
+        "From": canonical_location(data.get("From") or row.get("from_location"), KNOWN_LOCATIONS),
+        "To": canonical_location(data.get("To") or row.get("to_location"), KNOWN_LOCATIONS),
+        "Invoice No.": data.get("Invoice No.") or row.get("invoice_number"),
+        "Benificiary Name": data.get("Benificiary Name") or row.get("beneficiary_name"),
+        "Transporter Name": canonical_transporter_name(
+            data.get("Transporter Name") or row.get("transporter_name"), row.get("created_by"),
+        ),
+        "Veh Placed by": canonical_vehicle_placer(data.get("Veh Placed by")),
+        "Revenue": data.get("Revenue", row.get("revenue", 0)),
+        "Transporter Freight": data.get("Transporter Freight", row.get("transporter_freight", 0)),
+        "RTGS ADVANCE": data.get("RTGS ADVANCE", row.get("rtgs_advance", 0)),
+        "Cash Adv.": data.get("Cash Adv.", row.get("cash_advance", 0)),
+        "UPI": data.get("UPI", row.get("upi", 0)),
+        "Diesel Qty": data.get("Diesel Qty", row.get("diesel_quantity", 0)),
+        "Diesel Adv.": data.get("Diesel Adv.", row.get("diesel_advance", 0)),
+        "Total Adv.": data.get("Total Adv.", row.get("total_advance", 0)),
+        "Balance Amt.": data.get("Balance Amt.", row.get("balance_amount", 0)),
+        "Payment": data.get("Payment", row.get("payment", 0)),
+        "Remark": data.get("Remark") or row.get("notes"),
+    })
+    return {
+        "Record": clean_text(row.get("request_number")),
+        **({column: data.get(column, "") for column in DTR_REVIEW_COLUMNS} | {"Sr No.": serial_number}),
+    }
+
+
+def identifier_tokens(value):
+    return {
+        re.sub(r"[^a-z0-9]", "", part.casefold())
+        for part in re.split(r"\s*/\s*", clean_text(value))
+        if re.sub(r"[^a-z0-9]", "", part.casefold())
     }
 
 
@@ -1424,10 +1469,13 @@ with records_tab:
         rows = [row for row in rows if can_view_record(current_user, row)]
         st.caption(f"Your account can access records created by {current_user} only.")
     scoped_rows = list(rows)
+    record_type = TRIP_RECORDS
+    today = dt.date.today()
+    filter_from = today.replace(day=1)
+    filter_to = today
     if rows:
         st.markdown("#### Filter records")
         c1, c2, c3 = st.columns(3)
-        today = dt.date.today()
         month_start = today.replace(day=1)
         filter_from = c1.date_input("Records from", value=month_start, format="DD/MM/YYYY", key="records_filter_from_v2")
         filter_to = c2.date_input("Records to", value=today, format="DD/MM/YYYY", key="records_filter_to_v2")
@@ -1630,6 +1678,133 @@ with records_tab:
     trip_record_count = sum(row.get("report_scope") != "Expense" for row in rows)
     expense_record_count = sum(row.get("report_scope") == "Expense" for row in rows)
     st.caption(f"{trip_record_count} trip record(s) and {expense_record_count} direct expense record(s) listed.")
+    if current_user == "Vijay" and record_type == TRIP_RECORDS:
+        st.markdown("##### Live Excel entry")
+        st.caption("Edit existing trips or add as many rows as needed, then save them to Records.")
+        grid_rows = sort_records_by_date(rows, "Oldest first" if sort_arrow == "↑" else "Newest first")
+        grid_columns = ["Record", *DTR_REVIEW_COLUMNS]
+        grid_frame = pd.DataFrame(
+            [record_dtr_row(row, index) for index, row in enumerate(grid_rows, 1)],
+            columns=grid_columns,
+        ).rename(columns={"Compnay Name": "Company Name"})
+        grid_generation = st.session_state.setdefault("vijay_records_grid_generation", 0)
+        grid_key = f"vijay_records_grid_{grid_generation}_{filter_from}_{filter_to}"
+        edited_grid = st.data_editor(
+            grid_frame,
+            hide_index=True,
+            width="stretch",
+            height=480,
+            num_rows="dynamic",
+            disabled=["Record", "Sr No."],
+            column_config={
+                "Date": st.column_config.DateColumn("Date", format="DD/MM/YYYY", required=True),
+                "Branch": st.column_config.TextColumn("Branch", default="Andheri"),
+                "Company Name": st.column_config.TextColumn(
+                    "Company Name", default="Bisleri International Private Limited",
+                ),
+                "Own/Outside Veh.": st.column_config.SelectboxColumn(
+                    "Own/Outside Veh.", options=["", "Own", "Outside"],
+                ),
+                "Transporter Name": st.column_config.SelectboxColumn(
+                    "Transporter Name", options=["", *VIJAY_TRANSPORTER_PROFILES],
+                ),
+            },
+            key=grid_key,
+        ).rename(columns={"Company Name": "Compnay Name"})
+        saved_grid_by_request = {clean_text(row.get("request_number")): row for row in grid_rows}
+        original_grid_by_request = {
+            clean_text(item.get("Record")): item
+            for item in grid_frame.rename(columns={"Company Name": "Compnay Name"}).to_dict("records")
+        }
+        pending_grid_rows = []
+        changed_grid_rows = []
+        validation_errors = []
+        submitted_invoice_tokens = {}
+        submitted_lr_tokens = {}
+        for position, item in enumerate(edited_grid.to_dict("records"), 1):
+            request_number = clean_text(item.get("Record"))
+            editable_values = [item.get(column) for column in DTR_REVIEW_COLUMNS if column not in {"Sr No.", "Review Notes"}]
+            is_blank_new_row = not request_number and not any(dtr_cell_value(value) not in {"", 0.0} for value in editable_values)
+            if is_blank_new_row:
+                continue
+            if request_number:
+                original = original_grid_by_request.get(request_number)
+                is_changed = bool(original) and any(
+                    dtr_cell_value(original.get(column)) != dtr_cell_value(item.get(column))
+                    for column in DTR_REVIEW_COLUMNS
+                )
+                if not is_changed:
+                    continue
+                changed_grid_rows.append((request_number, item))
+            else:
+                pending_grid_rows.append(item)
+            if not clean_text(item.get("Branch")):
+                item["Branch"] = "Andheri"
+            if not clean_text(item.get("Compnay Name")):
+                item["Compnay Name"] = "Bisleri International Private Limited"
+            if parse_dtr_date(item.get("Date")) is None:
+                validation_errors.append(f"Row {position}: enter a valid date")
+            if not canonical_vehicle_number(item.get("Vehicle No.")):
+                validation_errors.append(f"Row {position}: vehicle number is required")
+            if canonical_branch(item.get("Branch")).casefold() != "andheri":
+                validation_errors.append(f"Row {position}: Vijay's branch must be Andheri")
+            invoice_parts = identifier_tokens(item.get("Invoice No."))
+            lr_parts = identifier_tokens(item.get("LR No."))
+            for token in invoice_parts:
+                if token in submitted_invoice_tokens:
+                    validation_errors.append(f"Row {position}: invoice number duplicates row {submitted_invoice_tokens[token]}")
+                submitted_invoice_tokens[token] = position
+            for token in lr_parts:
+                if token in submitted_lr_tokens:
+                    validation_errors.append(f"Row {position}: LR number duplicates row {submitted_lr_tokens[token]}")
+                submitted_lr_tokens[token] = position
+            other_records = [
+                row for row in scoped_rows
+                if clean_text(row.get("request_number")) != request_number
+            ]
+            if user_invoice_duplicates(other_records, "Vijay", item.get("Invoice No.")):
+                validation_errors.append(f"Row {position}: invoice number already exists")
+            if user_lr_duplicates(other_records, "Vijay", item.get("LR No.")):
+                validation_errors.append(f"Row {position}: LR number already exists")
+        if validation_errors:
+            st.error("Please fix these spreadsheet rows before saving:\n\n" + "\n\n".join(dict.fromkeys(validation_errors)))
+        if st.session_state.pop("vijay_grid_saved_notice", None):
+            st.success("Spreadsheet changes were saved to Records.", icon="✅")
+        if st.button(
+            "Save Changes", type="primary", key=f"save_{grid_key}",
+            disabled=not (pending_grid_rows or changed_grid_rows) or bool(validation_errors),
+        ):
+            updated_count = 0
+            created_count = 0
+            for request_number, item in changed_grid_rows:
+                saved_row = saved_grid_by_request.get(request_number)
+                if not saved_row or clean_text(saved_row.get("created_by")) != "Vijay":
+                    continue
+                store.update(
+                    request_number, dtr_record_update_values(saved_row, item),
+                    "records_excel_editor", current_user,
+                )
+                updated_count += 1
+            for item in pending_grid_rows:
+                draft_owner = {"created_by": "Vijay", "dtr_data": {}, "rtgs_data": {}}
+                values = dtr_record_update_values(draft_owner, item)
+                profile = vijay_transporter_profile(values.get("transporter_name"))
+                if profile:
+                    values["beneficiary_name"] = values.get("beneficiary_name") or profile["beneficiary_name"]
+                    values["rtgs_data"].update({
+                        "BNF_NAME": values["beneficiary_name"],
+                        "BENE_ACC_NO": profile["beneficiary_account_number"],
+                        "BENE_IFSC": profile["beneficiary_ifsc_code"],
+                    })
+                    values["dtr_data"]["Benificiary Name"] = values["beneficiary_name"]
+                store.create({
+                    **values, "report_scope": "Both", "status": "Verified", "created_by": "Vijay",
+                })
+                created_count += 1
+            st.session_state.pop(grid_key, None)
+            st.session_state["vijay_records_grid_generation"] = grid_generation + 1
+            st.session_state["vijay_grid_saved_notice"] = (updated_count, created_count)
+            st.rerun()
     if not rows:
         st.info("No records match the selected filters.")
     else:
