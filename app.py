@@ -1,9 +1,11 @@
 import datetime as dt
+import base64
 import hashlib
 import hmac
 import json
 import os
 import re
+import time
 from numbers import Number
 
 import pandas as pd
@@ -211,48 +213,60 @@ def dtr_record_update_values(saved_row, edited_row):
     }
 
 
-def record_dtr_row(row, serial_number):
-    """Build one editable DTR-shaped row while retaining its stable record ID."""
-    data = unpack(row.get("dtr_data"))
-    data.update({
-        "Branch": canonical_branch(data.get("Branch") or row.get("branch")),
-        "Compnay Name": canonical_company(data.get("Compnay Name") or row.get("company_name"), KNOWN_COMPANIES),
-        "Date": parse_dtr_date(data.get("Date") or row.get("trip_date")),
-        "Vehicle No.": canonical_vehicle_number(data.get("Vehicle No.") or row.get("vehicle_number")),
-        "Vehicle Type": canonical_vehicle_capacity(data.get("Vehicle Type") or row.get("vehicle_type")),
-        "Own/Outside Veh.": canonical_ownership(data.get("Own/Outside Veh.") or row.get("ownership_type")),
-        "From": canonical_location(data.get("From") or row.get("from_location"), KNOWN_LOCATIONS),
-        "To": canonical_location(data.get("To") or row.get("to_location"), KNOWN_LOCATIONS),
-        "Invoice No.": data.get("Invoice No.") or row.get("invoice_number"),
-        "Benificiary Name": data.get("Benificiary Name") or row.get("beneficiary_name"),
-        "Transporter Name": canonical_transporter_name(
-            data.get("Transporter Name") or row.get("transporter_name"), row.get("created_by"),
-        ),
-        "Veh Placed by": canonical_vehicle_placer(data.get("Veh Placed by")),
-        "Revenue": data.get("Revenue", row.get("revenue", 0)),
-        "Transporter Freight": data.get("Transporter Freight", row.get("transporter_freight", 0)),
-        "RTGS ADVANCE": data.get("RTGS ADVANCE", row.get("rtgs_advance", 0)),
-        "Cash Adv.": data.get("Cash Adv.", row.get("cash_advance", 0)),
-        "UPI": data.get("UPI", row.get("upi", 0)),
-        "Diesel Qty": data.get("Diesel Qty", row.get("diesel_quantity", 0)),
-        "Diesel Adv.": data.get("Diesel Adv.", row.get("diesel_advance", 0)),
-        "Total Adv.": data.get("Total Adv.", row.get("total_advance", 0)),
-        "Balance Amt.": data.get("Balance Amt.", row.get("balance_amount", 0)),
-        "Payment": data.get("Payment", row.get("payment", 0)),
-        "Remark": data.get("Remark") or row.get("notes"),
-    })
+def spreadsheet_value(row, *names):
+    """Read either the Records export headings or the older DTR headings."""
+    normalized = {re.sub(r"\s+", " ", clean_text(key)).casefold(): value for key, value in row.items()}
+    for name in names:
+        value = normalized.get(re.sub(r"\s+", " ", name).casefold())
+        if clean_text(value):
+            return value
+    return ""
+
+
+def vijay_import_dtr_row(row):
+    """Translate one downloaded-Records/DTR spreadsheet row to the DTR model."""
     return {
-        "Record": clean_text(row.get("request_number")),
-        **({column: data.get(column, "") for column in DTR_REVIEW_COLUMNS} | {"Sr No.": serial_number}),
+        "Branch": spreadsheet_value(row, "Branch") or "Andheri",
+        "Compnay Name": spreadsheet_value(row, "Company Name", "Compnay Name") or "Bisleri International Private Limited",
+        "Date": spreadsheet_value(row, "Date"),
+        "Vehicle No.": spreadsheet_value(row, "Vehicle Number", "Vehicle No."),
+        "Vehicle Type": spreadsheet_value(row, "Vehicle Capacity", "Vehicle Type"),
+        "Own/Outside Veh.": spreadsheet_value(row, "Own / Outside", "Own/Outside Veh.", "Own/Outside Vehicle"),
+        "From": spreadsheet_value(row, "From"),
+        "To": spreadsheet_value(row, "To"),
+        "LR No.": spreadsheet_value(row, "LR Number", "LR No."),
+        "Invoice No.": spreadsheet_value(row, "Invoice Number", "Invoice No."),
+        "Customer Name": spreadsheet_value(row, "Customer Name"),
+        "Revenue": spreadsheet_value(row, "Revenue Freight", "Revenue"),
+        "Transporter Freight": spreadsheet_value(row, "Transporter Freight"),
+        "RTGS ADVANCE": spreadsheet_value(row, "RTGS", "RTGS ADVANCE"),
+        "Cash Adv.": spreadsheet_value(row, "Cash", "Cash Adv."),
+        "UPI": spreadsheet_value(row, "UPI"),
+        "Diesel Qty": spreadsheet_value(row, "Diesel Qty"),
+        "Diesel Adv.": spreadsheet_value(row, "Diesel", "Diesel Adv."),
+        "Billtee": spreadsheet_value(row, "Billtee"),
+        "Total Adv.": spreadsheet_value(row, "Total Advance", "Total Adv."),
+        "Balance Amt.": spreadsheet_value(row, "Balance Amount", "Balance Amt."),
+        "Payment": spreadsheet_value(row, "Payment"),
+        "Toll Expense": spreadsheet_value(row, "Toll Expense"),
+        "Repairs & Maintenance": spreadsheet_value(row, "Repairs & Maintenance"),
+        "Repair Reason": spreadsheet_value(row, "Repair Reason"),
+        "Diesel Pump Name": spreadsheet_value(row, "Diesel Pump Name"),
+        "Benificiary Name": spreadsheet_value(row, "Beneficiary Name", "Benificiary Name"),
+        "Transporter Name": spreadsheet_value(row, "Transporter Name"),
+        "Veh Placed by": spreadsheet_value(row, "Vehicle Placed By", "Veh Placed by") or "Vijay",
+        "LR Status": spreadsheet_value(row, "LR Status"),
+        "Received Date": spreadsheet_value(row, "Received Date"),
+        "SG & Bisleri Damages": spreadsheet_value(row, "SG & Bisleri Damages"),
+        "Remark": spreadsheet_value(row, "Remarks", "Remark"),
+        "Debit Amt.": spreadsheet_value(row, "Debit Amt."),
+        "Review Notes": spreadsheet_value(row, "Review Notes"),
     }
 
 
-def identifier_tokens(value):
-    return {
-        re.sub(r"[^a-z0-9]", "", part.casefold())
-        for part in re.split(r"\s*/\s*", clean_text(value))
-        if re.sub(r"[^a-z0-9]", "", part.casefold())
-    }
+def import_fingerprint(item):
+    stable = {key: dtr_cell_value(value) for key, value in item.items() if key != "Sr No."}
+    return hashlib.sha256(json.dumps(stable, sort_keys=True, default=str).encode()).hexdigest()
 
 
 def canonicalize_placer_state(key):
@@ -335,8 +349,43 @@ def identify_member(value):
     return None
 
 
+def _ashok_session_key():
+    configured = clean_text(secret("SESSION_SIGNING_KEY"))
+    return (configured or MEMBER_CODE_HASHES["Ashok"]).encode()
+
+
+def issue_ashok_session_token(now=None):
+    """Create a signed login token so a reconnect does not log Ashok out."""
+    expires = int(now or time.time()) + (7 * 24 * 60 * 60)
+    payload = f"Ashok|{expires}".encode()
+    encoded = base64.urlsafe_b64encode(payload).decode().rstrip("=")
+    signature = hmac.new(_ashok_session_key(), encoded.encode(), hashlib.sha256).hexdigest()
+    return f"{encoded}.{signature}"
+
+
+def valid_ashok_session_token(token, now=None):
+    try:
+        encoded, supplied_signature = clean_text(token).split(".", 1)
+        expected_signature = hmac.new(
+            _ashok_session_key(), encoded.encode(), hashlib.sha256,
+        ).hexdigest()
+        if not hmac.compare_digest(supplied_signature, expected_signature):
+            return False
+        padding = "=" * (-len(encoded) % 4)
+        member, expires = base64.urlsafe_b64decode(encoded + padding).decode().split("|", 1)
+        return member == "Ashok" and int(expires) >= int(now or time.time())
+    except (TypeError, ValueError, UnicodeDecodeError):
+        return False
+
+
 def require_authentication():
     if st.session_state.get("authenticated"):
+        return
+    persistent_token = st.query_params.get("ashok_session", "")
+    if valid_ashok_session_token(persistent_token):
+        st.session_state["authenticated"] = True
+        st.session_state["authenticated_user"] = "Ashok"
+        st.session_state["is_special_member"] = False
         return
     st.markdown("""
     <style>
@@ -360,6 +409,8 @@ def require_authentication():
             st.session_state["is_special_member"] = member in SPECIAL_MEMBERS
             st.session_state["welcome_pending"] = True
             st.session_state.pop("special_access_code", None)
+            if member == "Ashok":
+                st.query_params["ashok_session"] = issue_ashok_session_token()
             st.rerun()
         st.error("Incorrect access code. Please try again.")
     st.stop()
@@ -989,7 +1040,29 @@ except Exception as exc:
     st.error(f"Database connection failed: {exc}")
     st.stop()
 
-normalization_rows = store.list(status="All active")
+all_rows_including_hidden = store.list(status="All", include_archived=True)
+recovered_ashok_backlog = 0
+for hidden_row in all_rows_including_hidden:
+    hidden_date = as_date(hidden_row.get("trip_date"))
+    is_hidden = hidden_row.get("status") == "Cancelled" or bool(hidden_row.get("is_archived"))
+    if (
+        clean_text(hidden_row.get("created_by")) == "Ashok"
+        and dt.date(2026, 9, 1) <= hidden_date <= dt.date(2026, 9, 9)
+        and is_hidden
+    ):
+        restored_dtr = unpack(hidden_row.get("dtr_data"))
+        restored_status = clean_text(restored_dtr.pop("_deleted_previous_status", "")) or "Verified"
+        store.update(
+            hidden_row["request_number"],
+            {"status": restored_status, "is_archived": False, "dtr_data": restored_dtr},
+            "ashok_backlog_recovery", "System",
+        )
+        store.log_action("System", "Recovered Ashok backlog record", hidden_row["request_number"], "01–09 Sep 2026")
+        recovered_ashok_backlog += 1
+normalization_rows = store.list(status="All active") if recovered_ashok_backlog else [
+    row for row in all_rows_including_hidden
+    if row.get("status") != "Cancelled" and not row.get("is_archived")
+]
 current_user = st.session_state.get("authenticated_user", "Unknown member")
 historical_business_memory = cached_business_memory(normalization_rows)
 business_memory = historical_business_memory
@@ -1027,6 +1100,34 @@ saved_expense_notice = st.session_state.pop("saved_expense_notice", None)
 def audit_action(action, request_number="", details=""):
     if current_user in AUDITED_MEMBERS:
         store.log_action(current_user, action, request_number, details)
+
+
+def soft_delete_record(record, details=""):
+    """Hide a record while retaining its data and revision history for recovery."""
+    data = unpack(record.get("dtr_data"))
+    data["_deleted_previous_status"] = clean_text(record.get("status")) or "Submitted"
+    store.update(
+        record["request_number"],
+        {"status": "Cancelled", "is_archived": True, "dtr_data": data},
+        "records_soft_delete", current_user,
+    )
+    store.log_action(current_user, "Deleted record", record["request_number"], details or request_label(record))
+    return True
+
+
+@st.dialog("Delete record?")
+def confirm_record_delete(record):
+    st.warning(f"Delete {request_label(record)}? The record will be hidden, but retained for recovery.")
+    cancel_column, delete_column = st.columns(2)
+    if cancel_column.button("Cancel", use_container_width=True, key=f"cancel_delete_{record['request_number']}"):
+        st.rerun()
+    if delete_column.button(
+        "Confirm delete", type="primary", use_container_width=True,
+        key=f"confirm_delete_{record['request_number']}",
+    ):
+        soft_delete_record(record)
+        st.toast(f"Deleted {request_label(record)}.", icon="🗑️")
+        st.rerun()
 
 
 def complete_rtgs_download(request_numbers, start, end):
@@ -1679,132 +1780,83 @@ with records_tab:
     expense_record_count = sum(row.get("report_scope") == "Expense" for row in rows)
     st.caption(f"{trip_record_count} trip record(s) and {expense_record_count} direct expense record(s) listed.")
     if current_user == "Vijay" and record_type == TRIP_RECORDS:
-        st.markdown("##### Live Excel entry")
-        st.caption("Edit existing trips or add as many rows as needed, then save them to Records.")
-        grid_rows = sort_records_by_date(rows, "Oldest first" if sort_arrow == "↑" else "Newest first")
-        grid_columns = ["Record", *DTR_REVIEW_COLUMNS]
-        grid_frame = pd.DataFrame(
-            [record_dtr_row(row, index) for index, row in enumerate(grid_rows, 1)],
-            columns=grid_columns,
-        ).rename(columns={"Compnay Name": "Company Name"})
-        grid_generation = st.session_state.setdefault("vijay_records_grid_generation", 0)
-        grid_key = f"vijay_records_grid_{grid_generation}_{filter_from}_{filter_to}"
-        edited_grid = st.data_editor(
-            grid_frame,
-            hide_index=True,
-            width="stretch",
-            height=480,
-            num_rows="dynamic",
-            disabled=["Record", "Sr No."],
-            column_config={
-                "Date": st.column_config.DateColumn("Date", format="DD/MM/YYYY", required=True),
-                "Branch": st.column_config.TextColumn("Branch", default="Andheri"),
-                "Company Name": st.column_config.TextColumn(
-                    "Company Name", default="Bisleri International Private Limited",
-                ),
-                "Own/Outside Veh.": st.column_config.SelectboxColumn(
-                    "Own/Outside Veh.", options=["", "Own", "Outside"],
-                ),
-                "Transporter Name": st.column_config.SelectboxColumn(
-                    "Transporter Name", options=["", *VIJAY_TRANSPORTER_PROFILES],
-                ),
-            },
-            key=grid_key,
-        ).rename(columns={"Company Name": "Compnay Name"})
-        saved_grid_by_request = {clean_text(row.get("request_number")): row for row in grid_rows}
-        original_grid_by_request = {
-            clean_text(item.get("Record")): item
-            for item in grid_frame.rename(columns={"Company Name": "Compnay Name"}).to_dict("records")
-        }
-        pending_grid_rows = []
-        changed_grid_rows = []
-        validation_errors = []
-        submitted_invoice_tokens = {}
-        submitted_lr_tokens = {}
-        for position, item in enumerate(edited_grid.to_dict("records"), 1):
-            request_number = clean_text(item.get("Record"))
-            editable_values = [item.get(column) for column in DTR_REVIEW_COLUMNS if column not in {"Sr No.", "Review Notes"}]
-            is_blank_new_row = not request_number and not any(dtr_cell_value(value) not in {"", 0.0} for value in editable_values)
-            if is_blank_new_row:
-                continue
-            if request_number:
-                original = original_grid_by_request.get(request_number)
-                is_changed = bool(original) and any(
-                    dtr_cell_value(original.get(column)) != dtr_cell_value(item.get(column))
-                    for column in DTR_REVIEW_COLUMNS
-                )
-                if not is_changed:
-                    continue
-                changed_grid_rows.append((request_number, item))
-            else:
-                pending_grid_rows.append(item)
-            if not clean_text(item.get("Branch")):
-                item["Branch"] = "Andheri"
-            if not clean_text(item.get("Compnay Name")):
-                item["Compnay Name"] = "Bisleri International Private Limited"
-            if parse_dtr_date(item.get("Date")) is None:
-                validation_errors.append(f"Row {position}: enter a valid date")
-            if not canonical_vehicle_number(item.get("Vehicle No.")):
-                validation_errors.append(f"Row {position}: vehicle number is required")
-            if canonical_branch(item.get("Branch")).casefold() != "andheri":
-                validation_errors.append(f"Row {position}: Vijay's branch must be Andheri")
-            invoice_parts = identifier_tokens(item.get("Invoice No."))
-            lr_parts = identifier_tokens(item.get("LR No."))
-            for token in invoice_parts:
-                if token in submitted_invoice_tokens:
-                    validation_errors.append(f"Row {position}: invoice number duplicates row {submitted_invoice_tokens[token]}")
-                submitted_invoice_tokens[token] = position
-            for token in lr_parts:
-                if token in submitted_lr_tokens:
-                    validation_errors.append(f"Row {position}: LR number duplicates row {submitted_lr_tokens[token]}")
-                submitted_lr_tokens[token] = position
-            other_records = [
-                row for row in scoped_rows
-                if clean_text(row.get("request_number")) != request_number
-            ]
-            if user_invoice_duplicates(other_records, "Vijay", item.get("Invoice No.")):
-                validation_errors.append(f"Row {position}: invoice number already exists")
-            if user_lr_duplicates(other_records, "Vijay", item.get("LR No.")):
-                validation_errors.append(f"Row {position}: LR number already exists")
-        if validation_errors:
-            st.error("Please fix these spreadsheet rows before saving:\n\n" + "\n\n".join(dict.fromkeys(validation_errors)))
-        if st.session_state.pop("vijay_grid_saved_notice", None):
-            st.success("Spreadsheet changes were saved to Records.", icon="✅")
-        if st.button(
-            "Save Changes", type="primary", key=f"save_{grid_key}",
-            disabled=not (pending_grid_rows or changed_grid_rows) or bool(validation_errors),
-        ):
-            updated_count = 0
-            created_count = 0
-            for request_number, item in changed_grid_rows:
-                saved_row = saved_grid_by_request.get(request_number)
-                if not saved_row or clean_text(saved_row.get("created_by")) != "Vijay":
-                    continue
-                store.update(
-                    request_number, dtr_record_update_values(saved_row, item),
-                    "records_excel_editor", current_user,
-                )
-                updated_count += 1
-            for item in pending_grid_rows:
-                draft_owner = {"created_by": "Vijay", "dtr_data": {}, "rtgs_data": {}}
-                values = dtr_record_update_values(draft_owner, item)
-                profile = vijay_transporter_profile(values.get("transporter_name"))
-                if profile:
-                    values["beneficiary_name"] = values.get("beneficiary_name") or profile["beneficiary_name"]
-                    values["rtgs_data"].update({
-                        "BNF_NAME": values["beneficiary_name"],
-                        "BENE_ACC_NO": profile["beneficiary_account_number"],
-                        "BENE_IFSC": profile["beneficiary_ifsc_code"],
-                    })
-                    values["dtr_data"]["Benificiary Name"] = values["beneficiary_name"]
-                store.create({
-                    **values, "report_scope": "Both", "status": "Verified", "created_by": "Vijay",
-                })
-                created_count += 1
-            st.session_state.pop(grid_key, None)
-            st.session_state["vijay_records_grid_generation"] = grid_generation + 1
-            st.session_state["vijay_grid_saved_notice"] = (updated_count, created_count)
-            st.rerun()
+        with st.expander("Import Excel"):
+            st.caption(
+                "Upload an Excel file in the same format as Download Excel (the older DTR format is also supported). "
+                "Only new, valid Vijay trip rows will be added."
+            )
+            import_file = st.file_uploader(
+                "Excel spreadsheet", type=["xlsx", "xls"], key="vijay_records_import",
+            )
+            import_rows, import_errors, import_skipped = [], [], []
+            if import_file is not None:
+                try:
+                    import_frame = pd.read_excel(import_file, dtype=object)
+                    import_frame.columns = [clean_text(column) for column in import_frame.columns]
+                    st.dataframe(import_frame.head(20), hide_index=True, width="stretch", height=300)
+                    existing_fingerprints = {
+                        clean_text(unpack(record.get("dtr_data")).get("_excel_import_fingerprint"))
+                        for record in scoped_rows if clean_text(record.get("created_by")) == "Vijay"
+                    } - {""}
+                    upload_fingerprints = set()
+                    for position, source_row in enumerate(import_frame.to_dict("records"), 2):
+                        record_type_value = clean_text(spreadsheet_value(source_row, "Record Type"))
+                        if record_type_value and record_type_value.casefold() not in {"trip", "trip record", "trip records"}:
+                            import_skipped.append(f"Row {position}: not a trip record")
+                            continue
+                        item = vijay_import_dtr_row(source_row)
+                        item["Branch"] = canonical_branch(item["Branch"])
+                        fingerprint = import_fingerprint(item)
+                        if fingerprint in existing_fingerprints or fingerprint in upload_fingerprints:
+                            import_skipped.append(f"Row {position}: already imported")
+                            continue
+                        upload_fingerprints.add(fingerprint)
+                        if parse_dtr_date(item.get("Date")) is None:
+                            import_errors.append(f"Row {position}: Date is missing or invalid")
+                            continue
+                        if not canonical_vehicle_number(item.get("Vehicle No.")):
+                            import_errors.append(f"Row {position}: Vehicle Number is missing")
+                            continue
+                        if item["Branch"].casefold() != "andheri":
+                            import_errors.append(f"Row {position}: Vijay's branch must be Andheri")
+                            continue
+                        if user_invoice_duplicates(scoped_rows, "Vijay", item.get("Invoice No.")):
+                            import_skipped.append(f"Row {position}: invoice number already exists")
+                            continue
+                        if user_lr_duplicates(scoped_rows, "Vijay", item.get("LR No.")):
+                            import_skipped.append(f"Row {position}: LR number already exists")
+                            continue
+                        values = dtr_record_update_values(
+                            {"created_by": "Vijay", "dtr_data": {}, "rtgs_data": {}}, item,
+                        )
+                        account_number = clean_text(spreadsheet_value(source_row, "Account Number"))
+                        ifsc_code = clean_text(spreadsheet_value(source_row, "IFSC Code"))
+                        values["payment_mode"] = clean_text(spreadsheet_value(source_row, "Payment Mode"))
+                        values["dtr_data"]["_excel_import_fingerprint"] = fingerprint
+                        values["rtgs_data"].update({
+                            "BENE_ACC_NO": account_number,
+                            "BENE_IFSC": ifsc_code,
+                            "BNF_NAME": values["beneficiary_name"],
+                        })
+                        import_rows.append({
+                            **values, "report_scope": "Both", "status": "Verified", "created_by": "Vijay",
+                        })
+                except Exception as exc:
+                    import_errors.append(f"The spreadsheet could not be read: {exc}")
+            if import_errors:
+                st.error("Please correct these rows before importing:\n\n" + "\n\n".join(import_errors))
+            if import_skipped:
+                st.info(f"{len(import_skipped)} duplicate/non-trip row(s) will be skipped.")
+            if st.session_state.pop("vijay_import_notice", None):
+                st.success("Excel trips were imported into Records.", icon="✅")
+            if st.button(
+                f"Import {len(import_rows)} trip record(s)", type="primary",
+                disabled=not import_rows or bool(import_errors), key="confirm_vijay_records_import",
+            ):
+                created = store.create_many(import_rows)
+                store.log_action("Vijay", "Imported Excel trips", "", f"{len(created)} record(s)")
+                st.session_state["vijay_import_notice"] = len(created)
+                st.rerun()
     if not rows:
         st.info("No records match the selected filters.")
     else:
@@ -1853,11 +1905,7 @@ with records_tab:
                     view_record(record)
                 can_delete_visible_record = current_user == "Ajit" or can_delete_record(current_user, record)
                 if can_delete_visible_record and columns[7].button("Delete", icon=":material/delete:", key=f"delete_record_{record['request_number']}", help="Delete record", use_container_width=True):
-                    request_number = record["request_number"]
-                    if store.delete_request(request_number):
-                        audit_action("Deleted record", request_number, request_label(record))
-                        st.toast(f"Deleted {request_label(record)}.", icon="🗑️")
-                        st.rerun()
+                    confirm_record_delete(record)
         if current_user == "Sid":
             duplicate_rows = duplicate_records(scoped_rows)
             duplicate_labels = {record_select_label(row): row for row in duplicate_rows}
@@ -1866,12 +1914,10 @@ with records_tab:
                     st.info("No duplicate records found.")
                 select_all = st.checkbox("Select all duplicates", key="records_delete_all", disabled=not duplicate_labels)
                 chosen = list(duplicate_labels) if select_all else st.multiselect("Select duplicate records", list(duplicate_labels), key="records_delete_selection", disabled=not duplicate_labels)
-                acknowledged = st.checkbox("I understand this permanently deletes the selected duplicate records.", key="records_delete_ack", disabled=not duplicate_labels)
+                acknowledged = st.checkbox("I understand the selected records will be hidden from active Records.", key="records_delete_ack", disabled=not duplicate_labels)
                 if st.button("Delete selected duplicates", disabled=not chosen or not acknowledged, key="records_delete"):
                     for label in chosen:
-                        request_number = duplicate_labels[label]["request_number"]
-                        if store.delete_request(request_number):
-                            audit_action("Deleted record", request_number, label)
+                        soft_delete_record(duplicate_labels[label], label)
                     st.success(f"Deleted {len(chosen)} record(s).")
                     st.rerun()
 
