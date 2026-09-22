@@ -1811,6 +1811,15 @@ with records_tab:
             import_file = st.file_uploader(
                 "Excel spreadsheet", type=["xlsx", "xls"], key=f"{import_key}_records_import",
             )
+            allow_ashok_duplicates = import_user == "Ashok" and st.checkbox(
+                "Import all valid rows, including duplicates",
+                key="ashok_allow_duplicate_excel_import",
+                help="Use this for the current backlog. Every valid spreadsheet row will be created as a new record.",
+            )
+            if allow_ashok_duplicates:
+                st.warning(
+                    "Duplicate protection is disabled for this upload. Each valid Excel row will be added as a new Ashok record."
+                )
             import_rows, import_errors, import_skipped = [], [], []
             if import_file is not None:
                 try:
@@ -1845,7 +1854,9 @@ with records_tab:
                         item = imported_dtr_row(source_row, import_user)
                         item["Branch"] = canonical_branch(item["Branch"])
                         fingerprint = import_fingerprint(item)
-                        if fingerprint in existing_fingerprints or fingerprint in upload_fingerprints:
+                        if not allow_ashok_duplicates and (
+                            fingerprint in existing_fingerprints or fingerprint in upload_fingerprints
+                        ):
                             import_skipped.append(f"Row {position}: already imported")
                             continue
                         upload_fingerprints.add(fingerprint)
@@ -1861,21 +1872,25 @@ with records_tab:
                         invoice_tokens = import_identifier_tokens(item.get("Invoice No."))
                         lr_tokens = import_identifier_tokens(item.get("LR No."))
                         fallback_key = import_fallback_key(item)
-                        if invoice_tokens & upload_invoice_tokens:
+                        if not allow_ashok_duplicates and invoice_tokens & upload_invoice_tokens:
                             import_skipped.append(f"Row {position}: duplicate invoice number in this file")
                             continue
-                        if lr_tokens & upload_lr_tokens:
+                        if not allow_ashok_duplicates and lr_tokens & upload_lr_tokens:
                             import_skipped.append(f"Row {position}: duplicate LR number in this file")
                             continue
-                        if not invoice_tokens and not lr_tokens and (
+                        if not allow_ashok_duplicates and not invoice_tokens and not lr_tokens and (
                             fallback_key in existing_fallback_keys or fallback_key in upload_fallback_keys
                         ):
                             import_skipped.append(f"Row {position}: matching date, vehicle, route and revenue already exists")
                             continue
-                        if user_invoice_duplicates(owner_records, import_user, item.get("Invoice No.")):
+                        if not allow_ashok_duplicates and user_invoice_duplicates(
+                            owner_records, import_user, item.get("Invoice No.")
+                        ):
                             import_skipped.append(f"Row {position}: invoice number already exists")
                             continue
-                        if user_lr_duplicates(owner_records, import_user, item.get("LR No.")):
+                        if not allow_ashok_duplicates and user_lr_duplicates(
+                            owner_records, import_user, item.get("LR No.")
+                        ):
                             import_skipped.append(f"Row {position}: LR number already exists")
                             continue
                         upload_invoice_tokens.update(invoice_tokens)
