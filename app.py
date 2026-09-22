@@ -289,6 +289,21 @@ def import_fallback_key(item):
     )
 
 
+def valid_page_number(value, page_count):
+    """Return a safe pagination value when filters leave stale widget state."""
+    try:
+        page = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return 1
+    return page if 1 <= page <= max(1, int(page_count)) else 1
+
+
+def reset_invalid_widget_choice(key, options, default):
+    """Prevent dynamic selectboxes from receiving a value removed by filters."""
+    if key in st.session_state and st.session_state.get(key) not in options:
+        st.session_state[key] = default
+
+
 def canonicalize_placer_state(key):
     st.session_state[key] = canonical_vehicle_placer(st.session_state.get(key, ""))
 
@@ -1600,17 +1615,22 @@ with records_tab:
         month_start = today.replace(day=1)
         filter_from = c1.date_input("Records from", value=month_start, format="DD/MM/YYYY", key="records_filter_from_v2")
         filter_to = c2.date_input("Records to", value=today, format="DD/MM/YYYY", key="records_filter_to_v2")
+        reset_invalid_widget_choice("records_filter_type", RECORD_TYPES, TRIP_RECORDS)
         record_type = c3.selectbox("Record Type", RECORD_TYPES, key="records_filter_type")
         type_rows = filter_record_type(rows, record_type)
         vehicle_options = sorted({canonical_vehicle_number(row.get("vehicle_number")) for row in type_rows} - {""}, key=str.casefold)
         if record_type == TRIP_RECORDS and current_user not in {"Ashok", "Ajit"}:
             placed_by_options = sorted({canonical_vehicle_placer(unpack(row.get("dtr_data")).get("Veh Placed by")) for row in type_rows} - {""}, key=str.casefold)
             c1, c2, c3 = st.columns(3)
+            reset_invalid_widget_choice("records_filter_placed_by", ["All", *placed_by_options], "All")
+            reset_invalid_widget_choice("records_filter_vehicle", ["All", *vehicle_options], "All")
+            reset_invalid_widget_choice("records_filter_ownership", ["Both", "Own", "Outside"], "Both")
             placed_by_filter = c1.selectbox("Vehicle placed by", ["All", *placed_by_options], key="records_filter_placed_by")
             vehicle_filter = c2.selectbox("Vehicle no.", ["All", *vehicle_options], key="records_filter_vehicle")
             ownership_filter = c3.selectbox("Own or outside", ["Both", "Own", "Outside"], key="records_filter_ownership")
         else:
             placed_by_filter, ownership_filter = "All", "Both"
+            reset_invalid_widget_choice("records_filter_expense_vehicle", ["All", *vehicle_options], "All")
             vehicle_filter = st.selectbox("Vehicle no.", ["All", *vehicle_options], key="records_filter_expense_vehicle")
         date_filtered_rows = [row for row in type_rows if filter_from <= as_date(row.get("trip_date")) <= filter_to]
         rows = [row for row in date_filtered_rows if
@@ -1947,8 +1967,9 @@ with records_tab:
         record_page = 1
         if page_count > 1:
             page_key = "records_result_page"
-            if int(st.session_state.get(page_key, 1)) > page_count:
-                st.session_state[page_key] = 1
+            st.session_state[page_key] = valid_page_number(
+                st.session_state.get(page_key, 1), page_count,
+            )
             record_page = st.selectbox(
                 "Record page", list(range(1, page_count + 1)),
                 format_func=lambda page: f"Page {page} of {page_count}", key=page_key,
@@ -2022,6 +2043,7 @@ with reports_tab:
         if pnl_ownership_filter != "Vehicle No. Wise":
             trips = [row for row in trips if ownership_matches(row.get("ownership_type"), pnl_ownership_filter)]
         pnl_vehicle_options = sorted({canonical_vehicle_number(row.get("vehicle_number")) for row in trips} - {""}, key=str.casefold)
+        reset_invalid_widget_choice("pnl_vehicle_filter", ["All", *pnl_vehicle_options], "All")
         pnl_vehicle_filter = st.selectbox("Vehicle no.", ["All", *pnl_vehicle_options], key="pnl_vehicle_filter")
         if pnl_vehicle_filter != "All":
             trips = [row for row in trips if canonical_vehicle_number(row.get("vehicle_number")) == pnl_vehicle_filter]
