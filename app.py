@@ -223,11 +223,12 @@ def spreadsheet_value(row, *names):
     return ""
 
 
-def vijay_import_dtr_row(row):
+def imported_dtr_row(row, user_name):
     """Translate one downloaded-Records/DTR spreadsheet row to the DTR model."""
+    is_ashok = clean_text(user_name) == "Ashok"
     return {
-        "Branch": spreadsheet_value(row, "Branch") or "Andheri",
-        "Compnay Name": spreadsheet_value(row, "Company Name", "Compnay Name") or "Bisleri International Private Limited",
+        "Branch": spreadsheet_value(row, "Branch") or ("Vadodara" if is_ashok else "Andheri"),
+        "Compnay Name": spreadsheet_value(row, "Company Name", "Compnay Name") or ("Saint-Gobain India Private Limited" if is_ashok else "Bisleri International Private Limited"),
         "Date": spreadsheet_value(row, "Date"),
         "Vehicle No.": spreadsheet_value(row, "Vehicle Number", "Vehicle No."),
         "Vehicle Type": spreadsheet_value(row, "Vehicle Capacity", "Vehicle Type"),
@@ -254,7 +255,7 @@ def vijay_import_dtr_row(row):
         "Diesel Pump Name": spreadsheet_value(row, "Diesel Pump Name"),
         "Benificiary Name": spreadsheet_value(row, "Beneficiary Name", "Benificiary Name"),
         "Transporter Name": spreadsheet_value(row, "Transporter Name"),
-        "Veh Placed by": spreadsheet_value(row, "Vehicle Placed By", "Veh Placed by") or "Vijay",
+        "Veh Placed by": spreadsheet_value(row, "Vehicle Placed By", "Veh Placed by") or user_name,
         "LR Status": spreadsheet_value(row, "LR Status"),
         "Received Date": spreadsheet_value(row, "Received Date"),
         "SG & Bisleri Damages": spreadsheet_value(row, "SG & Bisleri Damages"),
@@ -267,6 +268,25 @@ def vijay_import_dtr_row(row):
 def import_fingerprint(item):
     stable = {key: dtr_cell_value(value) for key, value in item.items() if key != "Sr No."}
     return hashlib.sha256(json.dumps(stable, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def import_identifier_tokens(value):
+    return {
+        re.sub(r"[^a-z0-9]", "", part.casefold())
+        for part in re.split(r"\s*/\s*", clean_text(value))
+        if re.sub(r"[^a-z0-9]", "", part.casefold())
+    }
+
+
+def import_fallback_key(item):
+    """Detect repeated rows even when both invoice and LR numbers are blank."""
+    trip_date = parse_dtr_date(item.get("Date"))
+    return (
+        trip_date.isoformat() if trip_date else "",
+        canonical_vehicle_number(item.get("Vehicle No.")),
+        clean_text(item.get("From")).casefold(), clean_text(item.get("To")).casefold(),
+        number(item.get("Revenue")),
+    )
 
 
 def canonicalize_placer_state(key):
@@ -1779,14 +1799,17 @@ with records_tab:
     trip_record_count = sum(row.get("report_scope") != "Expense" for row in rows)
     expense_record_count = sum(row.get("report_scope") == "Expense" for row in rows)
     st.caption(f"{trip_record_count} trip record(s) and {expense_record_count} direct expense record(s) listed.")
-    if current_user == "Vijay" and record_type == TRIP_RECORDS:
+    if current_user in {"Vijay", "Ashok"} and record_type == TRIP_RECORDS:
+        import_user = current_user
+        import_branch = "Vadodara" if import_user == "Ashok" else "Andheri"
+        import_key = import_user.casefold()
         with st.expander("Import Excel"):
             st.caption(
                 "Upload an Excel file in the same format as Download Excel (the older DTR format is also supported). "
-                "Only new, valid Vijay trip rows will be added."
+                f"Only new, valid {import_user} trip rows will be added."
             )
             import_file = st.file_uploader(
-                "Excel spreadsheet", type=["xlsx", "xls"], key="vijay_records_import",
+                "Excel spreadsheet", type=["xlsx", "xls"], key=f"{import_key}_records_import",
             )
             import_rows, import_errors, import_skipped = [], [], []
             if import_file is not None:
@@ -1794,17 +1817,32 @@ with records_tab:
                     import_frame = pd.read_excel(import_file, dtype=object)
                     import_frame.columns = [clean_text(column) for column in import_frame.columns]
                     st.dataframe(import_frame.head(20), hide_index=True, width="stretch", height=300)
+                    owner_records = [
+                        record for record in scoped_rows
+                        if clean_text(record.get("created_by")) == import_user
+                        and record.get("report_scope") != "Expense"
+                    ]
                     existing_fingerprints = {
                         clean_text(unpack(record.get("dtr_data")).get("_excel_import_fingerprint"))
-                        for record in scoped_rows if clean_text(record.get("created_by")) == "Vijay"
+                        for record in owner_records
                     } - {""}
+                    existing_fallback_keys = {
+                        import_fallback_key({
+                            "Date": record.get("trip_date"),
+                            "Vehicle No.": record.get("vehicle_number"),
+                            "From": record.get("from_location"), "To": record.get("to_location"),
+                            "Revenue": record.get("revenue"),
+                        })
+                        for record in owner_records
+                    }
                     upload_fingerprints = set()
+                    upload_invoice_tokens, upload_lr_tokens, upload_fallback_keys = set(), set(), set()
                     for position, source_row in enumerate(import_frame.to_dict("records"), 2):
                         record_type_value = clean_text(spreadsheet_value(source_row, "Record Type"))
                         if record_type_value and record_type_value.casefold() not in {"trip", "trip record", "trip records"}:
                             import_skipped.append(f"Row {position}: not a trip record")
                             continue
-                        item = vijay_import_dtr_row(source_row)
+                        item = imported_dtr_row(source_row, import_user)
                         item["Branch"] = canonical_branch(item["Branch"])
                         fingerprint = import_fingerprint(item)
                         if fingerprint in existing_fingerprints or fingerprint in upload_fingerprints:
@@ -1817,29 +1855,49 @@ with records_tab:
                         if not canonical_vehicle_number(item.get("Vehicle No.")):
                             import_errors.append(f"Row {position}: Vehicle Number is missing")
                             continue
-                        if item["Branch"].casefold() != "andheri":
-                            import_errors.append(f"Row {position}: Vijay's branch must be Andheri")
+                        if item["Branch"].casefold() != import_branch.casefold():
+                            import_errors.append(f"Row {position}: {import_user}'s branch must be {import_branch}")
                             continue
-                        if user_invoice_duplicates(scoped_rows, "Vijay", item.get("Invoice No.")):
+                        invoice_tokens = import_identifier_tokens(item.get("Invoice No."))
+                        lr_tokens = import_identifier_tokens(item.get("LR No."))
+                        fallback_key = import_fallback_key(item)
+                        if invoice_tokens & upload_invoice_tokens:
+                            import_skipped.append(f"Row {position}: duplicate invoice number in this file")
+                            continue
+                        if lr_tokens & upload_lr_tokens:
+                            import_skipped.append(f"Row {position}: duplicate LR number in this file")
+                            continue
+                        if not invoice_tokens and not lr_tokens and (
+                            fallback_key in existing_fallback_keys or fallback_key in upload_fallback_keys
+                        ):
+                            import_skipped.append(f"Row {position}: matching date, vehicle, route and revenue already exists")
+                            continue
+                        if user_invoice_duplicates(owner_records, import_user, item.get("Invoice No.")):
                             import_skipped.append(f"Row {position}: invoice number already exists")
                             continue
-                        if user_lr_duplicates(scoped_rows, "Vijay", item.get("LR No.")):
+                        if user_lr_duplicates(owner_records, import_user, item.get("LR No.")):
                             import_skipped.append(f"Row {position}: LR number already exists")
                             continue
+                        upload_invoice_tokens.update(invoice_tokens)
+                        upload_lr_tokens.update(lr_tokens)
+                        upload_fallback_keys.add(fallback_key)
                         values = dtr_record_update_values(
-                            {"created_by": "Vijay", "dtr_data": {}, "rtgs_data": {}}, item,
+                            {"created_by": import_user, "dtr_data": {}, "rtgs_data": {}}, item,
                         )
                         account_number = clean_text(spreadsheet_value(source_row, "Account Number"))
                         ifsc_code = clean_text(spreadsheet_value(source_row, "IFSC Code"))
                         values["payment_mode"] = clean_text(spreadsheet_value(source_row, "Payment Mode"))
                         values["dtr_data"]["_excel_import_fingerprint"] = fingerprint
+                        if import_user == "Ashok":
+                            # Historical imports must not overwrite Ashok's new transporter-to-beneficiary memory.
+                            values["dtr_data"].pop("_beneficiary_profile_version", None)
                         values["rtgs_data"].update({
                             "BENE_ACC_NO": account_number,
                             "BENE_IFSC": ifsc_code,
                             "BNF_NAME": values["beneficiary_name"],
                         })
                         import_rows.append({
-                            **values, "report_scope": "Both", "status": "Verified", "created_by": "Vijay",
+                            **values, "report_scope": "Both", "status": "Verified", "created_by": import_user,
                         })
                 except Exception as exc:
                     import_errors.append(f"The spreadsheet could not be read: {exc}")
@@ -1847,15 +1905,15 @@ with records_tab:
                 st.error("Please correct these rows before importing:\n\n" + "\n\n".join(import_errors))
             if import_skipped:
                 st.info(f"{len(import_skipped)} duplicate/non-trip row(s) will be skipped.")
-            if st.session_state.pop("vijay_import_notice", None):
+            if st.session_state.pop(f"{import_key}_import_notice", None):
                 st.success("Excel trips were imported into Records.", icon="✅")
             if st.button(
                 f"Import {len(import_rows)} trip record(s)", type="primary",
-                disabled=not import_rows or bool(import_errors), key="confirm_vijay_records_import",
+                disabled=not import_rows or bool(import_errors), key=f"confirm_{import_key}_records_import",
             ):
                 created = store.create_many(import_rows)
-                store.log_action("Vijay", "Imported Excel trips", "", f"{len(created)} record(s)")
-                st.session_state["vijay_import_notice"] = len(created)
+                store.log_action(import_user, "Imported Excel trips", "", f"{len(created)} record(s)")
+                st.session_state[f"{import_key}_import_notice"] = len(created)
                 st.rerun()
     if not rows:
         st.info("No records match the selected filters.")
