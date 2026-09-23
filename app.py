@@ -1084,29 +1084,7 @@ except Exception as exc:
     st.error(f"Database connection failed: {exc}")
     st.stop()
 
-all_rows_including_hidden = store.list(status="All", include_archived=True)
-recovered_ashok_backlog = 0
-for hidden_row in all_rows_including_hidden:
-    hidden_date = as_date(hidden_row.get("trip_date"))
-    is_hidden = hidden_row.get("status") == "Cancelled" or bool(hidden_row.get("is_archived"))
-    if (
-        clean_text(hidden_row.get("created_by")) == "Ashok"
-        and dt.date(2026, 9, 1) <= hidden_date <= dt.date(2026, 9, 9)
-        and is_hidden
-    ):
-        restored_dtr = unpack(hidden_row.get("dtr_data"))
-        restored_status = clean_text(restored_dtr.pop("_deleted_previous_status", "")) or "Verified"
-        store.update(
-            hidden_row["request_number"],
-            {"status": restored_status, "is_archived": False, "dtr_data": restored_dtr},
-            "ashok_backlog_recovery", "System",
-        )
-        store.log_action("System", "Recovered Ashok backlog record", hidden_row["request_number"], "01–09 Sep 2026")
-        recovered_ashok_backlog += 1
-normalization_rows = store.list(status="All active") if recovered_ashok_backlog else [
-    row for row in all_rows_including_hidden
-    if row.get("status") != "Cancelled" and not row.get("is_archived")
-]
+normalization_rows = store.list(status="All active")
 current_user = st.session_state.get("authenticated_user", "Unknown member")
 historical_business_memory = cached_business_memory(normalization_rows)
 business_memory = historical_business_memory
