@@ -2150,14 +2150,18 @@ with reports_tab:
                 "Select": select_all_rtgs or not bool(row.get("rtgs_done")),
                 "Record": request_label(row),
                 "Date": f"{as_date(row.get('trip_date')):%d/%m/%y}",
-                "Beneficiary": clean_text(row.get("beneficiary_name")) or "—",
-                "Amount": format_inr(number(row.get("rtgs_advance"))),
-                "Remarks": rtgs_remark(row),
+                "Beneficiary": clean_text(row.get("beneficiary_name")),
+                "Account Number": clean_text(unpack(row.get("rtgs_data")).get("BENE_ACC_NO")),
+                "IFSC": clean_text(unpack(row.get("rtgs_data")).get("BENE_IFSC")),
+                "Amount": number(row.get("rtgs_advance")),
+                "Remarks": clean_text(unpack(row.get("rtgs_data")).get("REMARK")) or rtgs_remark(row),
                 "RTGS Status": "RTGS Done" if row.get("rtgs_done") else "Pending",
                 "_request_number": row.get("request_number"),
             }
             for row in rtgs_candidates
         ])
+        effective_rtgs_rows = []
+        changed_rtgs_rows = []
         if selection_frame.empty:
             st.info("No RTGS records are available in the selected date range.")
             selected_request_numbers = []
@@ -2165,25 +2169,104 @@ with reports_tab:
             st.caption("🟩 RTGS Done  ·  ⬜ Pending")
             selection_display = selection_frame.drop(columns=["_request_number"])
             styled_selection = selection_display.style.apply(rtgs_row_styles, axis=1)
+            locked_rtgs_columns = ["Record", "Date", "RTGS Status"]
+            if current_user != "Nikhat":
+                locked_rtgs_columns.extend([
+                    "Beneficiary", "Account Number", "IFSC", "Amount", "Remarks",
+                ])
             edited_selection = st.data_editor(
                 styled_selection,
                 hide_index=True, width="stretch", key="rtgs_record_selection",
-                disabled=["Record", "Date", "Beneficiary", "Amount", "Remarks", "RTGS Status"],
+                disabled=locked_rtgs_columns,
                 column_config={
                     "Select": st.column_config.CheckboxColumn("Select", required=True),
-                    "Amount": st.column_config.TextColumn("Amount"),
+                    "Amount": st.column_config.NumberColumn("Amount", min_value=0.0, format="₹%.2f"),
                 },
             )
+            editable_rtgs_columns = ["Beneficiary", "Account Number", "IFSC", "Amount", "Remarks"]
+            for index, saved_row in enumerate(rtgs_candidates):
+                edited_item = edited_selection.iloc[index].to_dict()
+                effective_row = dict(saved_row)
+                effective_data = unpack(saved_row.get("rtgs_data"))
+                effective_data.update({
+                    "BNF_NAME": clean_text(edited_item.get("Beneficiary")),
+                    "BENE_ACC_NO": clean_text(edited_item.get("Account Number")),
+                    "BENE_IFSC": clean_text(edited_item.get("IFSC")),
+                    "AMOUNT": number(edited_item.get("Amount")),
+                    "REMARK": clean_text(edited_item.get("Remarks")),
+                })
+                effective_row.update({
+                    "beneficiary_name": effective_data["BNF_NAME"],
+                    "rtgs_advance": effective_data["AMOUNT"],
+                    "notes": effective_data["REMARK"],
+                    "rtgs_data": effective_data,
+                })
+                effective_rtgs_rows.append(effective_row)
+                if current_user == "Nikhat" and any(
+                    dtr_cell_value(selection_display.iloc[index].get(column))
+                    != dtr_cell_value(edited_item.get(column))
+                    for column in editable_rtgs_columns
+                ):
+                    changed_rtgs_rows.append((saved_row, effective_row))
             selected_request_numbers = [
                 selection_frame.iloc[index]["_request_number"]
                 for index, selected in enumerate(edited_selection["Select"].tolist()) if selected
             ]
+            if current_user == "Nikhat":
+                if st.session_state.pop("nikhat_rtgs_saved_notice", None):
+                    st.success("RTGS corrections were saved to Records.", icon="✅")
+                if st.button(
+                    "Save RTGS changes to Records", type="primary",
+                    disabled=not changed_rtgs_rows, key="save_nikhat_rtgs_changes",
+                ):
+                    for saved_row, effective_row in changed_rtgs_rows:
+                        old_rtgs = number(saved_row.get("rtgs_advance"))
+                        new_rtgs = number(effective_row.get("rtgs_advance"))
+                        new_total = number(saved_row.get("total_advance")) - old_rtgs + new_rtgs
+                        new_balance = number(saved_row.get("balance_amount")) - (new_rtgs - old_rtgs)
+                        updated_dtr = unpack(saved_row.get("dtr_data"))
+                        updated_dtr.update({
+                            "Benificiary Name": effective_row["beneficiary_name"],
+                            "RTGS ADVANCE": new_rtgs,
+                            "Total Adv.": new_total,
+                            "Balance Amt.": new_balance,
+                            "Remark": effective_row["notes"],
+                        })
+                        store.update(
+                            saved_row["request_number"],
+                            {
+                                "beneficiary_name": effective_row["beneficiary_name"],
+                                "rtgs_advance": new_rtgs,
+                                "total_advance": new_total, "amount": new_total,
+                                "balance_amount": new_balance,
+                                "payment_mode": ", ".join(
+                                    name for name, value in (
+                                        ("RTGS", new_rtgs),
+                                        ("Cash", saved_row.get("cash_advance")),
+                                        ("UPI", saved_row.get("upi")),
+                                        ("Diesel", saved_row.get("diesel_advance")),
+                                    ) if number(value)
+                                ),
+                                "notes": effective_row["notes"],
+                                "dtr_data": updated_dtr,
+                                "rtgs_data": effective_row["rtgs_data"],
+                            },
+                            "rtgs_report_editor", current_user,
+                        )
+                        store.log_action(
+                            current_user, "Updated RTGS record",
+                            saved_row["request_number"], request_label(saved_row),
+                        )
+                    st.session_state.pop("rtgs_record_selection", None)
+                    st.session_state["nikhat_rtgs_saved_notice"] = len(changed_rtgs_rows)
+                    st.rerun()
         selected_rtgs_rows = [
-            row for row in rtgs_candidates if row.get("request_number") in selected_request_numbers
+            row for row in effective_rtgs_rows if row.get("request_number") in selected_request_numbers
         ]
         mark_col, _ = st.columns([1, 3])
         if mark_col.button(
-            "Mark selected as RTGS Done", disabled=not selected_request_numbers,
+            "Mark selected as RTGS Done",
+            disabled=not selected_request_numbers or bool(current_user == "Nikhat" and changed_rtgs_rows),
             key="mark_selected_rtgs_done", use_container_width=True,
         ):
             updated = store.mark_rtgs_done(selected_request_numbers)
@@ -2193,8 +2276,9 @@ with reports_tab:
         records = []
         for row in selected_rtgs_rows:
             data = unpack(row.get("rtgs_data"))
-            data["AMOUNT"], data["BNF_NAME"] = data.get("AMOUNT") or row.get("rtgs_advance"), data.get("BNF_NAME") or row.get("beneficiary_name")
-            data["REMARK"] = rtgs_remark(row)
+            data["AMOUNT"] = data.get("AMOUNT") if data.get("AMOUNT") not in (None, "") else row.get("rtgs_advance")
+            data["BNF_NAME"] = data.get("BNF_NAME") or row.get("beneficiary_name")
+            data["REMARK"] = data.get("REMARK") or rtgs_remark(row)
             records.append(data)
         records = normalize_rtgs_records(records, dt.date.today())
         frame = pd.DataFrame(records, columns=RTGS_REVIEW_COLUMNS)
