@@ -304,6 +304,15 @@ def reset_invalid_widget_choice(key, options, default):
         st.session_state[key] = default
 
 
+def rtgs_row_styles(row):
+    """Make completed RTGS rows recognizable without horizontally scrolling."""
+    if clean_text(row.get("RTGS Status")) == "RTGS Done":
+        style = "background-color: #dcfce7; color: #14532d"
+    else:
+        style = "background-color: #ffffff; color: #1f2937"
+    return [style] * len(row)
+
+
 def canonicalize_placer_state(key):
     st.session_state[key] = canonical_vehicle_placer(st.session_state.get(key, ""))
 
@@ -2153,8 +2162,11 @@ with reports_tab:
             st.info("No RTGS records are available in the selected date range.")
             selected_request_numbers = []
         else:
+            st.caption("🟩 RTGS Done  ·  ⬜ Pending")
+            selection_display = selection_frame.drop(columns=["_request_number"])
+            styled_selection = selection_display.style.apply(rtgs_row_styles, axis=1)
             edited_selection = st.data_editor(
-                selection_frame.drop(columns=["_request_number"]),
+                styled_selection,
                 hide_index=True, width="stretch", key="rtgs_record_selection",
                 disabled=["Record", "Date", "Beneficiary", "Amount", "Remarks", "RTGS Status"],
                 column_config={
