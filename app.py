@@ -2015,10 +2015,23 @@ with records_tab:
             with st.expander("Delete Duplicate records"):
                 if not duplicate_labels:
                     st.info("No duplicate records found.")
-                select_all = st.checkbox("Select all duplicates", key="records_delete_all", disabled=not duplicate_labels)
-                chosen = list(duplicate_labels) if select_all else st.multiselect("Select duplicate records", list(duplicate_labels), key="records_delete_selection", disabled=not duplicate_labels)
-                acknowledged = st.checkbox("I understand the selected records will be hidden from active Records.", key="records_delete_ack", disabled=not duplicate_labels)
-                if st.button("Delete selected duplicates", disabled=not chosen or not acknowledged, key="records_delete"):
+                duplicate_options = list(duplicate_labels)
+                duplicate_set_version = hashlib.sha256(
+                    "|".join(
+                        clean_text(duplicate_labels[label].get("request_number"))
+                        for label in duplicate_options
+                    ).encode()
+                ).hexdigest()[:12]
+                chosen = st.multiselect(
+                    "Duplicate records selected for deletion",
+                    duplicate_options,
+                    default=duplicate_options,
+                    key=f"records_delete_selection_{duplicate_set_version}",
+                    disabled=not duplicate_labels,
+                    help="All detected duplicates are selected automatically. Deselect any record you want to keep.",
+                )
+                st.caption("The oldest record in each duplicate group is retained. Deleted copies remain recoverable.")
+                if st.button("Confirm & Delete", disabled=not chosen, key="records_delete"):
                     for label in chosen:
                         soft_delete_record(duplicate_labels[label], label)
                     st.success(f"Deleted {len(chosen)} record(s).")
