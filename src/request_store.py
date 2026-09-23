@@ -252,6 +252,25 @@ class RequestStore:
             if row:
                 self._insert_revision(conn, request_number, dict(row), change_source, edited_by or clean.get("created_by", ""))
 
+    def update_many(self, changes, change_source="manual", edited_by=""):
+        """Update several records and their audit revisions in one transaction."""
+        updated = 0
+        with self.engine.begin() as conn:
+            for request_number, values in changes:
+                clean = {key: value for key, value in values.items() if key in requests.c and key not in {"id", "request_number", "created_at"}}
+                for field in ("rtgs_data", "dtr_data"):
+                    if isinstance(clean.get(field), dict):
+                        clean[field] = json.dumps(clean[field], default=str)
+                clean["updated_at"] = dt.datetime.now()
+                result = conn.execute(update(requests).where(requests.c.request_number == request_number).values(**clean))
+                if not result.rowcount:
+                    continue
+                row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(requests.c.request_number == request_number)).mappings().first()
+                if row:
+                    self._insert_revision(conn, request_number, dict(row), change_source, edited_by or clean.get("created_by", ""))
+                    updated += 1
+        return updated
+
     @staticmethod
     def _revision_snapshot(values):
         excluded = {"source_image"}

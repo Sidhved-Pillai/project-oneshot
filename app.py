@@ -33,12 +33,13 @@ from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROF
 from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
+from src.vijay_rtgs_backfill import vijay_missing_rtgs_updates
 from src.current_pnl_report import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
-from src.records_store_v10 import RequestStore
+from src.records_store_v11 import RequestStore
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
-STORE_INTERFACE_VERSION = 10
+STORE_INTERFACE_VERSION = 11
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 MANISH_DIRECT_EXPENSE_COLUMNS = [
@@ -1085,6 +1086,16 @@ except Exception as exc:
     st.stop()
 
 normalization_rows = store.list(status="All active")
+vijay_rtgs_updates = vijay_missing_rtgs_updates(normalization_rows)
+if vijay_rtgs_updates:
+    updated_vijay_rtgs = store.update_many(
+        vijay_rtgs_updates, change_source="vijay_rtgs_backfill", edited_by="System"
+    )
+    store.log_action(
+        "System", "Backfilled Vijay RTGS", "",
+        f"{updated_vijay_rtgs} active Altaf/Nisar trip record(s)",
+    )
+    normalization_rows = store.list(status="All active")
 current_user = st.session_state.get("authenticated_user", "Unknown member")
 historical_business_memory = cached_business_memory(normalization_rows)
 business_memory = historical_business_memory

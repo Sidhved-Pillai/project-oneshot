@@ -38,7 +38,8 @@ from src.business_memory import build_business_memory, recall
 from src.workflow_ai import convert_rtgs_to_dtr as workflow_convert_rtgs_to_dtr
 from src.workflow_pnl import branch_vehicle_pnl_summary as workflow_branch_vehicle_pnl_summary
 from src.workflow_store import RequestStore as WorkflowRequestStore
-from src.records_store_v10 import RequestStore as ActiveRequestStore
+from src.records_store_v11 import RequestStore as ActiveRequestStore
+from src.vijay_rtgs_backfill import BACKFILL_MARKER, vijay_missing_rtgs_updates
 from src.ai_intake import DTRIntakeResult, DTRIntakeRow, UnifiedIntakeRow, _model_unavailable, _prompt, extract_intake, merge_same_trip_intake_rows, result_to_records, should_autofill_field
 from src.vijay_locations import canonical_vijay_location
 
@@ -73,6 +74,40 @@ def test_indian_currency_format_uses_lakh_and_crore_grouping():
     assert format_inr(123456789.5) == "₹12,34,56,789.50"
     assert format_inr(-1289.7220708446866) == "₹-1,289.72"
     assert indian_number(4509, 0) == "4,509"
+
+
+def test_vijay_rtgs_backfill_updates_only_missing_known_transporter_amounts():
+    records = [
+        {
+            "request_number": "REQ-ALTAF", "created_by": "Vijay", "report_scope": "Trip",
+            "transporter_name": "Altaf", "vehicle_number": "UNKNOWN", "branch": "Andheri",
+            "rtgs_advance": 0, "total_advance": 100, "balance_amount": 3000,
+            "cash_advance": 100, "upi": 0, "diesel_advance": 0,
+            "dtr_data": {}, "rtgs_data": {}, "notes": "Altaf trip",
+        },
+        {
+            "request_number": "REQ-NISAR", "created_by": "Vijay", "report_scope": "Trip",
+            "transporter_name": "", "vehicle_number": "MH48AG8552", "branch": "Andheri",
+            "rtgs_advance": 0, "total_advance": 0, "balance_amount": 4000,
+            "cash_advance": 0, "upi": 0, "diesel_advance": 0,
+            "dtr_data": "{}", "rtgs_data": "{}", "notes": "Nisar trip",
+        },
+        {"request_number": "REQ-EXISTING", "created_by": "Vijay", "rtgs_advance": 999},
+        {"request_number": "REQ-OTHER", "created_by": "Ashok", "rtgs_advance": 0, "transporter_name": "Altaf"},
+    ]
+
+    updates = dict(vijay_missing_rtgs_updates(records))
+
+    assert set(updates) == {"REQ-ALTAF", "REQ-NISAR"}
+    assert updates["REQ-ALTAF"]["rtgs_advance"] == 2254.94
+    assert updates["REQ-ALTAF"]["total_advance"] == 2354.94
+    assert updates["REQ-ALTAF"]["balance_amount"] == 745.06
+    assert updates["REQ-ALTAF"]["payment_mode"] == "RTGS, Cash"
+    assert updates["REQ-ALTAF"]["dtr_data"][BACKFILL_MARKER] is True
+    assert updates["REQ-ALTAF"]["rtgs_data"]["BENE_ACC_NO"] == "60350673934"
+    assert updates["REQ-NISAR"]["rtgs_advance"] == 2287.67
+    assert updates["REQ-NISAR"]["transporter_name"] == "Nisar Anwar Shaikh"
+    assert updates["REQ-NISAR"]["rtgs_data"]["BENE_IFSC"] == "UTIB0002168"
 
 
 def test_short_vehicle_placer_login_names_are_canonicalized():
