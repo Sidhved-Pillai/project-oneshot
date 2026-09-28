@@ -14,10 +14,10 @@ DIRECT_EXPENSE_COLUMNS = [
     "Office & General expenses", "Conveyance", "EMI", "Insurance", "Vehicle Tax",
     "Repair and maintenance", "Interest", "Extra Expense", "RTO Challan & Fine",
 ]
-REPORT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense"]
+REPORT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense", "Debit"]
 BRANCH_PNL_COLUMNS = [
     "Branch", "Revenue-Own", "Revenue OS", "Total Revenue", "Transporter Freight",
-    "Extra Exp", "Passing Exp", "Bill Discounting", "UPI", "Salary", "Rent",
+    "Extra Exp", "Passing Exp", "Debit", "Bill Discounting", "UPI", "Salary", "Rent",
     "Office Expense", "Conveyance", "EMI", "Insurance", "Vehicle Tax", "R & M", "Toll",
     "Driver's Salary", "Diesel", "Interest", "Expense", "Profit",
 ]
@@ -137,6 +137,7 @@ def branch_pnl_summary(trip_rows, expense_rows):
             "Transporter Freight": transporter,
             "Extra Exp": categories["Route expense"] + categories["Extra Expense"] + categories["RTO Challan & Fine"],
             "Passing Exp": categories["Passing expense"],
+            "Debit": categories["Debit"],
             "Bill Discounting": categories["Bill discounting"],
             "UPI": upi,
             "Salary": categories["Salary"],
@@ -187,7 +188,8 @@ def vehicle_pnl_summary(trip_rows, expense_rows, ownership):
         repairs = sum(_amount(row.get("dtr_data", {}), "Repairs & Maintenance") for row in own_trips)
         repairs += _category_total(own_expenses, "Repair and maintenance")
         rto_challan = _category_total(own_expenses, "RTO Challan & Fine")
-        expenses = route + toll + diesel + driver_salary + emi + insurance + vehicle_tax + repairs + rto_challan
+        debit = _category_total(own_expenses, "Debit")
+        expenses = route + toll + diesel + driver_salary + emi + insurance + vehicle_tax + repairs + rto_challan + debit
         return [
             {"Particular": "Revenue freight", "Amount": revenue},
             {"Particular": "Route expenses (UPI)", "Amount": -route},
@@ -199,18 +201,22 @@ def vehicle_pnl_summary(trip_rows, expense_rows, ownership):
             {"Particular": "Vehicle Tax", "Amount": -vehicle_tax},
             {"Particular": "Repair and maintenance", "Amount": -repairs},
             {"Particular": "RTO Challan & Fine", "Amount": -rto_challan},
+            {"Particular": "Debit", "Amount": -debit},
             {"Particular": "Net Profit / (Loss)", "Amount": revenue - expenses},
         ]
 
     def outside_rows():
         revenue = sum(_amount(row, "revenue") for row in outside_trips)
         transporter = sum(_amount(row, "transporter_freight") for row in outside_trips)
-        additional = sum(_amount(row, "amount") for row in outside_expenses)
+        debit = _category_total(outside_expenses, "Debit")
+        direct_total = sum(_amount(row, "amount") for row in outside_expenses)
+        additional = direct_total - debit
         return [
             {"Particular": "Revenue", "Amount": revenue},
             {"Particular": "Transporter Freight", "Amount": -transporter},
             {"Particular": "Additional expenses", "Amount": -additional},
-            {"Particular": "Net Profit / (Loss)", "Amount": revenue - transporter - additional},
+            {"Particular": "Debit", "Amount": -debit},
+            {"Particular": "Net Profit / (Loss)", "Amount": revenue - transporter - direct_total},
         ]
 
     own = own_rows()

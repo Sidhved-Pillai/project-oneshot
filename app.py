@@ -42,11 +42,12 @@ st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide"
 STORE_INTERFACE_VERSION = 11
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
+NIKHAT_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Debit"]
 MANISH_DIRECT_EXPENSE_COLUMNS = [
     "Driver's salary", "Office & General expenses", "EMI", "Conveyance",
     "Insurance", "Vehicle Tax", "Repair and maintenance", "Passing expense", "Extra Expense", "RTO Challan & Fine",
 ]
-ALL_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense"]
+ALL_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense", "Debit"]
 BRANCHES = ["Wada", "Pune", "Andheri", "Vadodara"]
 SPECIAL_CODE_SALT = bytes.fromhex("28d7f0e0dfb9b32fecf4f4656d309042")
 SPECIAL_CODE_HASH = bytes.fromhex("b17d745a7cfdb8fad453e479e3950b905f0505478fe8268461ae74fdbc2248fb")
@@ -1510,11 +1511,19 @@ with expense_tab:
         v["beneficiary_ifsc_code"] = c2.text_input("IFSC Code", key=f"{expense_prefix}_ifsc", placeholder="e.g., ICIC0001234")
         st.markdown("#### Expense breakdown")
         cols = st.columns(3)
-        visible_expense_columns = MANISH_DIRECT_EXPENSE_COLUMNS if is_manish else STANDARD_DIRECT_EXPENSE_COLUMNS
+        if is_manish:
+            visible_expense_columns = MANISH_DIRECT_EXPENSE_COLUMNS
+        elif current_user == "Nikhat":
+            visible_expense_columns = NIKHAT_DIRECT_EXPENSE_COLUMNS
+        else:
+            visible_expense_columns = STANDARD_DIRECT_EXPENSE_COLUMNS
         for category in ALL_DIRECT_EXPENSE_COLUMNS:
             v[category] = 0.0
         for i, category in enumerate(visible_expense_columns):
-            category_key = DIRECT_EXPENSE_COLUMNS.index(category) if category in DIRECT_EXPENSE_COLUMNS else "passing_expense"
+            if category in DIRECT_EXPENSE_COLUMNS:
+                category_key = DIRECT_EXPENSE_COLUMNS.index(category)
+            else:
+                category_key = category.casefold().replace(" ", "_")
             v[category] = cols[i % 3].number_input(f"{category} (₹)", min_value=0.0, value=None, placeholder="e.g., 5,000", key=f"{expense_prefix}_category_{category_key}")
         active_period_categories = [category for category in PERIOD_EXPENSE_CATEGORIES if number(v.get(category))]
         period_columns = st.columns(2)
@@ -1980,7 +1989,10 @@ with records_tab:
         with st.container(height=420, border=True):
             has_delete_column = current_user in {"Sid", "Ajit"} or current_user in SELF_DELETE_USERS
             record_widths = [1.35, .8, .9, 1.1, 1.15, 1, .85, .65] if has_delete_column else [1.35, .8, .9, 1.1, 1.15, 1, .85]
-            record_titles = ("Record", "Date", "Branch", "Vehicle", "Placed by", "Revenue", "", "") if has_delete_column else ("Record", "Date", "Branch", "Vehicle", "Placed by", "Revenue", "")
+            has_trip_rows = any(clean_text(row.get("report_scope")).casefold() != "expense" for row in visible_rows)
+            has_expense_rows = any(clean_text(row.get("report_scope")).casefold() == "expense" for row in visible_rows)
+            value_title = "Revenue / Amount" if has_trip_rows and has_expense_rows else ("Amount" if has_expense_rows else "Revenue")
+            record_titles = ("Record", "Date", "Branch", "Vehicle", "Placed by", value_title, "", "") if has_delete_column else ("Record", "Date", "Branch", "Vehicle", "Placed by", value_title, "")
             header = st.columns(record_widths)
             for column, title in zip(header, record_titles):
                 column.markdown(f"**{title}**")
@@ -1992,7 +2004,9 @@ with records_tab:
                 columns[2].write(canonical_branch(record.get("branch")) or "—")
                 columns[3].write(canonical_vehicle_number(record.get("vehicle_number")) or "—")
                 columns[4].write(canonical_vehicle_placer(raw.get("Veh Placed by")) or "—")
-                columns[5].write(format_inr(number(record.get("revenue")), 0))
+                is_expense_record = clean_text(record.get("report_scope")).casefold() == "expense"
+                displayed_value = record.get("amount") if is_expense_record else record.get("revenue")
+                columns[5].write(format_inr(number(displayed_value), 0))
                 if columns[6].button("View Evidence", key=f"view_record_{record['request_number']}", use_container_width=True):
                     view_record(record)
                 can_delete_visible_record = current_user == "Ajit" or can_delete_record(current_user, record)

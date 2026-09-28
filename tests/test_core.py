@@ -730,6 +730,16 @@ def test_filtered_records_excel_contains_complete_trip_and_expense_fields():
     assert workbook["Records"].freeze_panes == "A2"
 
 
+def test_nikhat_debit_is_included_in_records_export():
+    exported = records_export_rows([{
+        "request_number": "REQ-DEBIT", "report_scope": "Expense",
+        "trip_date": dt.date(2026, 9, 28), "created_by": "Nikhat",
+        "amount": 1500, "dtr_data": json.dumps({"categories": {"Debit": 1500}}),
+    }])[0]
+    assert "Debit" in RECORD_EXPORT_COLUMNS
+    assert exported["Debit"] == 1500
+
+
 def test_pending_invoice_attachment_never_overwrites_existing_evidence(tmp_path):
     store = RequestStore(f"sqlite:///{tmp_path / 'pending-invoice.db'}")
     number = store.create({
@@ -1130,6 +1140,19 @@ def test_pnl_includes_manish_passing_expense():
     assert values["Net Profit / (Loss)"] == -1750
 
 
+def test_pnl_includes_nikhat_debit_as_a_direct_expense():
+    rows = pnl_summary([], [{"categories": {"Debit": 2250}}])
+    values = {row["Particular"]: row["Amount"] for row in rows}
+    assert values["Debit"] == -2250
+    assert values["Total Direct Expenses"] == -2250
+    assert values["Net Profit / (Loss)"] == -2250
+
+    branch = branch_pnl_summary([], [{"branch": "Andheri", "categories": {"Debit": 2250}}])[0]
+    assert branch["Debit"] == 2250
+    assert branch["Expense"] == 2250
+    assert branch["Profit"] == -2250
+
+
 def test_own_vehicle_pnl_uses_requested_expenses():
     trips = [{
         "ownership_type": "Own", "revenue": 50000, "upi": 2500, "diesel_advance": 8000,
@@ -1144,7 +1167,7 @@ def test_own_vehicle_pnl_uses_requested_expenses():
     assert list(values) == [
         "Revenue freight", "Route expenses (UPI)", "Toll charges", "Diesel amount",
         "Driver's salary", "EMI", "Insurance", "Vehicle Tax",
-        "Repair and maintenance", "RTO Challan & Fine", "Net Profit / (Loss)",
+        "Repair and maintenance", "RTO Challan & Fine", "Debit", "Net Profit / (Loss)",
     ]
     assert values["Route expenses (UPI)"] == -2500
     assert values["Repair and maintenance"] == -1500
@@ -1170,8 +1193,20 @@ def test_outside_vehicle_pnl_uses_transporter_and_additional_expenses():
         {"Particular": "Revenue", "Amount": 50000},
         {"Particular": "Transporter Freight", "Amount": -35000},
         {"Particular": "Additional expenses", "Amount": -2000},
+        {"Particular": "Debit", "Amount": 0},
         {"Particular": "Net Profit / (Loss)", "Amount": 13000},
     ]
+
+
+def test_outside_vehicle_pnl_shows_debit_without_double_counting_it():
+    rows = vehicle_pnl_summary([], [{
+        "ownership_type": "Outside", "amount": 2500,
+        "categories": {"Debit": 1500, "Extra Expense": 1000},
+    }], "Outside")
+    values = {row["Particular"]: row["Amount"] for row in rows}
+    assert values["Additional expenses"] == -1000
+    assert values["Debit"] == -1500
+    assert values["Net Profit / (Loss)"] == -2500
 
 
 def test_own_and_outside_pnl_are_horizontal_and_branch_wise():

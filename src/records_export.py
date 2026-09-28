@@ -7,7 +7,7 @@ import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from .pnl_report import DIRECT_EXPENSE_COLUMNS
+from .pnl_report import REPORT_EXPENSE_COLUMNS
 from .text_normalization import canonical_ownership
 from .vehicle_placer import canonical_vehicle_placer
 from .transporter_profiles import canonical_transporter_name
@@ -17,7 +17,7 @@ def canonical_branch(value):
     return "Vadodara" if original.casefold() in {"vadodra", "vadodara"} else original
 
 
-EXPENSE_EXPORT_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense"]
+EXPENSE_EXPORT_COLUMNS = list(REPORT_EXPENSE_COLUMNS)
 RECORD_EXPORT_COLUMNS = [
     "Record", "Record Type", "Date", "Status", "Created By", "Branch", "Company Name",
     "Vehicle Number", "Vehicle Capacity", "Own / Outside", "From", "To", "LR Number",
