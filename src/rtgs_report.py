@@ -1,6 +1,7 @@
 import datetime as dt
 import json
 import re
+from functools import lru_cache
 from io import BytesIO
 
 import pandas as pd
@@ -150,7 +151,9 @@ def rows_to_rtgs(rows):
     return pd.DataFrame(records, columns=RTGS_COLUMNS)
 
 
+@lru_cache(maxsize=None)
 def _style(font_colour="black", text=False, wrap=False, date=False):
+    """Reuse the few required XF styles to stay below the legacy XLS limit."""
     font = xlwt.Font()
     font.name = "Mulish SemiBold"
     font.height = 220

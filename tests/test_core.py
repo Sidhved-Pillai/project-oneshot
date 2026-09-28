@@ -22,6 +22,7 @@ from src.entry_state import clear_entry_state, clear_expense_state, entry_state_
 from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series, user_invoice_duplicates, user_lr_duplicates, valid_bisleri_invoice_number, verified_bisleri_invoice_numbers
 from src.number_format import format_inr, indian_number
 from src.expense_periods import allocate_expenses_for_period, serialize_period
+from src.expense_linking import link_expenses_to_trips
 from src.pending_invoice_matcher import score_invoice_match, suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
 from src.record_filters import DIRECT_EXPENSES, TRIP_RECORDS, filter_record_type, filter_without_invoice_evidence, has_invoice_evidence, sort_records_by_date
@@ -740,6 +741,20 @@ def test_nikhat_debit_is_included_in_records_export():
     assert exported["Debit"] == 1500
 
 
+def test_expense_invoice_links_to_the_matching_trip_for_pnl_dimensions():
+    trips = [{
+        "request_number": "REQ-TRIP", "invoice_number": "INV-123 / INV-124",
+        "branch": "Pune", "vehicle_number": "MH14AB1234", "vehicle_type": "10 MT",
+        "ownership_type": "Own",
+    }]
+    expenses = [{"request_number": "REQ-EXP", "invoice_number": "inv 123", "branch": "Andheri"}]
+    linked = link_expenses_to_trips(expenses, trips)
+    assert linked[0]["linked_trip_request_number"] == "REQ-TRIP"
+    assert linked[0]["branch"] == "Pune"
+    assert linked[0]["vehicle_number"] == "MH14AB1234"
+    assert linked[0]["ownership_type"] == "Own"
+
+
 def test_pending_invoice_attachment_never_overwrites_existing_evidence(tmp_path):
     store = RequestStore(f"sqlite:///{tmp_path / 'pending-invoice.db'}")
     number = store.create({
@@ -918,6 +933,19 @@ def test_rtgs_roundtrip_filter_and_exact_export_columns(tmp_path):
     ws = xlrd.open_workbook(file_contents=export_rtgs(frame), formatting_info=True).sheet_by_name("Sheet1")
     assert ws.row_values(0) == RTGS_COLUMNS
     assert ws.cell_value(1, 4) == "001234"
+
+
+def test_rtgs_export_reuses_styles_when_selecting_many_records():
+    frame = pd.DataFrame([
+        {
+            "BNF_NAME": f"Beneficiary {index}", "BENE_ACC_NO": str(100000 + index),
+            "BENE_IFSC": "HDFC0001234", "AMOUNT": 1000 + index,
+            "REMARK": f"Trip {index}", "Origin Area": "Pune",
+        }
+        for index in range(300)
+    ])
+    payload = export_rtgs(frame, dt.date(2026, 9, 28))
+    assert payload.startswith(bytes.fromhex("D0CF11E0"))
 
 
 def test_rtgs_business_rules_group_trips_and_select_email_and_mode():

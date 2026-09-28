@@ -18,6 +18,7 @@ from src.business_memory import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
 from src.entry_state import clear_entry_state, clear_expense_state, entry_state_prefix, expense_state_prefix
+from src.expense_linking import link_expenses_to_trips
 from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series, user_invoice_duplicates, verified_bisleri_invoice_numbers
 from src.number_format import format_inr, indian_number
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
@@ -741,12 +742,13 @@ def expense_payload(v, files):
     return {
         "report_scope": "Expense", "trip_date": v["date"], "vehicle_number": canonical_vehicle_number(v["vehicle_number"]),
         "vehicle_type": canonical_vehicle_capacity(v["vehicle_capacity"]), "ownership_type": v["ownership_type"],
-        "branch": v["branch"],
+        "branch": v["branch"], "invoice_number": clean_text(v.get("invoice_number")),
         "beneficiary_name": v["beneficiary_name"], "expense_type": ", ".join(k for k, val in categories.items() if val),
         "amount": sum(categories.values()), "payment_mode": ", ".join([*(k for k, val in payments.items() if val), *(["Card"] if card else [])]),
         "rtgs_advance": payments["RTGS"], "cash_advance": payments["Cash"], "upi": payments["UPI"],
         "diesel_advance": payments["Diesel"], "total_advance": sum(payments.values()) + card, "notes": plain_remark(v["remarks"]),
         "status": "Verified", "dtr_data": {
+            "Invoice No.": clean_text(v.get("invoice_number")),
             "categories": categories, "payments": {**payments, "Card": card},
             "periods": {
                 category: serialize_period(v.get(f"{category}_period"))
@@ -1488,8 +1490,22 @@ with expense_tab:
         is_manish = current_user == "Manish"
         if clean_text(st.session_state.get(f"{expense_prefix}_vehicle")):
             st.session_state[f"{expense_prefix}_vehicle"] = canonical_vehicle_number(st.session_state[f"{expense_prefix}_vehicle"])
-        c1, c2, c3 = st.columns(3)
-        v = {"date": c1.date_input("Date *", format="DD/MM/YYYY", key=f"{expense_prefix}_date"), "beneficiary_name": c2.text_input("Beneficiary name", key=f"{expense_prefix}_beneficiary", placeholder="e.g., Rajesh Kumar"), "vehicle_number": c3.text_input("Vehicle name / number", key=f"{expense_prefix}_vehicle", placeholder="e.g., MH14JL9818")}
+        if current_user == "Nikhat":
+            c1, c2, c3, c4 = st.columns(4)
+            v = {
+                "date": c1.date_input("Date *", format="DD/MM/YYYY", key=f"{expense_prefix}_date"),
+                "invoice_number": c2.text_input("Invoice No:", key=f"{expense_prefix}_invoice_number", placeholder="e.g., INV-1234"),
+                "beneficiary_name": c3.text_input("Beneficiary name", key=f"{expense_prefix}_beneficiary", placeholder="e.g., Rajesh Kumar"),
+                "vehicle_number": c4.text_input("Vehicle name / number", key=f"{expense_prefix}_vehicle", placeholder="e.g., MH14JL9818"),
+            }
+        else:
+            c1, c2, c3 = st.columns(3)
+            v = {
+                "date": c1.date_input("Date *", format="DD/MM/YYYY", key=f"{expense_prefix}_date"),
+                "invoice_number": "",
+                "beneficiary_name": c2.text_input("Beneficiary name", key=f"{expense_prefix}_beneficiary", placeholder="e.g., Rajesh Kumar"),
+                "vehicle_number": c3.text_input("Vehicle name / number", key=f"{expense_prefix}_vehicle", placeholder="e.g., MH14JL9818"),
+            }
         branch_choices = allowed_entry_branches
         expense_branch_key = f"{expense_prefix}_branch"
         if len(branch_choices) == 1:
@@ -2064,6 +2080,7 @@ with reports_tab:
         row for row in report_rows if start <= as_date(row.get("trip_date")) <= end
     ]
     trips = [row for row in selected_rows if row.get("report_scope") != "Expense"]
+    all_report_trips = [row for row in report_rows if row.get("report_scope") != "Expense"]
     if report_type == "P&L":
         if pnl_ownership_filter != "Vehicle No. Wise":
             trips = [row for row in trips if ownership_matches(row.get("ownership_type"), pnl_ownership_filter)]
@@ -2072,10 +2089,10 @@ with reports_tab:
         pnl_vehicle_filter = st.selectbox("Vehicle no.", ["All", *pnl_vehicle_options], key="pnl_vehicle_filter")
         if pnl_vehicle_filter != "All":
             trips = [row for row in trips if canonical_vehicle_number(row.get("vehicle_number")) == pnl_vehicle_filter]
-    expenses = [
+    expenses = link_expenses_to_trips([
         row for row in (report_rows if report_type == "P&L" else selected_rows)
         if row.get("report_scope") == "Expense"
-    ]
+    ], all_report_trips)
     if report_type == "P&L":
         if pnl_ownership_filter in {"Own", "Outside"}:
             expenses = [
