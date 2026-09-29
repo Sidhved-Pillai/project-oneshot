@@ -1280,6 +1280,35 @@ def test_both_vehicle_pnl_is_horizontal_and_branch_wise():
     assert (total["Total Revenue"], total["Expense"], total["Profit"]) == (50000, 30500, 19500)
 
 
+def test_vehicle_wise_pnl_uses_one_dominant_branch_and_ownership():
+    trips = [
+        {"vehicle_number": "MH04LE8412", "branch": "Andheri", "ownership_type": "Outside", "revenue": 5000, "transporter_freight": 4000},
+        {"vehicle_number": "MH04LE8412", "branch": "Andheri", "ownership_type": "Outside", "revenue": 6000, "transporter_freight": 4500},
+        {"vehicle_number": "MH04LE8412", "branch": "Wada", "ownership_type": "Own", "revenue": 7000},
+    ]
+    row = vehicle_number_pnl_summary(trips, [])[0]
+    assert row["Branch"] == "Andheri"
+    assert row["Ownership"] == "Outside"
+    assert row["Revenue-Own"] == 0
+    assert row["Revenue OS"] == 18000
+
+
+def test_vehicle_wise_pnl_omits_incomplete_zero_value_rows_and_infers_ownership():
+    rows = vehicle_number_pnl_summary([
+        {"vehicle_number": "ZERO-1", "branch": "Pune", "ownership_type": ""},
+        {"vehicle_number": "PAID-1", "branch": "Pune", "ownership_type": "", "revenue": 10000, "transporter_freight": 8000},
+    ], [])
+    assert [row["Vehicle No."] for row in rows] == ["PAID1", "Total"]
+    assert rows[0]["Ownership"] == "Outside"
+
+
+def test_branch_vehicle_pnl_tolerates_transient_empty_filter_value():
+    rows = branch_vehicle_pnl_summary([
+        {"branch": "Pune", "ownership_type": "Own", "revenue": 1000},
+    ], [], None)
+    assert rows[0]["Branch"] == "Pune"
+
+
 def test_both_pnl_splits_insurance_and_vehicle_tax_and_rounds_currency():
     rows = branch_pnl_summary([], [{
         "branch": "Pune",

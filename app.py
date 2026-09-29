@@ -2068,13 +2068,13 @@ with reports_tab:
     report_options = ["DTR"] if current_user == "Ashok" else ["DTR", "RTGS", *(["P&L"] if can_generate_pnl else [])]
     if st.session_state.get("report_type") not in (None, *report_options):
         st.session_state["report_type"] = "DTR"
-    report_type = st.segmented_control("Report type", report_options, default="DTR", key="report_type")
+    report_type = st.segmented_control("Report type", report_options, default="DTR", key="report_type") or "DTR"
     pnl_ownership_filter = "Both"
     pnl_vehicle_filter = "All"
     if report_type == "P&L":
         pnl_ownership_filter = st.segmented_control(
             "Own or outside vehicle", ["Both", "Own", "Outside", "Vehicle No. Wise"], default="Both", key="pnl_ownership_filter",
-        )
+        ) or "Both"
     report_rows = scope_report_rows(current_user, normalization_rows) if can_generate_reports and start <= end else []
     selected_rows = [
         row for row in report_rows if start <= as_date(row.get("trip_date")) <= end

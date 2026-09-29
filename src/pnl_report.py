@@ -89,6 +89,42 @@ def _trip_amount(row, field, dtr_field):
     return stored if stored else _amount(row.get("dtr_data", {}), dtr_field)
 
 
+def _meaningful_trip(row):
+    """Exclude incomplete vehicle placeholders that cannot affect a P&L."""
+    fields = (
+        "revenue", "transporter_freight", "rtgs_advance", "cash_advance",
+        "upi", "diesel_advance", "total_advance", "amount",
+    )
+    return any(abs(_amount(row, field)) > 1e-9 for field in fields)
+
+
+def _meaningful_expense(row):
+    return abs(_amount(row, "amount")) > 1e-9 or any(
+        abs(_amount(row.get("categories", {}), category)) > 1e-9
+        for category in REPORT_EXPENSE_COLUMNS
+    )
+
+
+def _canonical_ownership(row):
+    value = str(row.get("ownership_type") or "").strip().casefold()
+    if value.startswith("own"):
+        return "Own"
+    if value.startswith("outside"):
+        return "Outside"
+    if _amount(row, "transporter_freight") > 0:
+        return "Outside"
+    if any(abs(_amount(row, field)) > 1e-9 for field in (
+        "revenue", "rtgs_advance", "cash_advance", "upi", "diesel_advance", "total_advance",
+    )):
+        return "Own"
+    return ""
+
+
+def _dominant(values, fallback="Not specified"):
+    cleaned = [str(value or "").strip() for value in values if str(value or "").strip()]
+    return Counter(cleaned).most_common(1)[0][0] if cleaned else fallback
+
+
 def branch_pnl_summary(trip_rows, expense_rows):
     """Build the horizontal, branch-wise P&L used by the Both report."""
     vehicle_branches = defaultdict(Counter)
@@ -230,6 +266,9 @@ def vehicle_pnl_summary(trip_rows, expense_rows, ownership):
 
 def branch_vehicle_pnl_summary(trip_rows, expense_rows, ownership):
     """Transpose the existing Own/Outside P&L fields into branch-wise rows."""
+    ownership = str(ownership or "Both").strip().title()
+    if ownership not in {"Own", "Outside"}:
+        return branch_pnl_summary(trip_rows, expense_rows)
     selected = [
         row for row in trip_rows
         if str(row.get("ownership_type") or "").strip().lower().startswith(ownership.lower())
@@ -265,14 +304,18 @@ def branch_vehicle_pnl_summary(trip_rows, expense_rows, ownership):
 
 
 def vehicle_number_pnl_summary(trip_rows, expense_rows):
-    """Build a horizontal P&L row for every normalized vehicle number."""
+    """Build one clean, deterministic P&L row per meaningful vehicle."""
     trips_by_vehicle = defaultdict(list)
     for row in trip_rows:
+        if not _meaningful_trip(row):
+            continue
         vehicle = canonical_vehicle_number(row.get("vehicle_number")) or "Not specified"
         trips_by_vehicle[vehicle].append(row)
 
     expenses_by_vehicle = defaultdict(list)
     for row in expense_rows:
+        if not _meaningful_expense(row):
+            continue
         vehicle = canonical_vehicle_number(row.get("vehicle_number")) or "Not specified"
         expenses_by_vehicle[vehicle].append(row)
 
@@ -280,21 +323,26 @@ def vehicle_number_pnl_summary(trip_rows, expense_rows):
     for vehicle in sorted(set(trips_by_vehicle) | set(expenses_by_vehicle), key=str.casefold):
         vehicle_trips = trips_by_vehicle[vehicle]
         vehicle_expenses = expenses_by_vehicle[vehicle]
-        branch_rows = branch_pnl_summary(vehicle_trips, vehicle_expenses)
+        trip_ownerships = [_canonical_ownership(row) for row in vehicle_trips if _canonical_ownership(row)]
+        expense_ownerships = [_canonical_ownership(row) for row in vehicle_expenses if _canonical_ownership(row)]
+        ownership = _dominant(trip_ownerships or expense_ownerships)
+        trip_branches = [row.get("branch") for row in vehicle_trips if str(row.get("branch") or "").strip()]
+        expense_branches = [row.get("branch") for row in vehicle_expenses if str(row.get("branch") or "").strip()]
+        branch = _dominant(trip_branches or expense_branches)
+        normalized_trips = [
+            {**row, "branch": branch, "ownership_type": ownership}
+            for row in vehicle_trips
+        ]
+        normalized_expenses = [
+            {**row, "branch": branch, "ownership_type": ownership}
+            for row in vehicle_expenses
+        ]
+        branch_rows = branch_pnl_summary(normalized_trips, normalized_expenses)
         totals = next((row for row in reversed(branch_rows) if row.get("Branch") == "Total"), {})
-        branches = sorted({
-            str(row.get("branch") or "").strip()
-            for row in [*vehicle_trips, *vehicle_expenses]
-        } - {""}, key=str.casefold)
-        ownership = sorted({
-            "Own" if str(row.get("ownership_type") or "").strip().lower().startswith("own") else "Outside"
-            for row in [*vehicle_trips, *vehicle_expenses]
-            if str(row.get("ownership_type") or "").strip()
-        })
         rows.append({
             "Vehicle No.": vehicle,
-            "Branch": ", ".join(branches) or "Not specified",
-            "Ownership": ", ".join(ownership),
+            "Branch": branch,
+            "Ownership": ownership,
             **{column: totals.get(column, 0) for column in BRANCH_PNL_COLUMNS[1:]},
         })
 
