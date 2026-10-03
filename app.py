@@ -25,7 +25,7 @@ from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for
 from src.pending_invoice_matcher import suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
 from src import current_pnl_report as pnl_reporting
-from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
+from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, direct_expense_headings, filter_direct_expenses, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
 from src.records_export import export_records_excel
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, edited_dtr_frame, export_operational_dtr
 from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
@@ -37,7 +37,7 @@ from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS,
 from src.vijay_rtgs_backfill import vijay_missing_rtgs_updates
 from src.current_pnl_report import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.records_store_v12 import RequestStore
-from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, can_send_balance
+from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, balance_rtgs_rows, can_send_balance
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
@@ -1653,6 +1653,24 @@ with records_tab:
             placed_by_filter = c1.selectbox("Vehicle placed by", ["All", *placed_by_options], key="records_filter_placed_by")
             vehicle_filter = c2.selectbox("Vehicle no.", ["All", *vehicle_options], key="records_filter_vehicle")
             ownership_filter = c3.selectbox("Own or outside", ["Both", "Own", "Outside"], key="records_filter_ownership")
+        elif record_type == DIRECT_EXPENSES:
+            placed_by_filter, ownership_filter = "All", "Both"
+            amounts = sorted({number(row.get("amount")) for row in type_rows})
+            headings = direct_expense_headings(type_rows)
+            c1, c2, c3 = st.columns(3)
+            reset_invalid_widget_choice("records_filter_expense_vehicle", ["All", *vehicle_options], "All")
+            amount_options = ["All", *amounts]
+            reset_invalid_widget_choice("records_filter_expense_amount", amount_options, "All")
+            reset_invalid_widget_choice("records_filter_expense_heading", ["All", *headings], "All")
+            vehicle_filter = c1.selectbox("Vehicle no.", ["All", *vehicle_options], key="records_filter_expense_vehicle")
+            amount_filter = c2.selectbox(
+                "By Amount", amount_options, key="records_filter_expense_amount",
+                format_func=lambda value: "All" if value == "All" else format_inr(value),
+            )
+            heading_filter = c3.selectbox("Heading", ["All", *headings], key="records_filter_expense_heading")
+            type_rows = filter_direct_expenses(
+                type_rows, None if amount_filter == "All" else amount_filter, heading_filter,
+            )
         else:
             placed_by_filter, ownership_filter = "All", "Both"
             reset_invalid_widget_choice("records_filter_expense_vehicle", ["All", *vehicle_options], "All")
@@ -1663,7 +1681,7 @@ with records_tab:
                 and (vehicle_filter == "All" or canonical_vehicle_number(row.get("vehicle_number")) == vehicle_filter)
                 and ownership_matches(row.get("ownership_type"), ownership_filter)]
         outside_date_rows = []
-        if not rows and vehicle_filter != "All":
+        if not rows and vehicle_filter != "All" and record_type == TRIP_RECORDS:
             outside_date_rows = [
                 row for row in filter_record_type(scoped_rows, record_type)
                 if canonical_vehicle_number(row.get("vehicle_number")) == vehicle_filter
@@ -1844,9 +1862,9 @@ with records_tab:
     trip_record_count = sum(row.get("report_scope") != "Expense" for row in rows)
     expense_record_count = sum(row.get("report_scope") == "Expense" for row in rows)
     st.caption(f"{trip_record_count} trip record(s) and {expense_record_count} direct expense record(s) listed.")
-    if current_user in {"Vijay", "Ashok"} and record_type == TRIP_RECORDS:
+    if current_user == "Vijay" and record_type == TRIP_RECORDS:
         import_user = current_user
-        import_branch = "Vadodara" if import_user == "Ashok" else "Andheri"
+        import_branch = "Andheri"
         import_key = import_user.casefold()
         with st.expander("Import Excel"):
             st.caption(
@@ -1856,15 +1874,7 @@ with records_tab:
             import_file = st.file_uploader(
                 "Excel spreadsheet", type=["xlsx", "xls"], key=f"{import_key}_records_import",
             )
-            allow_ashok_duplicates = import_user == "Ashok" and st.checkbox(
-                "Import all valid rows, including duplicates",
-                key="ashok_allow_duplicate_excel_import",
-                help="Use this for the current backlog. Every valid spreadsheet row will be created as a new record.",
-            )
-            if allow_ashok_duplicates:
-                st.warning(
-                    "Duplicate protection is disabled for this upload. Each valid Excel row will be added as a new Ashok record."
-                )
+            allow_ashok_duplicates = False
             import_rows, import_errors, import_skipped = [], [], []
             if import_file is not None:
                 try:
@@ -2094,7 +2104,8 @@ with reports_tab:
         pnl_ownership_filter = st.segmented_control(
             "Own or outside vehicle", ["Both", "Own", "Outside", "Vehicle No. Wise"], default="Both", key="pnl_ownership_filter",
         ) or "Both"
-    report_rows = scope_report_rows(current_user, normalization_rows) if can_generate_reports and start <= end else []
+    balance_report_rows = scope_report_rows(current_user, normalization_rows) if can_generate_reports else []
+    report_rows = balance_report_rows if start <= end else []
     selected_rows = [
         row for row in report_rows if start <= as_date(row.get("trip_date")) <= end
     ]
@@ -2200,18 +2211,13 @@ with reports_tab:
             value=False,
             key="rtgs_balance_payable_only",
         )
-        rtgs_candidates = [] if show_only_balance_payable else list(reversed([
+        balance_candidates = balance_rtgs_rows(
+            [row for row in balance_report_rows if row.get("report_scope") != "Expense"],
+            balance_requests,
+        )
+        rtgs_candidates = balance_candidates + ([] if show_only_balance_payable else list(reversed([
             item for item in trips if number(item.get("rtgs_advance")) > 0
-        ]))
-        for trip in reversed(trips):
-            payment = balance_requests.get(trip["request_number"])
-            if payment:
-                rtgs_candidates.append({
-                    **trip, "request_number": BALANCE_PREFIX + trip["request_number"],
-                    "rtgs_advance": payment["amount"], "rtgs_done": payment["rtgs_done"],
-                    "rtgs_data": payment["rtgs_data"], "_balance_payment": True,
-                    "beneficiary_name": unpack(payment["rtgs_data"]).get("BNF_NAME", ""),
-                })
+        ])))
         select_all_rtgs = st.checkbox("Select all", key="rtgs_select_all")
         selection_frame = pd.DataFrame([
             {

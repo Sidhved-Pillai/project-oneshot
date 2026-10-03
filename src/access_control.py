@@ -1,7 +1,7 @@
 PRIVATE_RECORD_USERS = {"Manish", "Vijay"}
 FULL_DELETE_USERS = {"Sid", "Ajit"}
 SELF_DELETE_USERS = {"Ashok", "Manish", "Nikhat", "Nitish", "Vijay"}
-HIDDEN_LEADERBOARD_USERS = {"Ashok", "Ajit"}
+HIDDEN_LEADERBOARD_USERS = {"Ashok"}
 OWN_REPORT_USERS = {"Ashok"}
 
 

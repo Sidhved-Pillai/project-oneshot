@@ -25,7 +25,7 @@ from src.expense_periods import allocate_expenses_for_period, serialize_period
 from src.expense_linking import link_expenses_to_trips
 from src.pending_invoice_matcher import score_invoice_match, suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard
-from src.record_filters import DIRECT_EXPENSES, TRIP_RECORDS, filter_record_type, filter_without_invoice_evidence, has_invoice_evidence, sort_records_by_date
+from src.record_filters import DIRECT_EXPENSES, TRIP_RECORDS, direct_expense_headings, filter_direct_expenses, filter_record_type, filter_without_invoice_evidence, has_invoice_evidence, sort_records_by_date
 from src.records_export import RECORD_EXPORT_COLUMNS, export_records_excel, records_export_rows
 from src.request_store import RequestStore, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
@@ -155,9 +155,9 @@ def test_record_delete_permissions_are_owner_scoped_for_manish():
     assert not can_delete_record("Vijay", manish_record)
 
 
-def test_trip_leaderboard_is_hidden_for_ashok_and_ajit_only():
+def test_trip_leaderboard_is_hidden_for_ashok_but_visible_to_ajit():
     assert not can_view_trip_leaderboard("Ashok")
-    assert not can_view_trip_leaderboard("Ajit")
+    assert can_view_trip_leaderboard("Ajit")
     assert can_view_trip_leaderboard("Vijay")
     assert can_view_trip_leaderboard("Sid")
 
@@ -181,6 +181,18 @@ def test_records_can_be_filtered_by_type_and_sorted_by_date():
     assert [row["id"] for row in filter_record_type(rows, DIRECT_EXPENSES)] == [1]
     assert [row["id"] for row in sort_records_by_date(rows, "Newest first")] == [3, 2, 1]
     assert [row["id"] for row in sort_records_by_date(rows, "Oldest first")] == [1, 2, 3]
+
+
+def test_direct_expenses_can_be_filtered_by_amount_and_heading():
+    rows = [
+        {"id": 1, "amount": 5000, "dtr_data": {"categories": {"Debit": 5000, "Rent": 0}}},
+        {"id": 2, "amount": 5000, "dtr_data": '{"categories": {"Rent": 5000}}'},
+        {"id": 3, "amount": 2000, "expense_type": "Office & General expenses"},
+    ]
+    assert direct_expense_headings(rows) == ["Debit", "Office & General expenses", "Rent"]
+    assert [row["id"] for row in filter_direct_expenses(rows, 5000)] == [1, 2]
+    assert [row["id"] for row in filter_direct_expenses(rows, heading="Rent")] == [2]
+    assert [row["id"] for row in filter_direct_expenses(rows, 5000, "Debit")] == [1]
 
 
 def test_vijay_transporter_profiles_fill_exact_bank_details():

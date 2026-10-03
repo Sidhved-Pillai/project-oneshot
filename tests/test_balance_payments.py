@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 import xlrd
 
-from src.balance_payments import BALANCE_PREFIX, can_send_balance
+from src.balance_payments import BALANCE_PREFIX, balance_rtgs_rows, can_send_balance
 from src.records_store_v12 import RequestStore
 from src.rtgs_report import export_rtgs, normalize_rtgs_records
 
@@ -66,3 +66,22 @@ def test_nonpositive_balance_not_queued(tmp_path, amount):
     with pytest.raises(ValueError):
         store.send_balance_payment(number, "Sid")
     assert store.list_balance_payments() == {}
+
+
+def test_balance_rtgs_rows_ignore_trip_dates_and_use_request_dates_newest_first():
+    trips = [
+        {"request_number": "OLD", "trip_date": dt.date(2026, 7, 1), "beneficiary_name": "Old"},
+        {"request_number": "NEW", "trip_date": dt.date(2026, 9, 1), "beneficiary_name": "New"},
+    ]
+    payments = {
+        "OLD": {"request_number": "OLD", "amount": 900, "rtgs_done": False,
+                "rtgs_data": '{"BNF_NAME": "Old balance"}', "created_at": dt.datetime(2026, 10, 3, 10)},
+        "NEW": {"request_number": "NEW", "amount": 800, "rtgs_done": True,
+                "rtgs_data": '{"BNF_NAME": "New balance"}', "created_at": dt.datetime(2026, 10, 2, 10)},
+        "ARCHIVED": {"request_number": "ARCHIVED", "amount": 700, "rtgs_done": False,
+                     "rtgs_data": '{}', "created_at": dt.datetime(2026, 10, 4, 10)},
+    }
+    rows = balance_rtgs_rows(trips, payments)
+    assert [row["request_number"] for row in rows] == ["BALANCE:OLD", "BALANCE:NEW"]
+    assert [row["trip_date"] for row in rows] == [dt.date(2026, 10, 3), dt.date(2026, 10, 2)]
+    assert rows[1]["rtgs_done"] is True
