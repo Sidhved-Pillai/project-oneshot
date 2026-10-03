@@ -2195,7 +2195,14 @@ with reports_tab:
                 st.rerun()
         st.download_button("Download DTR report", cached_dtr_excel(edited_frame), f"DTR-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=edited_frame.empty or not can_generate_reports, on_click=audit_action, args=("Downloaded DTR report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
     elif report_type == "RTGS":
-        rtgs_candidates = list(reversed([item for item in trips if number(item.get("rtgs_advance")) > 0]))
+        show_only_balance_payable = st.toggle(
+            "Show only Balance Payable records",
+            value=False,
+            key="rtgs_balance_payable_only",
+        )
+        rtgs_candidates = [] if show_only_balance_payable else list(reversed([
+            item for item in trips if number(item.get("rtgs_advance")) > 0
+        ]))
         for trip in reversed(trips):
             payment = balance_requests.get(trip["request_number"])
             if payment:
