@@ -36,11 +36,12 @@ from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.vijay_rtgs_backfill import vijay_missing_rtgs_updates
 from src.current_pnl_report import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
-from src.records_store_v11 import RequestStore
+from src.records_store_v12 import RequestStore
+from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, can_send_balance
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
-STORE_INTERFACE_VERSION = 11
+STORE_INTERFACE_VERSION = 12
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Debit"]
@@ -1089,6 +1090,7 @@ except Exception as exc:
     st.stop()
 
 normalization_rows = store.list(status="All active")
+balance_requests = store.list_balance_payments()
 vijay_rtgs_updates = vijay_missing_rtgs_updates(normalization_rows)
 if vijay_rtgs_updates:
     updated_vijay_rtgs = store.update_many(
@@ -2009,6 +2011,9 @@ with records_tab:
             has_expense_rows = any(clean_text(row.get("report_scope")).casefold() == "expense" for row in visible_rows)
             value_title = "Revenue / Amount" if has_trip_rows and has_expense_rows else ("Amount" if has_expense_rows else "Revenue")
             record_titles = ("Record", "Date", "Branch", "Vehicle", "Placed by", value_title, "", "") if has_delete_column else ("Record", "Date", "Branch", "Vehicle", "Placed by", value_title, "")
+            if current_user in BALANCE_PAYMENT_USERS:
+                record_widths = [*record_widths, 1.25]
+                record_titles = (*record_titles, "")
             header = st.columns(record_widths)
             for column, title in zip(header, record_titles):
                 column.markdown(f"**{title}**")
@@ -2025,6 +2030,20 @@ with records_tab:
                 columns[5].write(format_inr(number(displayed_value), 0))
                 if columns[6].button("View Evidence", key=f"view_record_{record['request_number']}", use_container_width=True):
                     view_record(record)
+                if can_send_balance(current_user, record):
+                    already_sent = record["request_number"] in balance_requests
+                    if columns[-1].button(
+                        "Balance Payment Sent" if already_sent else "Send for Balance Payment",
+                        key=f"balance_{record['request_number']}", use_container_width=True,
+                        disabled=already_sent or number(record.get("balance_amount")) <= 0,
+                        help=f"Balance payable: {format_inr(number(record.get('balance_amount')))}",
+                    ):
+                        try:
+                            store.send_balance_payment(record["request_number"], current_user)
+                        except ValueError as exc:
+                            st.error(str(exc))
+                        else:
+                            st.rerun()
                 can_delete_visible_record = current_user == "Ajit" or can_delete_record(current_user, record)
                 if can_delete_visible_record and columns[7].button("Delete", icon=":material/delete:", key=f"delete_record_{record['request_number']}", help="Delete record", use_container_width=True):
                     confirm_record_delete(record)
@@ -2177,11 +2196,20 @@ with reports_tab:
         st.download_button("Download DTR report", cached_dtr_excel(edited_frame), f"DTR-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=edited_frame.empty or not can_generate_reports, on_click=audit_action, args=("Downloaded DTR report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
     elif report_type == "RTGS":
         rtgs_candidates = list(reversed([item for item in trips if number(item.get("rtgs_advance")) > 0]))
+        for trip in reversed(trips):
+            payment = balance_requests.get(trip["request_number"])
+            if payment:
+                rtgs_candidates.append({
+                    **trip, "request_number": BALANCE_PREFIX + trip["request_number"],
+                    "rtgs_advance": payment["amount"], "rtgs_done": payment["rtgs_done"],
+                    "rtgs_data": payment["rtgs_data"], "_balance_payment": True,
+                    "beneficiary_name": unpack(payment["rtgs_data"]).get("BNF_NAME", ""),
+                })
         select_all_rtgs = st.checkbox("Select all", key="rtgs_select_all")
         selection_frame = pd.DataFrame([
             {
                 "Select": select_all_rtgs or not bool(row.get("rtgs_done")),
-                "Record": request_label(row),
+                "Record": request_label(row) + (" · Balance Payment" if row.get("_balance_payment") else " · Advance"),
                 "Date": f"{as_date(row.get('trip_date')):%d/%m/%y}",
                 "Beneficiary": clean_text(row.get("beneficiary_name")),
                 "Account Number": clean_text(unpack(row.get("rtgs_data")).get("BENE_ACC_NO")),
@@ -2207,9 +2235,12 @@ with reports_tab:
                 locked_rtgs_columns.extend([
                     "Beneficiary", "Account Number", "IFSC", "Amount", "Remarks",
                 ])
+            rtgs_editor_key = "rtgs_record_selection_" + hashlib.sha256(
+                repr([(r["request_number"], r.get("rtgs_done"), str(r.get("rtgs_data"))) for r in rtgs_candidates]).encode()
+            ).hexdigest()[:16] + str(select_all_rtgs)
             edited_selection = st.data_editor(
                 styled_selection,
-                hide_index=True, width="stretch", key="rtgs_record_selection",
+                hide_index=True, width="stretch", key=rtgs_editor_key,
                 disabled=locked_rtgs_columns,
                 column_config={
                     "Select": st.column_config.CheckboxColumn("Select", required=True),
@@ -2253,6 +2284,9 @@ with reports_tab:
                     disabled=not changed_rtgs_rows, key="save_nikhat_rtgs_changes",
                 ):
                     for saved_row, effective_row in changed_rtgs_rows:
+                        if saved_row.get("_balance_payment"):
+                            store.update_balance_payment(saved_row["request_number"], effective_row["rtgs_data"], current_user)
+                            continue
                         old_rtgs = number(saved_row.get("rtgs_advance"))
                         new_rtgs = number(effective_row.get("rtgs_advance"))
                         new_total = number(saved_row.get("total_advance")) - old_rtgs + new_rtgs
@@ -2290,7 +2324,7 @@ with reports_tab:
                             current_user, "Updated RTGS record",
                             saved_row["request_number"], request_label(saved_row),
                         )
-                    st.session_state.pop("rtgs_record_selection", None)
+                    st.session_state.pop(rtgs_editor_key, None)
                     st.session_state["nikhat_rtgs_saved_notice"] = len(changed_rtgs_rows)
                     st.rerun()
         selected_rtgs_rows = [
@@ -2314,8 +2348,8 @@ with reports_tab:
             data["REMARK"] = data.get("REMARK") or rtgs_remark(row)
             records.append(data)
         records = normalize_rtgs_records(records, dt.date.today())
-        frame = pd.DataFrame(records, columns=RTGS_REVIEW_COLUMNS)
-        rtgs_display = frame.copy()
+        frame = pd.DataFrame(records, columns=[*RTGS_REVIEW_COLUMNS, "_payment_kind", "_payment_id"])
+        rtgs_display = frame[RTGS_REVIEW_COLUMNS].copy()
         for column in ("AMOUNT", "Transporter Freight"):
             if column in rtgs_display:
                 rtgs_display[column] = rtgs_display[column].map(format_inr)

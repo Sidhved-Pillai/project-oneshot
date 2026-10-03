@@ -12,6 +12,7 @@ from sqlalchemy import (
 
 from .config import DATA
 from .dtr_generator import DTR_COLUMNS
+from .balance_payments import BALANCE_PREFIX, can_send_balance
 
 
 metadata = MetaData()
@@ -58,6 +59,16 @@ requests = Table(
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
     Column("updated_at", DateTime, nullable=False, server_default=func.now()),
     Column("is_archived", Boolean, nullable=False, default=False, server_default=false()),
+)
+
+balance_payments = Table(
+    "trip_balance_payments", metadata,
+    Column("request_number", String(40), primary_key=True),
+    Column("amount", Numeric(14, 2), nullable=False),
+    Column("rtgs_data", Text, nullable=False),
+    Column("rtgs_done", Boolean, nullable=False, default=False),
+    Column("requested_by", String(120), nullable=False),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
 )
 
 intake_batches = Table(
@@ -335,18 +346,76 @@ class RequestStore:
             conn.execute(delete(record_revisions).where(record_revisions.c.request_number == request_number))
             return conn.execute(delete(requests).where(requests.c.request_number == request_number)).rowcount
 
+    def send_balance_payment(self, request_number, user):
+        """Queue one balance payment per trip, atomically, without copying the trip."""
+        with self.engine.begin() as conn:
+            row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
+                requests.c.request_number == request_number,
+            ).with_for_update()).mappings().first()
+            if not row or not can_send_balance(user, row):
+                raise ValueError("You cannot request a balance payment for this record.")
+            existing = conn.execute(select(balance_payments.c.request_number).where(
+                balance_payments.c.request_number == request_number,
+            )).first()
+            if existing:
+                return False
+            amount = row.get("balance_amount") or 0
+            if amount <= 0:
+                raise ValueError("This trip has no positive balance payable.")
+            data = json.loads(row.get("rtgs_data") or "{}")
+            data.update(AMOUNT=float(amount), BNF_NAME=data.get("BNF_NAME") or row.get("beneficiary_name", ""))
+            data["REMARK"] = str(data.get("REMARK") or row.get("notes") or "") + " Balance Payment"
+            data["Origin Area"] = row.get("branch", "")
+            data["_payment_kind"] = "balance"
+            data["_payment_id"] = BALANCE_PREFIX + request_number
+            conn.execute(insert(balance_payments).values(
+                request_number=request_number, amount=amount,
+                rtgs_data=json.dumps(data, default=str), requested_by=user, rtgs_done=False,
+            ))
+            conn.execute(insert(activity_logs).values(
+                user_name=user, action="Sent for Balance Payment", request_number=request_number,
+                details=f"Balance RTGS requested: {amount}",
+            ))
+        return True
+
+    def list_balance_payments(self):
+        with self.engine.connect() as conn:
+            payments = conn.execute(select(balance_payments)).mappings().all()
+        return {row["request_number"]: dict(row) for row in payments}
+
+    def update_balance_payment(self, payment_id, data, user):
+        if user != "Nikhat":
+            raise ValueError("Only Nikhat can correct RTGS payment details.")
+        if not payment_id.startswith(BALANCE_PREFIX) or float(data["AMOUNT"]) < 0:
+            raise ValueError("Invalid balance payment correction.")
+        number = payment_id.removeprefix(BALANCE_PREFIX)
+        data = {**data, "_payment_kind": "balance", "_payment_id": payment_id}
+        with self.engine.begin() as conn:
+            conn.execute(update(balance_payments).where(
+                balance_payments.c.request_number == number,
+            ).values(amount=data["AMOUNT"], rtgs_data=json.dumps(data, default=str)))
+            conn.execute(insert(activity_logs).values(
+                user_name=user, action="Updated balance RTGS", request_number=number,
+                details="Balance payment details corrected",
+            ))
+
     def mark_rtgs_done(self, request_numbers, done=True):
         """Persist the RTGS download status for the selected trip records."""
         request_numbers = [number for number in request_numbers if number]
         if not request_numbers:
             return 0
         with self.engine.begin() as conn:
+            balance_numbers = [number.removeprefix(BALANCE_PREFIX) for number in request_numbers if number.startswith(BALANCE_PREFIX)]
+            request_numbers = [number for number in request_numbers if not number.startswith(BALANCE_PREFIX)]
+            balance_count = conn.execute(update(balance_payments).where(
+                balance_payments.c.request_number.in_(balance_numbers),
+            ).values(rtgs_done=bool(done))).rowcount if balance_numbers else 0
             result = conn.execute(
                 update(requests)
                 .where(requests.c.request_number.in_(request_numbers))
                 .values(rtgs_done=bool(done), updated_at=dt.datetime.now())
             )
-        return result.rowcount
+        return result.rowcount + balance_count
 
     def log_action(self, user_name, action, request_number="", details=""):
         """Append one immutable audit event."""
