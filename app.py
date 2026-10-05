@@ -2366,7 +2366,7 @@ with reports_tab:
         selected_rtgs_rows = [
             row for row in effective_rtgs_rows if row.get("request_number") in selected_request_numbers
         ]
-        mark_col, _ = st.columns([1, 3])
+        mark_col, unmark_col, _ = st.columns([1, 1, 2])
         if mark_col.button(
             "Mark selected as RTGS Done",
             disabled=not selected_request_numbers or bool(current_user == "Nikhat" and changed_rtgs_rows),
@@ -2375,6 +2375,15 @@ with reports_tab:
             updated = store.mark_rtgs_done(selected_request_numbers)
             audit_action("Marked RTGS Done", "", f"{updated} record(s)")
             st.toast(f"Marked {updated} record(s) as RTGS Done.", icon="✅")
+            st.rerun()
+        if unmark_col.button(
+            "Mark Selected As Not Done",
+            disabled=not selected_request_numbers or bool(current_user == "Nikhat" and changed_rtgs_rows),
+            key="mark_selected_rtgs_not_done", use_container_width=True,
+        ):
+            updated = store.mark_rtgs_done(selected_request_numbers, done=False)
+            audit_action("Marked RTGS Not Done", "", f"{updated} record(s)")
+            st.toast(f"Marked {updated} record(s) as Not Done.", icon="✅")
             st.rerun()
         records = []
         for row in selected_rtgs_rows:

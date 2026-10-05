@@ -36,6 +36,18 @@ def test_balance_payment_lifecycle(tmp_path):
     store.update_balance_payment(BALANCE_PREFIX + number, data, "Nikhat")
     assert store.list()[0]["balance_amount"] == original["balance_amount"]
     assert store.mark_rtgs_done([number, BALANCE_PREFIX + number]) == 2
+    assert store.mark_rtgs_done([BALANCE_PREFIX + number], done=False) == 1
+    assert not store.list_balance_payments()[number]["rtgs_done"]
+    assert store.list()[0]["rtgs_done"]
+    assert store.mark_rtgs_done([BALANCE_PREFIX + number]) == 1
+    assert store.mark_rtgs_done([number], done=False) == 1
+    assert not store.list()[0]["rtgs_done"]
+    assert store.list_balance_payments()[number]["rtgs_done"]
+    assert store.mark_rtgs_done([number, BALANCE_PREFIX + number], done=False) == 2
+    assert not store.list()[0]["rtgs_done"]
+    assert not store.list_balance_payments()[number]["rtgs_done"]
+    assert store.list()[0]["balance_amount"] == original["balance_amount"]
+    assert store.list()[0]["rtgs_advance"] == original["rtgs_advance"]
 
 
 @pytest.mark.parametrize("user", ["Ashok", "Ajit", "Nitish", "Sid", "Vinod", "Nikhil"])
