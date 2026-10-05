@@ -10,6 +10,7 @@ from numbers import Number
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
 from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record, can_view_trip_leaderboard
@@ -38,6 +39,7 @@ from src.vijay_rtgs_backfill import vijay_missing_rtgs_updates
 from src.current_pnl_report import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.records_store_v12 import RequestStore
 from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, balance_rtgs_rows, can_send_balance
+from src.report_scroll import latest_rows_scroll_script
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
@@ -2155,7 +2157,7 @@ with reports_tab:
     st.caption(f"{len(trips)} trip record(s) and {len(expenses)} direct expense record(s) selected.")
     if report_type == "DTR":
         records = []
-        ordered_trips = sort_records_by_date(trips, "Newest first")
+        ordered_trips = list(reversed(trips))
         for i, row in enumerate(ordered_trips, 1):
             data = unpack(row.get("dtr_data"))
             data["Compnay Name"] = canonical_company(data.get("Compnay Name") or row.get("company_name"), KNOWN_COMPANIES)
@@ -2177,14 +2179,18 @@ with reports_tab:
             records.append({column: data.get(column, "") for column in DTR_REVIEW_COLUMNS} | {"Sr No.": i})
         frame = pd.DataFrame(records, columns=DTR_REVIEW_COLUMNS)
         display_frame = frame.rename(columns={"Compnay Name": "Company Name"})
-        editor_key = f"dtr_live_editor_newest_{start.isoformat()}_{end.isoformat()}"
-        edited_display_frame = st.data_editor(
-            display_frame,
-            hide_index=True,
-            width="stretch",
-            num_rows="fixed",
-            key=editor_key,
-        )
+        editor_key = f"dtr_live_editor_{start.isoformat()}_{end.isoformat()}"
+        with st.container(key="report_dtr_grid"):
+            edited_display_frame = st.data_editor(
+                display_frame,
+                hide_index=True,
+                width="stretch",
+                num_rows="fixed",
+                key=editor_key,
+            )
+        components.html(latest_rows_scroll_script(
+            "report_dtr_grid", repr([row.get("request_number") for row in ordered_trips]),
+        ), height=0)
         edited_frame = edited_dtr_frame(edited_display_frame)
         changed_indices = changed_dtr_rows(frame, edited_frame)
         invalid_date_rows = [
@@ -2228,9 +2234,9 @@ with reports_tab:
             [row for row in balance_report_rows if row.get("report_scope") != "Expense"],
             balance_requests,
         )
-        rtgs_candidates = balance_candidates + ([] if show_only_balance_payable else sort_records_by_date([
+        rtgs_candidates = balance_candidates + ([] if show_only_balance_payable else list(reversed([
             item for item in trips if number(item.get("rtgs_advance")) > 0
-        ], "Newest first"))
+        ])))
         select_all_rtgs = st.checkbox("Select all", key="rtgs_select_all")
         selection_frame = pd.DataFrame([
             {
@@ -2264,15 +2270,19 @@ with reports_tab:
             rtgs_editor_key = "rtgs_record_selection_" + hashlib.sha256(
                 repr([(r["request_number"], r.get("rtgs_done"), str(r.get("rtgs_data"))) for r in rtgs_candidates]).encode()
             ).hexdigest()[:16] + str(select_all_rtgs)
-            edited_selection = st.data_editor(
-                styled_selection,
-                hide_index=True, width="stretch", key=rtgs_editor_key,
-                disabled=locked_rtgs_columns,
-                column_config={
-                    "Select": st.column_config.CheckboxColumn("Select", required=True),
-                    "Amount": st.column_config.NumberColumn("Amount", min_value=0.0, format="₹%.2f"),
-                },
-            )
+            with st.container(key="report_rtgs_grid"):
+                edited_selection = st.data_editor(
+                    styled_selection,
+                    hide_index=True, width="stretch", key=rtgs_editor_key,
+                    disabled=locked_rtgs_columns,
+                    column_config={
+                        "Select": st.column_config.CheckboxColumn("Select", required=True),
+                        "Amount": st.column_config.NumberColumn("Amount", min_value=0.0, format="₹%.2f"),
+                    },
+                )
+            components.html(latest_rows_scroll_script(
+                "report_rtgs_grid", repr([row.get("request_number") for row in rtgs_candidates]),
+            ), height=0)
             editable_rtgs_columns = ["Beneficiary", "Account Number", "IFSC", "Amount", "Remarks"]
             for index, saved_row in enumerate(rtgs_candidates):
                 edited_item = edited_selection.iloc[index].to_dict()
