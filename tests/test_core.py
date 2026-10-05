@@ -183,6 +183,18 @@ def test_records_can_be_filtered_by_type_and_sorted_by_date():
     assert [row["id"] for row in sort_records_by_date(rows, "Oldest first")] == [1, 2, 3]
 
 
+def test_newest_report_order_keeps_same_day_record_mapping_and_source_order():
+    rows = [
+        {"id": 10, "trip_date": "2026-10-04", "request_number": "older"},
+        {"id": 12, "trip_date": "2026-10-05", "request_number": "latest"},
+        {"id": 11, "trip_date": "2026-10-05", "request_number": "earlier-today"},
+    ]
+    ordered = sort_records_by_date(rows, "Newest first")
+    assert [row["request_number"] for row in ordered] == ["latest", "earlier-today", "older"]
+    assert ordered[0] is rows[1]
+    assert rows[0]["request_number"] == "older"
+
+
 def test_direct_expenses_can_be_filtered_by_amount_and_heading():
     rows = [
         {"id": 1, "amount": 5000, "dtr_data": {"categories": {"Debit": 5000, "Rent": 0}}},

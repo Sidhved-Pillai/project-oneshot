@@ -2155,7 +2155,7 @@ with reports_tab:
     st.caption(f"{len(trips)} trip record(s) and {len(expenses)} direct expense record(s) selected.")
     if report_type == "DTR":
         records = []
-        ordered_trips = list(reversed(trips))
+        ordered_trips = sort_records_by_date(trips, "Newest first")
         for i, row in enumerate(ordered_trips, 1):
             data = unpack(row.get("dtr_data"))
             data["Compnay Name"] = canonical_company(data.get("Compnay Name") or row.get("company_name"), KNOWN_COMPANIES)
@@ -2177,7 +2177,7 @@ with reports_tab:
             records.append({column: data.get(column, "") for column in DTR_REVIEW_COLUMNS} | {"Sr No.": i})
         frame = pd.DataFrame(records, columns=DTR_REVIEW_COLUMNS)
         display_frame = frame.rename(columns={"Compnay Name": "Company Name"})
-        editor_key = f"dtr_live_editor_{start.isoformat()}_{end.isoformat()}"
+        editor_key = f"dtr_live_editor_newest_{start.isoformat()}_{end.isoformat()}"
         edited_display_frame = st.data_editor(
             display_frame,
             hide_index=True,
@@ -2228,9 +2228,9 @@ with reports_tab:
             [row for row in balance_report_rows if row.get("report_scope") != "Expense"],
             balance_requests,
         )
-        rtgs_candidates = balance_candidates + ([] if show_only_balance_payable else list(reversed([
+        rtgs_candidates = balance_candidates + ([] if show_only_balance_payable else sort_records_by_date([
             item for item in trips if number(item.get("rtgs_advance")) > 0
-        ])))
+        ], "Newest first"))
         select_all_rtgs = st.checkbox("Select all", key="rtgs_select_all")
         selection_frame = pd.DataFrame([
             {
