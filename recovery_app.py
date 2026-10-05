@@ -2,4 +2,7 @@
 
 # A separate entry-point path gives Community Cloud a fresh deployment while
 # retaining the single tested application implementation in app.py.
-from app import *  # noqa: F401,F403
+import runpy
+from pathlib import Path
+
+runpy.run_path(str(Path(__file__).with_name("app.py")), run_name="__main__")
