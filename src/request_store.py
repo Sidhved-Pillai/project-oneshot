@@ -135,6 +135,24 @@ def database_url():
     return os.getenv("DATABASE_URL") or f"sqlite:///{Path(DATA) / 'project_oneshot.db'}"
 
 
+def engine_options(url):
+    """Bound cloud database waits so Streamlit can report failures instead of hanging."""
+    options = {"pool_pre_ping": True}
+    if url.startswith("sqlite"):
+        options["connect_args"] = {"check_same_thread": False}
+    else:
+        options.update({
+            "pool_timeout": 10,
+            "pool_recycle": 300,
+            "connect_args": {
+                "connect_timeout": 10,
+                "application_name": "project-oneshot-streamlit",
+                "options": "-c statement_timeout=30000 -c lock_timeout=5000",
+            },
+        })
+    return options
+
+
 class RequestStore:
     def __init__(self, url=None):
         url = url or database_url()
@@ -142,11 +160,8 @@ class RequestStore:
             url = "postgresql+psycopg://" + url.removeprefix("postgres://")
         elif url.startswith("postgresql://"):
             url = "postgresql+psycopg://" + url.removeprefix("postgresql://")
-        kwargs = {"pool_pre_ping": True}
-        if url.startswith("sqlite"):
-            kwargs["connect_args"] = {"check_same_thread": False}
         self.url = url
-        self.engine = create_engine(url, **kwargs)
+        self.engine = create_engine(url, **engine_options(url))
         metadata.create_all(self.engine)
         self._migrate_existing_database()
 

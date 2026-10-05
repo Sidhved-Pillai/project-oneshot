@@ -27,7 +27,7 @@ from src.pending_invoice_matcher import score_invoice_match, suggest_invoice_mat
 from src.current_leaderboard import branch_trip_leaderboard
 from src.record_filters import DIRECT_EXPENSES, TRIP_RECORDS, direct_expense_headings, filter_direct_expenses, filter_record_type, filter_without_invoice_evidence, has_invoice_evidence, sort_records_by_date
 from src.records_export import RECORD_EXPORT_COLUMNS, export_records_excel, records_export_rows
-from src.request_store import RequestStore, rows_to_dtr
+from src.request_store import RequestStore, engine_options, rows_to_dtr
 from src.rtgs_report import RTGS_COLUMNS, export_rtgs, normalize_rtgs_records, rows_to_rtgs
 from src.trip_dtr_report import OPERATIONAL_DTR_COLUMNS, edited_dtr_frame, export_operational_dtr
 from src.pnl_report import BRANCH_PNL_COLUMNS, DIRECT_EXPENSE_COLUMNS, VEHICLE_NO_PNL_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl, pnl_summary, vehicle_pnl_summary
@@ -682,6 +682,15 @@ def test_exact_columns_blank_financials_and_export_date_format_width():
 def test_missing_required_column():
     with pytest.raises(ValueError, match="Missing required"):
         generate_dtr(pd.DataFrame({"Remark":["trip"]}), vehicle_master(), beneficiary_master())
+
+
+def test_cloud_database_engine_waits_are_bounded():
+    cloud = engine_options("postgresql+psycopg://example.invalid/app")
+    assert cloud["pool_timeout"] == 10
+    assert cloud["connect_args"]["connect_timeout"] == 10
+    assert "statement_timeout=30000" in cloud["connect_args"]["options"]
+    assert "lock_timeout=5000" in cloud["connect_args"]["options"]
+    assert engine_options("sqlite:///local.db")["connect_args"] == {"check_same_thread": False}
 
 
 def test_gemini_unavailable(monkeypatch):
