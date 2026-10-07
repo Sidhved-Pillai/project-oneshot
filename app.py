@@ -456,10 +456,10 @@ def require_authentication():
     <div class="login-heading"><h1>Project Oneshot</h1><p>Enter the member access code to continue.</p></div>
     """, unsafe_allow_html=True)
     with st.form("special_member_login"):
-        access_code = st.text_input("5 or 6-digit access code", type="password", max_chars=6, key="special_access_code")
+        access_code = st.text_input("4, 5 or 6-digit access code", type="password", max_chars=6, key="special_access_code")
         submitted = st.form_submit_button("Continue", use_container_width=True)
     if submitted:
-        member = identify_member(access_code) if len(access_code) in {5, 6} and access_code.isdigit() else None
+        member = identify_member(access_code) if len(access_code) in {4, 5, 6} and access_code.isdigit() else None
         if member:
             st.session_state["authenticated"] = True
             st.session_state["authenticated_user"] = member
