@@ -8,6 +8,7 @@ import pandas as pd
 
 from .vehicle_normalization import canonical_vehicle_number
 from .vehicle_placer import LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
+from .current_leaderboard import canonical_branch
 
 
 ALIASES = {
@@ -16,6 +17,7 @@ ALIASES = {
     "invoice": {"invoiceno", "invoicenumber"},
     "lr": {"lrno", "lrnumber"},
     "owner": ("vehplacedby", "vehicleplacedby", "placedby", "createdby"),
+    "branch": ("branch", "branchname"),
     "from": {"from", "fromlocation"}, "to": {"to", "tolocation"},
 }
 
@@ -60,6 +62,7 @@ def identity(row):
         "vehicle": canonical_vehicle_number(get("vehicle")),
         "invoice": identifiers(get("invoice")), "lr": identifiers(get("lr")),
         "from": heading(get("from")), "to": heading(get("to")), "owner": owner,
+        "branch": canonical_branch(get("branch")),
     }
 
 
@@ -84,7 +87,7 @@ def app_review_frame(records):
     return pd.DataFrame(output)
 
 
-def compare_dtr(imported, app_frame, default_owner="Unassigned", progress=None):
+def compare_dtr(imported, app_frame, default_branch="Unassigned", progress=None):
     apps = [identity(row) for row in app_frame.to_dict("records")]
     used, seen, output, found = set(), set(), [], 0
     by_trip = {}
@@ -121,13 +124,14 @@ def compare_dtr(imported, app_frame, default_owner="Unassigned", progress=None):
             status = "Missing from App"
         seen.add(fingerprint)
         output.append({**row, "Review Status": status,
-            "Responsible Person": trip["owner"] or default_owner,
+            "Review Branch": next((branch for branch in ("Wada", "Pune", "Andheri", "Vadodara")
+                if branch.casefold() == (trip["branch"] or default_branch).casefold()), trip["branch"] or default_branch),
             "Matched App Record": app_frame.iloc[candidates[0]].get("App Record", "") if status == "Found in App" else ""})
         if progress:
             progress(index + 1, len(imported), found)
     result = pd.DataFrame(output)
     missing = result[result["Review Status"] == "Missing from App"] if not result.empty else result
-    return result, dict(Counter(missing.get("Responsible Person", [])))
+    return result, dict(Counter(missing.get("Review Branch", [])))
 
 
 def render_dtr_review(records):
@@ -146,10 +150,10 @@ def render_dtr_review(records):
     except Exception:
         st.error("Could not read this worksheet. Please upload a valid Excel DTR with Date and Vehicle No. column headings.")
         return
-    default_owner = st.selectbox("Responsible person when the Excel has no Vehicle Placed By / Created By", 
-        ["Unassigned", "Ashok", "Ajit", "Nitish", "Manish", "Vijay", "Sid", "Vinod", "Nikhil"], key="shyam_review_default_owner")
-    st.caption("Use the responsible person field for a person's own sheet. Unassigned rows are not attributed to anyone automatically.")
-    signature = hashlib.sha256(upload.getvalue() + sheet.encode() + default_owner.encode()).hexdigest()
+    default_branch = st.selectbox("Branch when the Excel has no Branch field",
+        ["Unassigned", "Wada", "Pune", "Andheri", "Vadodara"], key="shyam_review_default_branch")
+    st.caption("The Excel's Branch field takes priority. Select a fallback for a branch-specific sheet; otherwise blank branches remain Unassigned.")
+    signature = hashlib.sha256(upload.getvalue() + sheet.encode() + default_branch.encode() + b"branch-review-v1").hexdigest()
     clicked = st.button("Match it with App's DTR", type="primary", disabled=imported.empty, key="shyam_review_match")
     if not clicked and st.session_state.get("shyam_review_matched") != signature:
         st.dataframe(imported, hide_index=True, width="stretch")
@@ -167,7 +171,7 @@ def render_dtr_review(records):
         if done == total or done % max(1, total // 50) == 0:
             scan.info(f"Scanning {done}/{total}\n\n{found} trips found")
             bar.progress(done / total)
-    result, counts = compare_dtr(imported, app_frame, default_owner, progress if clicked else None)
+    result, counts = compare_dtr(imported, app_frame, default_branch, progress if clicked else None)
     st.session_state["shyam_review_matched"] = signature
     found = int((result["Review Status"] == "Found in App").sum()) if not result.empty else 0
     scan.success(f"{found} trips of imported Excel found in App's DTR")
@@ -176,10 +180,10 @@ def render_dtr_review(records):
     left.dataframe(result, hide_index=True, height=450, width="stretch")
     right.markdown("#### App's DTR · view only")
     right.dataframe(app_frame, hide_index=True, height=450, width="stretch")
-    st.markdown("#### People-specific missing trips")
-    for person, count in sorted(counts.items()):
-        with st.expander(f"{person}: {count} trip entries missing from App's DTR"):
-            st.dataframe(result[(result["Review Status"] == "Missing from App") & (result["Responsible Person"] == person)], hide_index=True, width="stretch")
+    st.markdown("#### Branch-specific missing trips")
+    for branch, count in sorted(counts.items()):
+        with st.expander(f"{branch}: {count} trip entries missing from App's DTR"):
+            st.dataframe(result[(result["Review Status"] == "Missing from App") & (result["Review Branch"] == branch)], hide_index=True, width="stretch")
     if not counts:
         st.success("No missing trip entries found.")
     exceptions = result[~result["Review Status"].isin(["Found in App", "Missing from App"])] if not result.empty else result

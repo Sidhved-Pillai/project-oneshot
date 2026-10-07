@@ -9,7 +9,7 @@ from src.dtr_review import app_review_frame, compare_dtr, identity, read_review_
 
 def trip(invoice="123", owner="Ashok"):
     return {"Date": "04/10/2026", "Vehicle No.": "MH04 HD4001", "Invoice No.": invoice,
-            "Veh Placed by": owner, "From": "Pune", "To": "Mumbai"}
+            "Veh Placed by": owner, "From": "Pune", "To": "Mumbai", "Branch": "Vadodara"}
 
 
 def test_dates_and_numeric_identifiers_are_normalized():
@@ -26,21 +26,34 @@ def test_review_matches_one_to_one_and_groups_missing_without_writes():
     ticks = []
     result, counts = compare_dtr(uploaded, app, progress=lambda *args: ticks.append(args))
     assert result["Review Status"].tolist() == ["Found in App", "Missing from App", "Repeated upload row", "Invalid / non-trip row"]
-    assert counts == {"Ashok": 1}
+    assert counts == {"Vadodara": 1}
     assert result.iloc[0]["Matched App Record"] == "REQ-1"
     assert ticks[-1] == (4, 4, 1)
     pd.testing.assert_frame_equal(uploaded, before)
 
 
-def test_ambiguous_matches_and_unknown_owner_are_not_misreported():
+def test_ambiguous_matches_and_unknown_branch_are_not_misreported():
     app = pd.DataFrame([trip(), trip()])
     result, counts = compare_dtr(pd.DataFrame([trip()]), app)
     assert result.iloc[0]["Review Status"].startswith("Needs review")
     assert counts == {}
-    _, counts = compare_dtr(pd.DataFrame([trip(owner="")]), pd.DataFrame())
+    _, counts = compare_dtr(pd.DataFrame([{**trip(), "Branch": ""}]), pd.DataFrame())
     assert counts == {"Unassigned": 1}
-    _, counts = compare_dtr(pd.DataFrame([trip(owner="")]), pd.DataFrame(), "Nitish")
-    assert counts == {"Nitish": 1}
+    _, counts = compare_dtr(pd.DataFrame([{**trip(), "Branch": ""}]), pd.DataFrame(), "Pune")
+    assert counts == {"Pune": 1}
+    _, counts = compare_dtr(pd.DataFrame([trip()]), pd.DataFrame(), "Pune")
+    assert counts == {"Vadodara": 1}
+
+
+def test_missing_trips_group_by_branch_not_person():
+    uploaded = pd.DataFrame([
+        {**trip("1", "Ashok"), "Branch": "Vadodra"},
+        {**trip("2", "Ajit"), "Branch": "vadodara"},
+        {**trip("3", "Ashok"), "Branch": "Pune"},
+    ])
+    result, counts = compare_dtr(uploaded, pd.DataFrame())
+    assert counts == {"Vadodara": 2, "Pune": 1}
+    assert "Responsible Person" not in result.columns
 
 
 def test_route_fallback_and_multiple_invoices():
