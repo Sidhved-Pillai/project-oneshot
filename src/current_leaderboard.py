@@ -1,5 +1,26 @@
 """Branch leaderboard kept separate for safe Streamlit hot deployment."""
 
+import datetime as dt
+
+
+def current_month_leaderboard(rows, today, branches=()):
+    """Independent of Records filters; deleted/cancelled rows never contribute."""
+    active = []
+    for row in rows:
+        if row.get("is_archived") or row.get("status") == "Cancelled":
+            continue
+        value = row.get("trip_date")
+        try:
+            date = value.date() if isinstance(value, dt.datetime) else (
+                value if isinstance(value, dt.date) else dt.date.fromisoformat(str(value)[:10])
+            )
+        except (TypeError, ValueError):
+            continue
+        if (date.year, date.month) == (today.year, today.month):
+            active.append(row)
+    result = branch_trip_leaderboard(active, branches)
+    return [*result, ("Total", sum(item[1] for item in result), sum(item[2] for item in result))]
+
 
 def canonical_branch(value):
     original = " ".join(str(value or "").split()).strip()

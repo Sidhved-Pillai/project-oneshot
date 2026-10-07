@@ -24,7 +24,7 @@ from src.number_format import format_inr, indian_number
 from src.expense_periods import allocate_expenses_for_period, serialize_period
 from src.expense_linking import link_expenses_to_trips
 from src.pending_invoice_matcher import score_invoice_match, suggest_invoice_match
-from src.current_leaderboard import branch_trip_leaderboard
+from src.current_leaderboard import branch_trip_leaderboard, current_month_leaderboard
 from src.record_filters import DIRECT_EXPENSES, TRIP_RECORDS, direct_expense_headings, filter_direct_expenses, filter_record_type, filter_without_invoice_evidence, has_invoice_evidence, sort_records_by_date
 from src.records_export import RECORD_EXPORT_COLUMNS, export_records_excel, records_export_rows
 from src.request_store import RequestStore, engine_options, rows_to_dtr
@@ -320,6 +320,21 @@ def test_vadodara_branch_spelling_preserves_legacy_records():
     assert branch_trip_leaderboard(
         [{"branch": "Vadodra", "revenue": 1000, "report_scope": "Both"}], ["Vadodara"]
     ) == [("Vadodara", 1, 1000.0)]
+
+
+def test_current_month_leaderboard_has_total_and_excludes_deleted_expenses_and_other_months():
+    rows = [
+        {"trip_date": "2026-10-01", "branch": "Pune", "revenue": 100.25},
+        {"trip_date": dt.date(2026, 10, 7), "branch": "Wada", "revenue": 200},
+        {"trip_date": "2026-09-30", "branch": "Pune", "revenue": 900},
+        {"trip_date": "2026-10-02", "branch": "Pune", "revenue": 900, "is_archived": True},
+        {"trip_date": "2026-10-03", "branch": "Pune", "revenue": 900, "status": "Cancelled"},
+        {"trip_date": "2026-10-04", "branch": "Pune", "revenue": 900, "report_scope": "Expense"},
+        {"trip_date": "bad-date", "branch": "Pune", "revenue": 900},
+    ]
+    result = current_month_leaderboard(rows, dt.date(2026, 10, 7), ["Pune", "Wada"])
+    assert result == [("Wada", 1, 200.0), ("Pune", 1, 100.25), ("Total", 2, 300.25)]
+    assert current_month_leaderboard([], dt.date(2026, 10, 7)) == [("Total", 0, 0)]
 
 
 def test_diesel_expense_is_quantity_times_rate():
@@ -772,6 +787,21 @@ def test_nikhat_debit_is_included_in_records_export():
     }])[0]
     assert "Debit" in RECORD_EXPORT_COLUMNS
     assert exported["Debit"] == 1500
+
+
+def test_direct_expense_excel_includes_every_row_amount_invoice_and_categories():
+    records = [{
+        "request_number": f"EXP-{index}", "report_scope": "Expense",
+        "amount": 1500.50, "invoice_number": "INV-123", "expense_type": "Debit",
+        "dtr_data": {"categories": {"Debit": 1500.50}},
+    } for index in range(55)]
+    workbook = load_workbook(BytesIO(export_records_excel(records, direct_expenses=True)))
+    sheet = workbook["Records"]
+    headers = [cell.value for cell in sheet[1]]
+    assert sheet.max_row == 56
+    for name, value in [("Amount", 1500.50), ("Debit", 1500.50), ("Invoice Number", "INV-123"), ("Expense Heading", "Debit")]:
+        assert sheet.cell(2, headers.index(name) + 1).value == value
+    assert sheet.cell(2, headers.index("Amount") + 1).number_format == '#,##0.00'
 
 
 def test_expense_invoice_links_to_the_matching_trip_for_pnl_dimensions():

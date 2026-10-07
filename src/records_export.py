@@ -89,8 +89,14 @@ def records_export_rows(records):
     return output
 
 
-def export_records_excel(records):
-    frame = pd.DataFrame(records_export_rows(records), columns=RECORD_EXPORT_COLUMNS)
+def export_records_excel(records, direct_expenses=False):
+    columns = list(RECORD_EXPORT_COLUMNS)
+    exported = records_export_rows(records)
+    if direct_expenses:
+        columns[4:4] = ["Amount", "Expense Heading"]
+        for item, record in zip(exported, records):
+            item.update({"Amount": record.get("amount", 0), "Expense Heading": record.get("expense_type", "")})
+    frame = pd.DataFrame(exported, columns=columns)
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl", date_format="DD-MM-YYYY") as writer:
         frame.to_excel(writer, index=False, sheet_name="Records")
@@ -102,8 +108,8 @@ def export_records_excel(records):
             cell.alignment = Alignment(horizontal="center")
         sheet.freeze_panes = "A2"
         sheet.auto_filter.ref = sheet.dimensions
-        money_columns = set(RECORD_EXPORT_COLUMNS[19:37]) | set(EXPENSE_EXPORT_COLUMNS) | {"Card"}
-        for index, name in enumerate(RECORD_EXPORT_COLUMNS, 1):
+        money_columns = set(RECORD_EXPORT_COLUMNS[19:37]) | set(EXPENSE_EXPORT_COLUMNS) | {"Card", "Amount"}
+        for index, name in enumerate(columns, 1):
             sheet.column_dimensions[get_column_letter(index)].width = min(32, max(13, len(name) + 2))
             if name in money_columns:
                 for row_index in range(2, sheet.max_row + 1):

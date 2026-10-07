@@ -24,7 +24,7 @@ from src.invoice_numbers import combined_invoice_number, normalized_invoice_numb
 from src.number_format import format_inr, indian_number
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
 from src.pending_invoice_matcher import suggest_invoice_match
-from src.current_leaderboard import branch_trip_leaderboard
+from src.current_leaderboard import branch_trip_leaderboard, current_month_leaderboard
 from src import current_pnl_report as pnl_reporting
 from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, direct_expense_headings, filter_direct_expenses, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
 from src.records_export import export_records_excel
@@ -68,6 +68,7 @@ MEMBER_CODE_HASHES = {
     "Vijay": "d2c8a6da1a9291485a92dd8554cf42be1e28090b517a503b9d3e2fbfbc8469cb",
 }
 SPECIAL_MEMBERS = {"Sid", "Ajit", "Vinod", "Nikhil", "Shyam", "Nikhat"}
+EXPENSE_RECORD_SUMMARY_USERS = {"Nikhat", "Shyam", "Sid", "Vinod", "Nikhil", "Ajit"}
 PNL_MEMBERS = {"Sid", "Ajit", "Vinod", "Nikhil"}
 AUDITED_MEMBERS = {"Ajit", "Nikhat", "Shyam"}
 LIMITED_RECORD_BRANCH = {"Nitish": "Pune", "Gopal": "Pune", "Manish": "Wada", "Vijay": "Andheri", "Ashok": "Vadodara"}
@@ -105,6 +106,11 @@ def cached_business_memory(rows):
 @st.cache_data(show_spinner=False, max_entries=12)
 def cached_records_excel(rows):
     return export_records_excel(rows)
+
+
+@st.cache_data(show_spinner=False, max_entries=12)
+def cached_expenses_excel(rows):
+    return export_records_excel(rows, direct_expenses=True)
 
 
 @st.cache_data(show_spinner=False, max_entries=12)
@@ -1710,7 +1716,7 @@ with records_tab:
                     f"{vehicle_filter} is saved with date {saved_dates}, outside the selected date range. "
                     "It is shown below so the record can be reviewed."
                 )
-        if record_type == TRIP_RECORDS and can_view_trip_leaderboard(current_user):
+        if record_type == TRIP_RECORDS and can_view_trip_leaderboard(current_user) and current_user not in EXPENSE_RECORD_SUMMARY_USERS:
             leaderboard_source = [
                 row for row in all_record_rows
                 if filter_from <= as_date(row.get("trip_date")) <= filter_to
@@ -1726,7 +1732,7 @@ with records_tab:
                 f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_rows}</tbody></table>',
                 unsafe_allow_html=True,
             )
-    elif record_branch_scope and can_view_trip_leaderboard(current_user):
+    elif record_branch_scope and can_view_trip_leaderboard(current_user) and current_user not in EXPENSE_RECORD_SUMMARY_USERS:
         today = dt.date.today()
         leaderboard_source = [
             row for row in all_record_rows
@@ -1741,6 +1747,17 @@ with records_tab:
         st.markdown("#### Trip leaderboard")
         st.markdown(
             f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{empty_leaderboard_rows}</tbody></table>',
+            unsafe_allow_html=True,
+        )
+    if current_user in EXPENSE_RECORD_SUMMARY_USERS and can_view_trip_leaderboard(current_user):
+        monthly_board = current_month_leaderboard(all_record_rows, today, BRANCHES)
+        leaderboard_html = "".join(
+            f"<tr><td>{'' if branch == 'Total' else rank}</td><td>{branch}</td><td>{count}</td><td>{format_inr(revenue)}</td></tr>"
+            for rank, (branch, count, revenue) in enumerate(monthly_board, 1)
+        )
+        st.markdown(f"#### Trip leaderboard · {today:%B %Y}")
+        st.markdown(
+            f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_html}</tbody></table>',
             unsafe_allow_html=True,
         )
     live_title, live_evidence_filter, live_sort = st.columns([5, 3, 1], vertical_alignment="center")
@@ -2004,6 +2021,13 @@ with records_tab:
         st.info("No records match the selected filters.")
     else:
         rows = sort_records_by_date(rows, "Oldest first" if sort_arrow == "↑" else "Newest first")
+        if record_type == DIRECT_EXPENSES and current_user in EXPENSE_RECORD_SUMMARY_USERS:
+            st.download_button(
+                "Download Excel", cached_expenses_excel(rows),
+                f"Direct-Expenses-{filter_from}-{filter_to}.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="download_filtered_direct_expenses",
+            )
         if current_user in {"Manish", "Vijay"}:
             export_rows = [row for row in rows if can_view_record(current_user, row)]
             st.download_button(
@@ -2042,6 +2066,8 @@ with records_tab:
             header = st.columns(record_widths)
             for column, title in zip(header, record_titles):
                 column.markdown(f"**{title}**")
+            if record_type == DIRECT_EXPENSES and current_user in EXPENSE_RECORD_SUMMARY_USERS:
+                header[5].caption(f"Total Figure = {format_inr(sum(number(row.get('amount')) for row in rows))}")
             for record in visible_rows:
                 raw = unpack(record.get("dtr_data"))
                 columns = st.columns(record_widths, vertical_alignment="center")
