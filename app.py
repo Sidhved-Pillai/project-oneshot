@@ -40,6 +40,7 @@ from src.current_pnl_report import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, b
 from src.records_store_v12 import RequestStore
 from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, balance_rtgs_rows, can_send_balance
 from src.report_scroll import latest_rows_scroll_script
+from src.dtr_review import render_dtr_review
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
@@ -61,7 +62,7 @@ MEMBER_CODE_HASHES = {
     "Nitish": "ea565453a2706b0e72df78364c854e9aaaf62848ef6b292efe341dea3b207177",
     "Ashok": "2b73de44e822163f12e6c1fb0f9980a53e029cebae95329532aa38cf7d820970",
     "Gopal": "8422d601483b1cda8d20f11b17b482c756fb005912c2ac6f83baca98d6554e5c",
-    "Shyam": "37d9997a10e64c52c8dfa34f66ffb078531f04cd9af2f6f455d45a3125068dba",
+    "Shyam": "df10a83f647483be2a95b995e4cb9156ae713cc1765f384b9a52555d0981b541",
     "Nikhil": "40ed3b8fb38df58e9bef001c1bab0d0c9b08a4b13a84a9e7a9b4d549bb2c5e90",
     "Vinod": "48b3093ec26141bd7b8b150a7669023586f1bd3b53fd6a3a05777aa9e3d76aac",
     "Manish": "a021c3c411a4a3cb971eeb978f3df49f172c31d58a270a7d8c7a4218a2eb24f9",
@@ -1452,44 +1453,47 @@ if hidden_tabs:
         for index in hidden_tabs
     )
     st.markdown(f"<style>{hidden_tab_css}</style>", unsafe_allow_html=True)
-new_tab, expense_tab, records_tab, reports_tab, logs_tab = st.tabs(["New Entry", "Direct Expenses", "Records", "Generate Reports", "Logs"])
+new_tab, expense_tab, records_tab, reports_tab, logs_tab = st.tabs(["Review DTR" if current_user == "Shyam" else "New Entry", "Direct Expenses", "Records", "Generate Reports", "Logs"])
 
 with new_tab:
-    page_intro("Smart capture", "New trip entry", "Add evidence once, review the details, and keep every report in sync.", "✦")
-    workflow_steps(["Add evidence", "Review details", "Save and add another"], 0)
-    if saved_entry_notice:
-        st.success(saved_entry_notice, icon="✅")
-    entry_generation = st.session_state.setdefault("new_entry_generation", 0)
-    entry_prefix = entry_state_prefix(entry_generation)
-    st.session_state.setdefault(f"{entry_prefix}_vehicle_placed_by", LOGIN_VEHICLE_PLACERS.get(current_user, current_user))
-    c1, c2 = st.columns(2)
-    upload = c1.file_uploader("Upload photos or PDFs", type=["jpg", "jpeg", "png", "webp", "pdf"], accept_multiple_files=True, key=f"{entry_prefix}_upload", help="Upload the cheque, invoice, and any supporting evidence together.")
-    invoice_filename = None
-    if upload:
-        invoice_filename = c1.selectbox(
-            "Invoice evidence shown in Records", [item.name for item in upload], index=len(upload) - 1,
-            key=f"{entry_prefix}_invoice_evidence", help="All files are used for autofill; only this invoice file is displayed in Records.",
-        )
-    if current_user == "Vijay":
-        st.session_state[f"{entry_prefix}_invoice_slots"] = max(1, len(upload or []))
-    audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key=f"{entry_prefix}_audio")
-    voice_autofill = c2.button("Autofill with Voice Prompt", type="primary", use_container_width=True, disabled=audio is None, key=f"{entry_prefix}_voice_autofill", icon="🎙️")
-    files = evidence(upload, audio)
-    if upload:
-        autofill(evidence(upload, None), "", entry_prefix)
-    if voice_autofill:
-        autofill(evidence(None, audio), "", entry_prefix)
-    with st.container(border=True):
-        values = trip_form(entry_prefix, business_memory, allowed_entry_branches, simplified=current_user == "Manish")
-        repair_reason_missing = values["simplified"] and number(values["repairs_maintenance"]) > 0 and not clean_text(values["repair_reason"])
-        save_disabled = not values["branch"] or not values["vehicle_number"] or repair_reason_missing or values["has_duplicate_identifiers"]
-        if st.button("Save and Another Entry", type="primary", disabled=save_disabled, key=f"{entry_prefix}_save"):
-            saved = store.create({**trip_payload(values, files, invoice_filename), "created_by": current_user})
-            audit_action("Created trip record", saved, request_label(saved, values["date"]))
-            st.session_state["saved_entry_notice"] = f"Saved {request_label(saved, values['date'])}. Ready for another entry."
-            st.session_state["reset_trip_form"] = True
-            st.session_state["new_entry_generation"] = entry_generation + 1
-            st.rerun()
+    if current_user == "Shyam":
+        render_dtr_review(normalization_rows)
+    else:
+        page_intro("Smart capture", "New trip entry", "Add evidence once, review the details, and keep every report in sync.", "✦")
+        workflow_steps(["Add evidence", "Review details", "Save and add another"], 0)
+        if saved_entry_notice:
+            st.success(saved_entry_notice, icon="✅")
+        entry_generation = st.session_state.setdefault("new_entry_generation", 0)
+        entry_prefix = entry_state_prefix(entry_generation)
+        st.session_state.setdefault(f"{entry_prefix}_vehicle_placed_by", LOGIN_VEHICLE_PLACERS.get(current_user, current_user))
+        c1, c2 = st.columns(2)
+        upload = c1.file_uploader("Upload photos or PDFs", type=["jpg", "jpeg", "png", "webp", "pdf"], accept_multiple_files=True, key=f"{entry_prefix}_upload", help="Upload the cheque, invoice, and any supporting evidence together.")
+        invoice_filename = None
+        if upload:
+            invoice_filename = c1.selectbox(
+                "Invoice evidence shown in Records", [item.name for item in upload], index=len(upload) - 1,
+                key=f"{entry_prefix}_invoice_evidence", help="All files are used for autofill; only this invoice file is displayed in Records.",
+            )
+        if current_user == "Vijay":
+            st.session_state[f"{entry_prefix}_invoice_slots"] = max(1, len(upload or []))
+        audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key=f"{entry_prefix}_audio")
+        voice_autofill = c2.button("Autofill with Voice Prompt", type="primary", use_container_width=True, disabled=audio is None, key=f"{entry_prefix}_voice_autofill", icon="🎙️")
+        files = evidence(upload, audio)
+        if upload:
+            autofill(evidence(upload, None), "", entry_prefix)
+        if voice_autofill:
+            autofill(evidence(None, audio), "", entry_prefix)
+        with st.container(border=True):
+            values = trip_form(entry_prefix, business_memory, allowed_entry_branches, simplified=current_user == "Manish")
+            repair_reason_missing = values["simplified"] and number(values["repairs_maintenance"]) > 0 and not clean_text(values["repair_reason"])
+            save_disabled = not values["branch"] or not values["vehicle_number"] or repair_reason_missing or values["has_duplicate_identifiers"]
+            if st.button("Save and Another Entry", type="primary", disabled=save_disabled, key=f"{entry_prefix}_save"):
+                saved = store.create({**trip_payload(values, files, invoice_filename), "created_by": current_user})
+                audit_action("Created trip record", saved, request_label(saved, values["date"]))
+                st.session_state["saved_entry_notice"] = f"Saved {request_label(saved, values['date'])}. Ready for another entry."
+                st.session_state["reset_trip_form"] = True
+                st.session_state["new_entry_generation"] = entry_generation + 1
+                st.rerun()
 
 with expense_tab:
     if not can_use_direct_expenses:
