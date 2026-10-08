@@ -35,7 +35,6 @@ from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROF
 from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
-from src.vijay_rtgs_backfill import vijay_missing_rtgs_updates
 from src.current_pnl_report import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.records_store_v12 import RequestStore
 from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, balance_rtgs_rows, can_send_balance
@@ -1100,16 +1099,6 @@ except Exception as exc:
 
 normalization_rows = store.list(status="All active")
 balance_requests = store.list_balance_payments()
-vijay_rtgs_updates = vijay_missing_rtgs_updates(normalization_rows)
-if vijay_rtgs_updates:
-    updated_vijay_rtgs = store.update_many(
-        vijay_rtgs_updates, change_source="vijay_rtgs_backfill", edited_by="System"
-    )
-    store.log_action(
-        "System", "Backfilled Vijay RTGS", "",
-        f"{updated_vijay_rtgs} active Altaf/Nisar trip record(s)",
-    )
-    normalization_rows = store.list(status="All active")
 current_user = st.session_state.get("authenticated_user", "Unknown member")
 historical_business_memory = cached_business_memory(normalization_rows)
 business_memory = historical_business_memory
