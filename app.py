@@ -40,6 +40,7 @@ from src.records_store_v12 import RequestStore
 from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, balance_rtgs_rows, can_send_balance
 from src.report_scroll import latest_rows_scroll_script
 from src.dtr_review import render_dtr_review
+from src.dtr_dates import parse_dtr_date, dtr_editor_key
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
@@ -168,17 +169,12 @@ def changed_dtr_rows(original, edited):
     return changed
 
 
-def parse_dtr_date(value):
-    if isinstance(value, (dt.date, dt.datetime, pd.Timestamp)):
-        return pd.Timestamp(value).date()
-    parsed = pd.to_datetime(value, errors="coerce", dayfirst=True)
-    return None if pd.isna(parsed) else parsed.date()
-
-
 def dtr_record_update_values(saved_row, edited_row):
     """Translate one edited DTR row back into its persisted record fields."""
     data = dict(edited_row)
     trip_date = parse_dtr_date(data.get("Date"))
+    if trip_date is None or (saved_row.get("created_by") == "Ashok" and trip_date.year < 2026):
+        raise ValueError("Enter a valid trip date. Ashok's records must be dated 2026 or later.")
     branch = canonical_branch(data.get("Branch"))
     company = canonical_company(data.get("Compnay Name"), KNOWN_COMPANIES)
     vehicle = canonical_vehicle_number(data.get("Vehicle No."))
@@ -1285,9 +1281,15 @@ def view_record(row):
     replacement_missing = replace_evidence and replacement_evidence is None
     if replacement_missing:
         st.caption("Upload the replacement invoice before saving record changes.")
+    edited_trip_date = parse_dtr_date(edited_item.get("Date"))
+    invalid_ashok_date = row.get("created_by") == "Ashok" and (
+        edited_trip_date is None or edited_trip_date.year < 2026
+    )
+    if invalid_ashok_date:
+        st.error("Ashok's records must have a valid date in 2026 or later.")
     if st.button(
         "Save record changes", type="primary", key=f"save_record_{row['request_number']}",
-        disabled=repair_reason_missing or replacement_missing,
+        disabled=repair_reason_missing or replacement_missing or invalid_ashok_date,
     ):
         item = edited_item
         ownership_type = clean_text(item["Own / Outside"])
@@ -1475,7 +1477,10 @@ with new_tab:
         with st.container(border=True):
             values = trip_form(entry_prefix, business_memory, allowed_entry_branches, simplified=current_user == "Manish")
             repair_reason_missing = values["simplified"] and number(values["repairs_maintenance"]) > 0 and not clean_text(values["repair_reason"])
-            save_disabled = not values["branch"] or not values["vehicle_number"] or repair_reason_missing or values["has_duplicate_identifiers"]
+            invalid_ashok_date = current_user == "Ashok" and values["date"].year < 2026
+            if invalid_ashok_date:
+                st.error("Ashok's trip date must be in 2026 or later.")
+            save_disabled = not values["branch"] or not values["vehicle_number"] or repair_reason_missing or values["has_duplicate_identifiers"] or invalid_ashok_date
             if st.button("Save and Another Entry", type="primary", disabled=save_disabled, key=f"{entry_prefix}_save"):
                 saved = store.create({**trip_payload(values, files, invoice_filename), "created_by": current_user})
                 audit_action("Created trip record", saved, request_label(saved, values["date"]))
@@ -2179,6 +2184,17 @@ with reports_tab:
         ordered_trips = list(reversed(trips))
         for i, row in enumerate(ordered_trips, 1):
             data = unpack(row.get("dtr_data"))
+            # Scalar record fields are the authoritative values used by Records.
+            for column, field in {
+                "Date": "trip_date", "Branch": "branch", "Vehicle No.": "vehicle_number",
+                "Revenue": "revenue", "Transporter Freight": "transporter_freight",
+                "RTGS ADVANCE": "rtgs_advance", "Cash Adv.": "cash_advance", "UPI": "upi",
+                "Diesel Adv.": "diesel_advance", "Total Adv.": "total_advance",
+                "Balance Amt.": "balance_amount", "Payment": "payment",
+                "Invoice No.": "invoice_number",
+            }.items():
+                if row.get(field) is not None:
+                    data[column] = row[field]
             data["Compnay Name"] = canonical_company(data.get("Compnay Name") or row.get("company_name"), KNOWN_COMPANIES)
             data["Vehicle No."] = canonical_vehicle_number(data.get("Vehicle No.") or row.get("vehicle_number"))
             data["Vehicle Type"] = canonical_vehicle_capacity(data.get("Vehicle Type") or row.get("vehicle_type"))
@@ -2198,7 +2214,7 @@ with reports_tab:
             records.append({column: data.get(column, "") for column in DTR_REVIEW_COLUMNS} | {"Sr No.": i})
         frame = pd.DataFrame(records, columns=DTR_REVIEW_COLUMNS)
         display_frame = frame.rename(columns={"Compnay Name": "Company Name"})
-        editor_key = f"dtr_live_editor_{start.isoformat()}_{end.isoformat()}"
+        editor_key = dtr_editor_key(ordered_trips, start.isoformat(), end.isoformat())
         with st.container(key="report_dtr_grid"):
             edited_display_frame = st.data_editor(
                 display_frame,
@@ -2215,30 +2231,33 @@ with reports_tab:
         invalid_date_rows = [
             index + 1 for index in changed_indices
             if parse_dtr_date(edited_frame.iloc[index].get("Date")) is None
+            or (current_user == "Ashok" and parse_dtr_date(edited_frame.iloc[index].get("Date")).year < 2026)
         ]
         if current_user == "Ashok":
             if st.session_state.pop("ashok_dtr_saved_notice", None):
                 st.success("DTR changes were saved to Records.", icon="✅")
             if invalid_date_rows:
                 st.error(
-                    "Enter a valid date before saving row(s): "
+                    "Enter a valid date in 2026 or later before saving row(s): "
                     + ", ".join(str(row_number) for row_number in invalid_date_rows)
                 )
             if st.button(
                 "Save DTR changes to Records", type="primary", key="save_ashok_dtr_changes",
                 disabled=not changed_indices or bool(invalid_date_rows),
             ):
-                saved_count = 0
+                changes = []
+                expected_versions = {}
                 for index in changed_indices:
                     saved_row = ordered_trips[index]
                     if clean_text(saved_row.get("created_by")) != "Ashok":
                         continue
-                    store.update(
-                        saved_row["request_number"],
-                        dtr_record_update_values(saved_row, edited_frame.iloc[index].to_dict()),
-                        "dtr_report_editor", current_user,
-                    )
-                    saved_count += 1
+                    changes.append((saved_row["request_number"], dtr_record_update_values(saved_row, edited_frame.iloc[index].to_dict())))
+                    expected_versions[saved_row["request_number"]] = saved_row.get("updated_at")
+                try:
+                    saved_count = store.update_many(changes, "dtr_report_editor", current_user, expected_versions=expected_versions)
+                except ValueError:
+                    st.error("These records changed since you opened the DTR. Refresh and review the latest records before saving. No changes were saved.")
+                    st.stop()
                 st.session_state.pop(editor_key, None)
                 st.session_state["ashok_dtr_saved_notice"] = saved_count
                 st.rerun()

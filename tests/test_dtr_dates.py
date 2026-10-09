@@ -1,0 +1,41 @@
+import datetime as dt
+import pandas as pd
+import pytest
+
+from src.dtr_dates import parse_dtr_date, dtr_editor_key
+from src.records_store_v12 import RequestStore
+
+
+@pytest.mark.parametrize("value", ["2026-09-01", "01/09/2026", "01.09.2026", dt.date(2026, 9, 1), "2026-09-01 00:00:00"])
+def test_iso_and_indian_dates_keep_september(value):
+    assert parse_dtr_date(value) == dt.date(2026, 9, 1)
+
+
+@pytest.mark.parametrize("value", [None, pd.NaT, 2026, 45000, "2026", "not a date"])
+def test_invalid_or_numeric_dates_cannot_turn_into_1970(value):
+    assert parse_dtr_date(value) is None
+
+
+def test_editor_identity_changes_with_rows_order_or_updates():
+    rows = [{"request_number": "A", "updated_at": "1", "dtr_data": "{}"},
+            {"request_number": "B", "updated_at": "1", "dtr_data": "{}"}]
+    original = dtr_editor_key(rows, "start", "end")
+    assert original == dtr_editor_key(list(rows), "start", "end")
+    assert original != dtr_editor_key(list(reversed(rows)), "start", "end")
+    assert original != dtr_editor_key(rows[:1], "start", "end")
+    assert original != dtr_editor_key([{**rows[0], "updated_at": "2"}, rows[1]], "start", "end")
+
+
+def test_stale_dtr_save_rolls_back_entire_batch(tmp_path):
+    store = RequestStore(f"sqlite:///{tmp_path / 'dtr.db'}")
+    a = store.create({"created_by": "Ashok", "vehicle_number": "MH1234", "trip_date": dt.date(2026, 9, 1), "revenue": 100})
+    b = store.create({"created_by": "Ashok", "vehicle_number": "MH5678", "trip_date": dt.date(2026, 9, 2), "revenue": 200})
+    versions = {row["request_number"]: row.get("updated_at") for row in store.list()}
+    store.update(b, {"revenue": 300})
+    with pytest.raises(ValueError):
+        store.update_many([(a, {"revenue": 999}), (b, {"revenue": 999})], expected_versions=versions)
+    rows = {row["request_number"]: row for row in store.list()}
+    assert rows[a]["revenue"] == 100
+    assert rows[b]["revenue"] == 300
+    latest = {number: row.get("updated_at") for number, row in rows.items()}
+    assert store.update_many([(a, {"revenue": 150}), (b, {"revenue": 350})], expected_versions=latest) == 2
