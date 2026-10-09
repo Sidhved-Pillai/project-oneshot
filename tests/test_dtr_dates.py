@@ -2,7 +2,22 @@ import datetime as dt
 import pandas as pd
 import pytest
 
-from src.dtr_dates import parse_dtr_date, dtr_editor_key
+from src.dtr_dates import parse_dtr_date, dtr_editor_key, parse_month_date
+
+
+@pytest.mark.parametrize('value', ['09/10/2026', '10/09/2026', '2026-10-09', dt.date(2026,9,10)])
+def test_ashok_current_month_resolves_both_date_orders(value):
+    assert parse_month_date(value, dt.date(2026,10,9)) == dt.date(2026,10,9)
+
+
+@pytest.mark.parametrize('value', ['2025-10-09', '2026-11-15', '2026-01-20', None, 'invalid'])
+def test_outside_month_is_rejected_not_silently_replaced(value):
+    assert parse_month_date(value, dt.date(2026,10,9)) is None
+
+
+def test_historical_edit_keeps_historical_month():
+    assert parse_month_date('09/02/2026', dt.date(2026,9,1)) == dt.date(2026,9,2)
+    assert parse_month_date('2026-10-14', dt.date(2026,9,1)) is None
 from src.records_store_v12 import RequestStore
 
 

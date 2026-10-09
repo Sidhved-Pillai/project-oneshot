@@ -28,3 +28,17 @@ def dtr_editor_key(rows, start, end):
     version = [(row.get("request_number"), row.get("updated_at"), row.get("dtr_data")) for row in rows]
     digest = hashlib.sha256(json.dumps(version, default=str, sort_keys=True).encode()).hexdigest()[:20]
     return f"dtr_live_editor_v2_{start}_{end}_{digest}"
+
+
+def parse_month_date(value, reference):
+    """Resolve DD/MM or MM/DD against a known entry month; never invent a date."""
+    parsed = parse_dtr_date(value)
+    if parsed is None or reference is None:
+        return None
+    if (parsed.year, parsed.month) == (reference.year, reference.month):
+        return parsed
+    try:
+        swapped = dt.date(parsed.year, parsed.day, parsed.month)
+    except ValueError:
+        return None
+    return swapped if (swapped.year, swapped.month) == (reference.year, reference.month) else None

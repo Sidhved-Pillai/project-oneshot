@@ -40,7 +40,7 @@ from src.records_store_v12 import RequestStore
 from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, balance_rtgs_rows, can_send_balance
 from src.report_scroll import latest_rows_scroll_script
 from src.dtr_review import render_dtr_review
-from src.dtr_dates import parse_dtr_date, dtr_editor_key
+from src.dtr_dates import parse_dtr_date, dtr_editor_key, parse_month_date
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
@@ -172,9 +172,10 @@ def changed_dtr_rows(original, edited):
 def dtr_record_update_values(saved_row, edited_row):
     """Translate one edited DTR row back into its persisted record fields."""
     data = dict(edited_row)
-    trip_date = parse_dtr_date(data.get("Date"))
+    trip_date = (parse_month_date(data.get("Date"), saved_row.get("trip_date"))
+                 if saved_row.get("created_by") == "Ashok" else parse_dtr_date(data.get("Date")))
     if trip_date is None or (saved_row.get("created_by") == "Ashok" and trip_date.year < 2026):
-        raise ValueError("Enter a valid trip date. Ashok's records must be dated 2026 or later.")
+        raise ValueError("Enter a valid trip date. Ashok's historical edits must stay in the record's original month.")
     branch = canonical_branch(data.get("Branch"))
     company = canonical_company(data.get("Compnay Name"), KNOWN_COMPANIES)
     vehicle = canonical_vehicle_number(data.get("Vehicle No."))
@@ -662,7 +663,13 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
                 current = st.session_state.get(state_key)
                 blank = current in (None, "", 0, 0.0) or (field == "date" and current == dt.date.today())
                 if blank:
-                    st.session_state[state_key] = as_date(value) if field == "date" else value
+                    if field == "date" and mode == "ENTRY" and current_user == "Ashok":
+                        resolved = parse_month_date(value, dt.date.today())
+                        if resolved is None:
+                            st.warning("The evidence date is outside the current month. Please select the correct trip date before saving.")
+                        st.session_state[state_key] = resolved
+                    else:
+                        st.session_state[state_key] = as_date(value) if field == "date" else value
         # Older cached AI responses used one combined identifier. Preserve it
         # as an invoice only when neither explicit field was extracted.
         if mode == "ENTRY":
@@ -693,6 +700,11 @@ def file_values(files, preferred_filename=None):
 
 
 def trip_payload(v, files, invoice_filename=None):
+    if current_user == "Ashok":
+        resolved_date = parse_month_date(v.get("date"), dt.date.today())
+        if resolved_date is None:
+            raise ValueError("New Ashok trips must be dated within the current month.")
+        v = {**v, "date": resolved_date}
     company = canonical_company(v["company_name"], KNOWN_COMPANIES)
     origin = canonical_location(v["from_location"], KNOWN_LOCATIONS)
     destination = canonical_location(v["to_location"], KNOWN_LOCATIONS)
@@ -843,7 +855,16 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     if st.session_state.get(branch_key) != current_branch:
         st.session_state[branch_key] = current_branch
     branch_choices = ["", *available_branches]
-    v.update({"date": c1.date_input("Date *", value=st.session_state.get(f"{prefix}_date", dt.date.today()), format="DD/MM/YYYY", key=f"{prefix}_date"), "branch": c2.selectbox("Branch *", branch_choices, index=branch_choices.index(current_branch), key=branch_key, placeholder="Select a branch"), "company_name": st.text_input("Company name *", key=f"{prefix}_company_name", placeholder="e.g., SG Logistics")})
+    date_options = {}
+    if current_user == "Ashok":
+        today = dt.date.today()
+        first = today.replace(day=1)
+        last = (first.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+        date_options = {"min_value": first, "max_value": last}
+        date_key = f"{prefix}_date"
+        if date_key in st.session_state:
+            st.session_state[date_key] = parse_month_date(st.session_state[date_key], today)
+    v.update({"date": c1.date_input("Date *", value=st.session_state.get(f"{prefix}_date", dt.date.today()), format="DD/MM/YYYY", key=f"{prefix}_date", **date_options), "branch": c2.selectbox("Branch *", branch_choices, index=branch_choices.index(current_branch), key=branch_key, placeholder="Select a branch"), "company_name": st.text_input("Company name *", key=f"{prefix}_company_name", placeholder="e.g., SG Logistics")})
     c1, c2 = st.columns(2)
     v["from_location"] = c1.text_input("From *", key=f"{prefix}_from_location", placeholder="e.g., Talegaon, Pune")
     v["to_location"] = c2.text_input("To *", key=f"{prefix}_to_location", placeholder="e.g., Bhiwandi, Thane")
@@ -1281,12 +1302,13 @@ def view_record(row):
     replacement_missing = replace_evidence and replacement_evidence is None
     if replacement_missing:
         st.caption("Upload the replacement invoice before saving record changes.")
-    edited_trip_date = parse_dtr_date(edited_item.get("Date"))
+    edited_trip_date = (parse_month_date(edited_item.get("Date"), row.get("trip_date"))
+                        if row.get("created_by") == "Ashok" else parse_dtr_date(edited_item.get("Date")))
     invalid_ashok_date = row.get("created_by") == "Ashok" and (
         edited_trip_date is None or edited_trip_date.year < 2026
     )
     if invalid_ashok_date:
-        st.error("Ashok's records must have a valid date in 2026 or later.")
+        st.error("Enter a valid date within this record's original month.")
     if st.button(
         "Save record changes", type="primary", key=f"save_record_{row['request_number']}",
         disabled=repair_reason_missing or replacement_missing or invalid_ashok_date,
@@ -1298,7 +1320,7 @@ def view_record(row):
         repairs_maintenance = number(item.get("Repairs & Maintenance"))
         toll_expense = number(item.get("Toll Expense"))
         update_values = {
-            "trip_date": as_date(item["Date"]), "branch": clean_text(item["Branch"]),
+            "trip_date": edited_trip_date if row.get("created_by") == "Ashok" else as_date(item["Date"]), "branch": clean_text(item["Branch"]),
             "company_name": canonical_company(item["Company"], KNOWN_COMPANIES), "vehicle_number": canonical_vehicle_number(item["Vehicle"]),
             "vehicle_type": canonical_vehicle_capacity(item["Vehicle Capacity"]), "ownership_type": ownership_type,
             "from_location": canonical_location(item["From"], KNOWN_LOCATIONS), "to_location": canonical_location(item["To"], KNOWN_LOCATIONS),
@@ -1356,10 +1378,10 @@ def view_record(row):
             normalized_to = canonical_location(item["To"], KNOWN_LOCATIONS)
             normalized_capacity = canonical_vehicle_capacity(item["Vehicle Capacity"])
             normalized_vehicle = canonical_vehicle_number(item["Vehicle"])
-            normalized_remark = trip_auto_remark(normalized_vehicle, normalized_from, normalized_to, normalized_capacity, as_date(item["Date"]))
+            normalized_remark = trip_auto_remark(normalized_vehicle, normalized_from, normalized_to, normalized_capacity, update_values["trip_date"])
             update_values["notes"] = normalized_remark
             updated_dtr = {
-                **raw, "Branch": item["Branch"], "Compnay Name": normalized_company, "Date": as_date(item["Date"]),
+                **raw, "Branch": item["Branch"], "Compnay Name": normalized_company, "Date": update_values["trip_date"],
                 "Vehicle No.": normalized_vehicle, "Vehicle Type": normalized_capacity,
                 "Own/Outside Veh.": item["Own / Outside"], "From": normalized_from, "To": normalized_to,
                 "LR No.": item["LR No."], "Invoice No.": item["Invoice No."], "Revenue": item["Revenue"],
@@ -1477,9 +1499,9 @@ with new_tab:
         with st.container(border=True):
             values = trip_form(entry_prefix, business_memory, allowed_entry_branches, simplified=current_user == "Manish")
             repair_reason_missing = values["simplified"] and number(values["repairs_maintenance"]) > 0 and not clean_text(values["repair_reason"])
-            invalid_ashok_date = current_user == "Ashok" and values["date"].year < 2026
+            invalid_ashok_date = current_user == "Ashok" and parse_month_date(values["date"], dt.date.today()) is None
             if invalid_ashok_date:
-                st.error("Ashok's trip date must be in 2026 or later.")
+                st.error("Select a trip date within the current month. Dates outside this month cannot be saved as new trips.")
             save_disabled = not values["branch"] or not values["vehicle_number"] or repair_reason_missing or values["has_duplicate_identifiers"] or invalid_ashok_date
             if st.button("Save and Another Entry", type="primary", disabled=save_disabled, key=f"{entry_prefix}_save"):
                 saved = store.create({**trip_payload(values, files, invoice_filename), "created_by": current_user})
@@ -2230,8 +2252,8 @@ with reports_tab:
         changed_indices = changed_dtr_rows(frame, edited_frame)
         invalid_date_rows = [
             index + 1 for index in changed_indices
-            if parse_dtr_date(edited_frame.iloc[index].get("Date")) is None
-            or (current_user == "Ashok" and parse_dtr_date(edited_frame.iloc[index].get("Date")).year < 2026)
+            if (parse_month_date(edited_frame.iloc[index].get("Date"), ordered_trips[index].get("trip_date"))
+                if current_user == "Ashok" else parse_dtr_date(edited_frame.iloc[index].get("Date"))) is None
         ]
         if current_user == "Ashok":
             if st.session_state.pop("ashok_dtr_saved_notice", None):
