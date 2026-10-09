@@ -29,14 +29,15 @@ from src import current_pnl_report as pnl_reporting
 from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, direct_expense_headings, filter_direct_expenses, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
 from src.records_export import export_records_excel
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, edited_dtr_frame, export_operational_dtr
-from src.rtgs_report import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
+from src.rtgs_report_v2 import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization import canonical_company, canonical_location, canonical_ownership, canonical_vehicle_capacity, plain_remark
 from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, canonical_transporter_name, resolve_vijay_vehicle_number, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
 from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
-from src.records_store_v12 import RequestStore
+from src.records_store_v13 import RequestStore
+from src.upi_payments import can_send_upi, upi_rtgs_rows
 from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, balance_rtgs_rows, can_send_balance
 from src.report_scroll import latest_rows_scroll_script
 from src.dtr_review import render_dtr_review
@@ -45,7 +46,7 @@ from src.ashok_dates import parse_month_date
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
-STORE_INTERFACE_VERSION = 12
+STORE_INTERFACE_VERSION = 13
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Debit"]
@@ -1125,6 +1126,7 @@ except Exception as exc:
 
 normalization_rows = store.list(status="All active")
 balance_requests = store.list_balance_payments()
+upi_requests = store.list_upi_payments()
 current_user = st.session_state.get("authenticated_user", "Unknown member")
 historical_business_memory = cached_business_memory(normalization_rows)
 business_memory = historical_business_memory
@@ -2092,6 +2094,9 @@ with records_tab:
             if current_user in BALANCE_PAYMENT_USERS:
                 record_widths = [*record_widths, 1.25]
                 record_titles = (*record_titles, "")
+            if current_user == "Nitish":
+                record_widths = [*record_widths, 1.0]
+                record_titles = (*record_titles, "")
             header = st.columns(record_widths)
             for column, title in zip(header, record_titles):
                 column.markdown(f"**{title}**")
@@ -2112,7 +2117,7 @@ with records_tab:
                     view_record(record)
                 if can_send_balance(current_user, record):
                     already_sent = record["request_number"] in balance_requests
-                    if columns[-1].button(
+                    if columns[-2 if current_user == "Nitish" else -1].button(
                         "Balance Payment Sent" if already_sent else "Send for Balance Payment",
                         key=f"balance_{record['request_number']}", use_container_width=True,
                         disabled=already_sent or number(record.get("balance_amount")) <= 0,
@@ -2120,6 +2125,17 @@ with records_tab:
                     ):
                         try:
                             store.send_balance_payment(record["request_number"], current_user)
+                        except ValueError as exc:
+                            st.error(str(exc))
+                        else:
+                            st.rerun()
+                if can_send_upi(current_user, record):
+                    upi_sent = record['request_number'] in upi_requests
+                    if columns[-1].button('UPI Payment Sent' if upi_sent else 'Send for UPI',
+                        key=f"upi_{record['request_number']}", use_container_width=True,
+                        disabled=upi_sent, help=f"UPI amount: {format_inr(number(record.get('upi')))}"):
+                        try:
+                            store.send_upi_payment(record['request_number'], current_user)
                         except ValueError as exc:
                             st.error(str(exc))
                         else:
@@ -2303,14 +2319,16 @@ with reports_tab:
             [row for row in balance_report_rows if row.get("report_scope") != "Expense"],
             balance_requests,
         )
-        rtgs_candidates = balance_candidates + ([] if show_only_balance_payable else list(reversed([
+        upi_candidates = upi_rtgs_rows(
+            [row for row in balance_report_rows if row.get('report_scope') != 'Expense'], upi_requests)
+        rtgs_candidates = balance_candidates + ([] if show_only_balance_payable else upi_candidates + list(reversed([
             item for item in trips if number(item.get("rtgs_advance")) > 0
         ])))
         select_all_rtgs = st.checkbox("Select all", key="rtgs_select_all")
         selection_frame = pd.DataFrame([
             {
                 "Select": select_all_rtgs or not bool(row.get("rtgs_done")),
-                "Record": request_label(row) + (" · Balance Payment" if row.get("_balance_payment") else " · Advance"),
+                "Record": request_label(row) + (" · UPI Payment" if row.get("_upi_payment") else " · Balance Payment" if row.get("_balance_payment") else " · Advance"),
                 "Date": f"{as_date(row.get('trip_date')):%d/%m/%y}",
                 "Beneficiary": clean_text(row.get("beneficiary_name")),
                 "Account Number": clean_text(unpack(row.get("rtgs_data")).get("BENE_ACC_NO")),
@@ -2389,6 +2407,9 @@ with reports_tab:
                     disabled=not changed_rtgs_rows, key="save_nikhat_rtgs_changes",
                 ):
                     for saved_row, effective_row in changed_rtgs_rows:
+                        if saved_row.get("_upi_payment"):
+                            store.update_upi_payment(saved_row["request_number"], effective_row["rtgs_data"], current_user)
+                            continue
                         if saved_row.get("_balance_payment"):
                             store.update_balance_payment(saved_row["request_number"], effective_row["rtgs_data"], current_user)
                             continue

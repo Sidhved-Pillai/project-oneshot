@@ -118,7 +118,7 @@ def normalize_rtgs_records(records, payment_date=None):
         key = (str(record.get("BNF_NAME", "")).strip().lower(), _digits(record.get("BENE_ACC_NO", "")),
                _clean_alphanumeric(record.get("BENE_IFSC", ""), spaces=False).upper(), vehicle)
         dates = re.findall(r"\b(\d{2})[\s/-](\d{2})[\s/-](\d{4})\b", remark)
-        can_group = bool(all(key)) and "trp" not in remark.lower() and bool(dates) and record.get("_payment_kind") != "balance" and "balance payment" not in remark.lower()
+        can_group = bool(all(key)) and "trp" not in remark.lower() and bool(dates) and record.get("_payment_kind") not in {"balance", "upi"} and "balance payment" not in remark.lower()
         if can_group and key in positions:
             target = grouped[positions[key]]
             target["AMOUNT"] = _amount(target.get("AMOUNT")) + _amount(record.get("AMOUNT"))

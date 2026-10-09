@@ -13,6 +13,7 @@ from sqlalchemy import (
 from .config import DATA
 from .dtr_generator import DTR_COLUMNS
 from .balance_payments import BALANCE_PREFIX, can_send_balance
+from .upi_payments import UPI_PREFIX, can_send_upi
 
 
 metadata = MetaData()
@@ -63,6 +64,16 @@ requests = Table(
 
 balance_payments = Table(
     "trip_balance_payments", metadata,
+    Column("request_number", String(40), primary_key=True),
+    Column("amount", Numeric(14, 2), nullable=False),
+    Column("rtgs_data", Text, nullable=False),
+    Column("rtgs_done", Boolean, nullable=False, default=False),
+    Column("requested_by", String(120), nullable=False),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+)
+
+upi_payments = Table(
+    "trip_upi_payments", metadata,
     Column("request_number", String(40), primary_key=True),
     Column("amount", Numeric(14, 2), nullable=False),
     Column("rtgs_data", Text, nullable=False),
@@ -404,6 +415,44 @@ class RequestStore:
             payments = conn.execute(select(balance_payments)).mappings().all()
         return {row["request_number"]: dict(row) for row in payments}
 
+    def send_upi_payment(self, request_number, user):
+        with self.engine.begin() as conn:
+            row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
+                requests.c.request_number == request_number,
+            ).with_for_update()).mappings().first()
+            if not row or not can_send_upi(user, row):
+                raise ValueError("Only Nitish can request UPI payments for his eligible trips.")
+            if conn.execute(select(upi_payments.c.request_number).where(
+                upi_payments.c.request_number == request_number)).first():
+                return False
+            amount = row['upi']
+            data = json.loads(row.get('rtgs_data') or '{}')
+            data.update(AMOUNT=float(amount), BNF_NAME=data.get('BNF_NAME') or row.get('beneficiary_name',''))
+            data.update(REMARK=str(data.get('REMARK') or row.get('notes') or '') + ' UPI Payment',
+                        _payment_kind='upi', _payment_id=UPI_PREFIX + request_number)
+            data['Origin Area'] = row.get('branch','')
+            conn.execute(insert(upi_payments).values(request_number=request_number, amount=amount,
+                rtgs_data=json.dumps(data), requested_by=user, rtgs_done=False))
+            conn.execute(insert(activity_logs).values(user_name=user, action='Sent for UPI',
+                request_number=request_number, details=f'UPI RTGS requested: {amount}'))
+        return True
+
+    def list_upi_payments(self):
+        with self.engine.connect() as conn:
+            rows = conn.execute(select(upi_payments)).mappings().all()
+        return {row['request_number']: dict(row) for row in rows}
+
+    def update_upi_payment(self, payment_id, data, user):
+        if user != 'Nikhat' or not payment_id.startswith(UPI_PREFIX) or float(data['AMOUNT']) < 0:
+            raise ValueError('Invalid UPI payment correction.')
+        number = payment_id.removeprefix(UPI_PREFIX)
+        data = {**data, '_payment_kind': 'upi', '_payment_id': payment_id}
+        with self.engine.begin() as conn:
+            conn.execute(update(upi_payments).where(upi_payments.c.request_number == number).values(
+                amount=data['AMOUNT'], rtgs_data=json.dumps(data, default=str)))
+            conn.execute(insert(activity_logs).values(user_name=user, action='Updated UPI RTGS',
+                request_number=number, details='UPI payment details corrected'))
+
     def update_balance_payment(self, payment_id, data, user):
         if user != "Nikhat":
             raise ValueError("Only Nikhat can correct RTGS payment details.")
@@ -427,7 +476,11 @@ class RequestStore:
             return 0
         with self.engine.begin() as conn:
             balance_numbers = [number.removeprefix(BALANCE_PREFIX) for number in request_numbers if number.startswith(BALANCE_PREFIX)]
-            request_numbers = [number for number in request_numbers if not number.startswith(BALANCE_PREFIX)]
+            upi_numbers = [number.removeprefix(UPI_PREFIX) for number in request_numbers if number.startswith(UPI_PREFIX)]
+            request_numbers = [number for number in request_numbers if not number.startswith((BALANCE_PREFIX, UPI_PREFIX))]
+            upi_count = conn.execute(update(upi_payments).where(
+                upi_payments.c.request_number.in_(upi_numbers),
+            ).values(rtgs_done=bool(done))).rowcount if upi_numbers else 0
             balance_count = conn.execute(update(balance_payments).where(
                 balance_payments.c.request_number.in_(balance_numbers),
             ).values(rtgs_done=bool(done))).rowcount if balance_numbers else 0
@@ -436,7 +489,7 @@ class RequestStore:
                 .where(requests.c.request_number.in_(request_numbers))
                 .values(rtgs_done=bool(done), updated_at=dt.datetime.now())
             )
-        return result.rowcount + balance_count
+        return result.rowcount + balance_count + upi_count
 
     def log_action(self, user_name, action, request_number="", details=""):
         """Append one immutable audit event."""
