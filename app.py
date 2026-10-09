@@ -188,6 +188,14 @@ def dtr_record_update_values(saved_row, edited_row):
     transporter = canonical_transporter_name(data.get("Transporter Name"), saved_row.get("created_by"))
     remark = clean_text(data.get("Remark"))
     total_advance = number(data.get("Total Adv."))
+    if clean_text(saved_row.get("created_by")) == "Ashok":
+        summary = advance_summary(
+            number(data.get("Transporter Freight")),
+            *(number(data.get(field)) for field in ("RTGS ADVANCE", "Cash Adv.", "UPI", "Diesel Adv.", "Billtee")),
+        )
+        total_advance = float(summary["total_advance"])
+        data["Total Adv."] = total_advance
+        data["Balance Amt."] = float(summary["balance_payable"])
     dtr = {
         **unpack(saved_row.get("dtr_data")),
         **{column: data.get(column, "") for column in DTR_REVIEW_COLUMNS if column != "Sr No."},
@@ -2261,7 +2269,7 @@ with reports_tab:
                 st.success("DTR changes were saved to Records.", icon="✅")
             if invalid_date_rows:
                 st.error(
-                    "Enter a valid date in 2026 or later before saving row(s): "
+                    "Enter a valid date within each trip's original month before saving row(s): "
                     + ", ".join(str(row_number) for row_number in invalid_date_rows)
                 )
             if st.button(
