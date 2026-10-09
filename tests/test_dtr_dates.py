@@ -2,7 +2,22 @@ import datetime as dt
 import pandas as pd
 import pytest
 
-from src.dtr_dates import parse_dtr_date, dtr_editor_key, parse_month_date
+from src.dtr_dates import parse_dtr_date, dtr_editor_key
+from src.ashok_dates import parse_month_date
+
+
+def test_month_helper_import_with_cached_previous_date_module():
+    import subprocess
+    import sys
+    code = '''
+import sys, types, datetime
+old = types.ModuleType("src.dtr_dates")
+old.parse_dtr_date = lambda value: datetime.date(2026, 9, 10)
+sys.modules["src.dtr_dates"] = old
+from src.ashok_dates import parse_month_date
+assert parse_month_date("10/09/2026", datetime.date(2026,10,1)) == datetime.date(2026,10,9)
+'''
+    subprocess.run([sys.executable, '-c', code], check=True)
 
 
 @pytest.mark.parametrize('value', ['09/10/2026', '10/09/2026', '2026-10-09', dt.date(2026,9,10)])
