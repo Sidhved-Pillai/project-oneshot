@@ -652,7 +652,9 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
     signature = hashlib.sha256(b"".join(item["data"] for item in files) + instruction.encode()).hexdigest()
     if st.session_state.get(f"{prefix}_evidence_hash") == signature:
         return
-    st.session_state[f"{prefix}_evidence_hash"] = signature
+    if st.session_state.get(f"{prefix}_failed_evidence_hash") == signature:
+        st.warning('Photo/file autofill did not complete. Use Retry photo/file autofill to try again.')
+        return
     try:
         with st.spinner("Reading the evidence and filling the form…"):
             if mode == "ENTRY" and current_user == "Vijay" and len(files) > 1:
@@ -705,6 +707,7 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
                         "not inserted. Please enter any missing invoice number manually."
                     )
         if not result.rows:
+            st.session_state[f"{prefix}_failed_evidence_hash"] = signature
             st.warning("No clear trip details were found. Complete the form manually.")
             return
         expense_keys = {
@@ -748,8 +751,24 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
             if legacy and not clean_text(st.session_state.get(f"{prefix}_invoice_number")) and not clean_text(st.session_state.get(f"{prefix}_lr_number")):
                 st.session_state[f"{prefix}_invoice_number"] = legacy
         st.success("Form populated from the evidence. Please review every field before saving.")
+        st.session_state[f"{prefix}_evidence_hash"] = signature
+        st.session_state.pop(f"{prefix}_failed_evidence_hash", None)
     except Exception as exc:
+        st.session_state[f"{prefix}_failed_evidence_hash"] = signature
         st.error(f"Could not auto-fill the form: {exc}")
+
+
+def retry_evidence(prefix):
+    st.session_state.pop(f"{prefix}_evidence_hash", None)
+    st.session_state.pop(f"{prefix}_failed_evidence_hash", None)
+
+
+def capture_photo(column, prefix, disabled=False):
+    """Native JPEG camera capture uses the same intake path as file uploads."""
+    enabled = column.toggle('Take a photo in the app', key=f'{prefix}_camera_enabled', disabled=disabled)
+    if not enabled:
+        return None
+    return column.camera_input('Take and confirm a photo', key=f'{prefix}_camera', disabled=disabled)
 
 
 def file_values(files, preferred_filename=None):
@@ -1527,6 +1546,11 @@ with new_tab:
         st.session_state.setdefault(f"{entry_prefix}_vehicle_placed_by", LOGIN_VEHICLE_PLACERS.get(current_user, current_user))
         c1, c2 = st.columns(2)
         upload = c1.file_uploader("Upload photos or PDFs", type=["jpg", "jpeg", "png", "webp", "pdf"], accept_multiple_files=True, key=f"{entry_prefix}_upload", help="Upload the cheque, invoice, and any supporting evidence together.")
+        photo = capture_photo(c1, entry_prefix)
+        upload = [*(upload or []), *([photo] if photo is not None else [])]
+        if upload:
+            c1.button('Retry photo/file autofill', key=f'{entry_prefix}_retry_autofill',
+                      on_click=retry_evidence, args=(entry_prefix,))
         invoice_filename = None
         if upload:
             invoice_filename = c1.selectbox(
@@ -1568,6 +1592,11 @@ with expense_tab:
     expense_prefix = expense_state_prefix(expense_generation)
     c1, c2 = st.columns(2)
     expense_upload = c1.file_uploader("Attach bills or receipts", type=["jpg", "jpeg", "png", "webp", "pdf"], accept_multiple_files=True, key=f"{expense_prefix}_upload", disabled=not can_use_direct_expenses)
+    expense_photo = capture_photo(c1, expense_prefix, disabled=not can_use_direct_expenses)
+    expense_upload = [*(expense_upload or []), *([expense_photo] if expense_photo is not None else [])]
+    if expense_upload:
+        c1.button('Retry photo/file autofill', key=f'{expense_prefix}_retry_autofill',
+                  on_click=retry_evidence, args=(expense_prefix,))
     expense_audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key=f"{expense_prefix}_audio", disabled=not can_use_direct_expenses)
     expense_voice_autofill = c2.button("Autofill with Voice Prompt", type="primary", use_container_width=True, disabled=expense_audio is None or not can_use_direct_expenses, key=f"{expense_prefix}_voice_autofill", icon="🎙️")
     expense_files = evidence(expense_upload, expense_audio)
