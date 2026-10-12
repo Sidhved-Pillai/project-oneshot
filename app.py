@@ -15,17 +15,17 @@ from dotenv import load_dotenv
 
 from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record, can_view_trip_leaderboard
 from src.ai_intake import extract_intake, merge_same_trip_intake_rows, should_autofill_field
-from src.business_memory import build_business_memory, recall
+from src.business_memory_v2 import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
 from src.entry_state import clear_entry_state, clear_expense_state, entry_state_prefix, expense_state_prefix
 from src.expense_linking import link_expenses_to_trips
-from src.invoice_numbers import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series, user_invoice_duplicates, verified_bisleri_invoice_numbers
+from src.invoice_numbers_v2 import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series, user_invoice_duplicates, verified_bisleri_invoice_numbers, invoice_identifier_tokens
 from src.number_format import format_inr, indian_number
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
 from src.pending_invoice_matcher import suggest_invoice_match
 from src.current_leaderboard import branch_trip_leaderboard, current_month_leaderboard
-from src import current_pnl_report as pnl_reporting
+from src import current_pnl_report_v2 as pnl_reporting
 from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, direct_expense_headings, filter_direct_expenses, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
 from src.records_export import export_records_excel
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, edited_dtr_frame, export_operational_dtr
@@ -35,7 +35,7 @@ from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROF
 from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
-from src.current_pnl_report import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
+from src.current_pnl_report_v2 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.records_store_v13 import RequestStore
 from src.upi_payments import can_send_upi, upi_rtgs_rows
 from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, balance_rtgs_rows, can_send_balance
@@ -43,6 +43,8 @@ from src.report_scroll import latest_rows_scroll_script
 from src.dtr_review import render_dtr_review
 from src.dtr_dates import parse_dtr_date, dtr_editor_key
 from src.ashok_dates import parse_month_date
+from src.member_sessions import signing_key, issue_member_session, restore_member_session
+from src.branch_names import canonical_branch as normalized_branch_name
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
@@ -82,9 +84,7 @@ ASCII_BOLD = str.maketrans(
 
 
 def canonical_branch(value):
-    """Correct the temporary Vadodra label while retaining old saved records."""
-    original = re.sub(r"\s+", " ", str(value or "")).strip()
-    return "Vadodara" if original.casefold() in {"vadodra", "vadodara"} else original
+    return normalized_branch_name(value)
 
 
 def secret(name):
@@ -103,7 +103,7 @@ def get_store(url, interface_version):
 
 @st.cache_data(show_spinner=False, max_entries=12)
 def cached_business_memory(rows):
-    return build_business_memory(rows)
+    return {**build_business_memory(rows)}  # invalidate old majority-vote banking cache
 
 
 @st.cache_data(show_spinner=False, max_entries=12)
@@ -128,7 +128,7 @@ def cached_rtgs_excel(frame, report_date):
 
 @st.cache_data(show_spinner=False, max_entries=12)
 def cached_pnl_excel(trips, expenses, start, end, ownership_filter):
-    return export_pnl(trips, expenses, start, end, ownership_filter)
+    return bytes(export_pnl(trips, expenses, start, end, ownership_filter))
 
 
 def clean_text(value):
@@ -290,11 +290,7 @@ def import_fingerprint(item):
 
 
 def import_identifier_tokens(value):
-    return {
-        re.sub(r"[^a-z0-9]", "", part.casefold())
-        for part in re.split(r"\s*/\s*", clean_text(value))
-        if re.sub(r"[^a-z0-9]", "", part.casefold())
-    }
+    return invoice_identifier_tokens(value)
 
 
 def import_fallback_key(item):
@@ -337,6 +333,9 @@ def canonicalize_placer_state(key):
 
 
 def apply_vijay_transporter_profile(prefix):
+    if recall(business_memory, "transporters", st.session_state.get(f"{prefix}_transporter_name")):
+        apply_saved_transporter_profile(prefix)
+        return
     profile = vijay_transporter_profile(st.session_state.get(f"{prefix}_transporter_name"))
     for field, value in profile.items():
         if field != "transporter_name":
@@ -358,6 +357,46 @@ def apply_saved_transporter_profile(prefix):
         # Clear details from the previous transporter when the selected/new
         # transporter has no saved value; never carry banking data across.
         st.session_state[f"{prefix}_{state_field}"] = value
+
+
+def apply_saved_beneficiary_profile(prefix):
+    associated = recall(business_memory, "transporter_beneficiaries",
+                        st.session_state.get(f"{prefix}_transporter_name"))
+    beneficiary_key = re.sub(r"[^A-Z0-9]", "", clean_text(st.session_state.get(f"{prefix}_beneficiary_name")).upper())
+    profile = associated.get(beneficiary_key, {})
+    for source, target in (("account_number", "beneficiary_account_number"), ("ifsc", "beneficiary_ifsc_code")):
+        st.session_state[f"{prefix}_{target}"] = profile.get(source, ("", 0))[0]
+
+
+def beneficiary_selector(prefix, column, memory, transporter):
+    key = f"{prefix}_beneficiary_name"
+    associated = recall(memory, "transporter_beneficiaries", transporter)
+    options = ["", *sorted({profile['beneficiary_name'][0] for profile in associated.values()}, key=str.casefold)]
+    selected = clean_text(st.session_state.get(key))
+    if selected and selected not in options:
+        options.append(selected)
+    return column.selectbox("Beneficiary name", options, key=key,
+        index=options.index(selected) if selected in options else 0,
+        accept_new_options=True, placeholder="Type or select a beneficiary",
+        on_change=apply_saved_beneficiary_profile, args=(prefix,))
+
+
+def transporter_selector(prefix, column, memory, user):
+    key = f"{prefix}_transporter_name"
+    choices = sorted({canonical_transporter_name(profile.get('transporter_name', ('', 0))[0], user)
+                      for profile in memory.get('transporters', {}).values()} - {''}, key=str.casefold)
+    selected = canonical_transporter_name(st.session_state.get(key), user)
+    options = ['', *choices]
+    if selected and selected not in options:
+        options.append(selected)
+    if st.session_state.get(key) != selected:
+        st.session_state[key] = selected
+    # The explicit current index preserves selection when a newly typed name
+    # becomes an option or the saved options change between reruns.
+    return column.selectbox('Transporter name', options, key=key,
+        index=options.index(selected), accept_new_options=True,
+        placeholder='Type or select a transporter',
+        on_change=apply_saved_transporter_profile, args=(prefix,))
 
 
 def apply_vijay_freight_rate(prefix):
@@ -444,6 +483,16 @@ def valid_ashok_session_token(token, now=None):
 def require_authentication():
     if st.session_state.get("authenticated"):
         return
+    session_codes = {**MEMBER_CODE_HASHES, "Sid": SPECIAL_CODE_HASH.hex()}
+    member = restore_member_session(
+        st.query_params.get("member_session", ""),
+        signing_key(clean_text(secret("SESSION_SIGNING_KEY"))), session_codes,
+    )
+    if member:
+        st.session_state["authenticated"] = True
+        st.session_state["authenticated_user"] = member
+        st.session_state["is_special_member"] = member in SPECIAL_MEMBERS
+        return
     persistent_token = st.query_params.get("ashok_session", "")
     if valid_ashok_session_token(persistent_token):
         st.session_state["authenticated"] = True
@@ -472,8 +521,10 @@ def require_authentication():
             st.session_state["is_special_member"] = member in SPECIAL_MEMBERS
             st.session_state["welcome_pending"] = True
             st.session_state.pop("special_access_code", None)
-            if member == "Ashok":
-                st.query_params["ashok_session"] = issue_ashok_session_token()
+            st.query_params.pop("ashok_session", None)
+            st.query_params["member_session"] = issue_member_session(
+                member, signing_key(clean_text(secret("SESSION_SIGNING_KEY"))), session_codes,
+            )
             st.rerun()
         st.error("Incorrect access code. Please try again.")
     st.stop()
@@ -958,7 +1009,6 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         st.markdown("#### 3. Beneficiary details")
         c1, c2 = st.columns(2)
         if current_user == "Vijay":
-            v["beneficiary_name"] = c1.text_input("Beneficiary name", key=f"{prefix}_beneficiary_name", placeholder="e.g., XYZ Transport")
             transporter_key = f"{prefix}_transporter_name"
             if st.session_state.get(transporter_key) not in ("", *VIJAY_TRANSPORTER_PROFILES):
                 st.session_state[transporter_key] = ""
@@ -967,33 +1017,18 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
                 key=transporter_key, placeholder="Select a transporter",
                 on_change=apply_vijay_transporter_profile, args=(prefix,),
             )
+            v["beneficiary_name"] = beneficiary_selector(prefix, c1, memory, v["transporter_name"])
         else:
-            transporter_key = f"{prefix}_transporter_name"
             option_memory = historical_business_memory if current_user == "Ashok" else memory
-            transporter_options = sorted({
-                canonical_transporter_name(profile.get("transporter_name", ("", 0))[0], current_user)
-                for profile in option_memory.get("transporters", {}).values()
-            } - {""}, key=str.casefold)
-            current_transporter = canonical_transporter_name(
-                st.session_state.get(transporter_key), current_user,
-            )
-            if st.session_state.get(transporter_key) != current_transporter:
-                st.session_state[transporter_key] = current_transporter
-            options = ["", *transporter_options]
-            if current_transporter and current_transporter not in options:
-                options.append(current_transporter)
-            v["transporter_name"] = c1.selectbox(
-                "Transporter name", options, key=transporter_key,
-                placeholder="Type or select a transporter", accept_new_options=True,
-                on_change=apply_saved_transporter_profile, args=(prefix,),
-            )
-            v["beneficiary_name"] = c2.text_input("Beneficiary name", key=f"{prefix}_beneficiary_name", placeholder="e.g., XYZ Transport")
+            v["transporter_name"] = transporter_selector(prefix, c1, option_memory, current_user)
+            v["beneficiary_name"] = beneficiary_selector(prefix, c2, memory, v["transporter_name"])
         c1, c2 = st.columns(2)
         v["beneficiary_account_number"] = c1.text_input("Account number", key=f"{prefix}_beneficiary_account_number", placeholder="e.g., 0206101019660")
         v["beneficiary_ifsc_code"] = c2.text_input("IFSC code", key=f"{prefix}_beneficiary_ifsc_code", placeholder="e.g., ICIC0001234")
-        beneficiary_memory = recall(memory, "beneficiaries", v["beneficiary_name"])
+        associated = recall(memory, "transporter_beneficiaries", v["transporter_name"])
+        beneficiary_memory = associated.get(re.sub(r"[^A-Z0-9]", "", v["beneficiary_name"].upper()), {})
         beneficiary_memory = {"beneficiary_account_number" if key == "account_number" else "beneficiary_ifsc_code" if key == "ifsc" else key: value for key, value in beneficiary_memory.items()}
-        memory_prompt(prefix, f"Known beneficiary details for {v['beneficiary_name']}", f"beneficiary_{v['beneficiary_name']}", beneficiary_memory, ["beneficiary_account_number", "beneficiary_ifsc_code", "transporter_name"])
+        memory_prompt(prefix, f"Known beneficiary details for {v['beneficiary_name']}", f"beneficiary_{v['beneficiary_name']}", beneficiary_memory, ["beneficiary_account_number", "beneficiary_ifsc_code"])
     st.markdown(f"#### {'3' if own_workflow else '4'}. Payment details")
     if own_workflow:
         if current_user == "Vijay":
@@ -1141,6 +1176,7 @@ if current_user == "Ashok":
         **historical_business_memory,
         "beneficiaries": new_ashok_memory["beneficiaries"],
         "transporters": new_ashok_memory["transporters"],
+        "transporter_beneficiaries": new_ashok_memory["transporter_beneficiaries"],
     }
 KNOWN_COMPANIES = sorted({clean_text(row.get("company_name")) for row in normalization_rows} - {""}, key=str.casefold)
 KNOWN_LOCATIONS = sorted({

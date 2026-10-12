@@ -7,6 +7,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from .vehicle_normalization import canonical_vehicle_number
+from .branch_names import canonical_branch
 
 
 DIRECT_EXPENSE_COLUMNS = [
@@ -38,7 +39,7 @@ def _rounded_money_rows(rows):
 def pnl_summary(trip_rows, expense_rows):
     revenue = sum(float(row.get("revenue") or 0) for row in trip_rows)
     transporter = sum(float(row.get("transporter_freight") or 0) for row in trip_rows)
-    branches = sorted({str(row.get("branch") or "").strip() for row in trip_rows} - {""}, key=str.casefold)
+    branches = sorted({canonical_branch(row.get("branch")) for row in trip_rows} - {""}, key=str.casefold)
     toll = sum(_amount(row.get("dtr_data", {}), "Toll Expense") for row in trip_rows)
     diesel = sum(_amount(row, "diesel_advance") for row in trip_rows)
     categories = {name: 0.0 for name in REPORT_EXPENSE_COLUMNS}
@@ -130,13 +131,13 @@ def branch_pnl_summary(trip_rows, expense_rows):
     vehicle_branches = defaultdict(Counter)
     for row in trip_rows:
         vehicle = canonical_vehicle_number(row.get("vehicle_number"))
-        branch = str(row.get("branch") or "").strip()
+        branch = canonical_branch(row.get("branch"))
         if vehicle and branch:
             vehicle_branches[vehicle][branch] += 1
 
     expenses_by_branch = defaultdict(list)
     for row in expense_rows:
-        branch = str(row.get("branch") or "").strip()
+        branch = canonical_branch(row.get("branch"))
         if not branch:
             vehicle = canonical_vehicle_number(row.get("vehicle_number"))
             if vehicle_branches.get(vehicle):
@@ -145,7 +146,7 @@ def branch_pnl_summary(trip_rows, expense_rows):
 
     trips_by_branch = defaultdict(list)
     for row in trip_rows:
-        branch = str(row.get("branch") or "").strip() or "Not specified"
+        branch = canonical_branch(row.get("branch")) or "Not specified"
         trips_by_branch[branch].append(row)
     branches = sorted(set(trips_by_branch) | set(expenses_by_branch), key=str.casefold)
 
@@ -276,7 +277,7 @@ def branch_vehicle_pnl_summary(trip_rows, expense_rows, ownership):
     trips_by_branch = defaultdict(list)
     vehicle_branch = {}
     for row in selected:
-        branch = str(row.get("branch") or "").strip() or "Not specified"
+        branch = canonical_branch(row.get("branch")) or "Not specified"
         trips_by_branch[branch].append(row)
         vehicle = canonical_vehicle_number(row.get("vehicle_number"))
         if vehicle:
@@ -287,7 +288,7 @@ def branch_vehicle_pnl_summary(trip_rows, expense_rows, ownership):
         if expense_ownership and not expense_ownership.startswith(ownership.lower()):
             continue
         vehicle = canonical_vehicle_number(row.get("vehicle_number"))
-        branch = str(row.get("branch") or "").strip() or vehicle_branch.get(vehicle)
+        branch = canonical_branch(row.get("branch")) or vehicle_branch.get(vehicle)
         if branch:
             expenses_by_branch[branch].append(row)
     rows = []
@@ -326,8 +327,8 @@ def vehicle_number_pnl_summary(trip_rows, expense_rows):
         trip_ownerships = [_canonical_ownership(row) for row in vehicle_trips if _canonical_ownership(row)]
         expense_ownerships = [_canonical_ownership(row) for row in vehicle_expenses if _canonical_ownership(row)]
         ownership = _dominant(trip_ownerships or expense_ownerships)
-        trip_branches = [row.get("branch") for row in vehicle_trips if str(row.get("branch") or "").strip()]
-        expense_branches = [row.get("branch") for row in vehicle_expenses if str(row.get("branch") or "").strip()]
+        trip_branches = [canonical_branch(row.get("branch")) for row in vehicle_trips if canonical_branch(row.get("branch"))]
+        expense_branches = [canonical_branch(row.get("branch")) for row in vehicle_expenses if canonical_branch(row.get("branch"))]
         branch = _dominant(trip_branches or expense_branches)
         normalized_trips = [
             {**row, "branch": branch, "ownership_type": ownership}

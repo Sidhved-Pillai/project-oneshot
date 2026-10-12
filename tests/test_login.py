@@ -18,6 +18,7 @@ def login_app():
 import streamlit as st
 import pandas as pd
 import hashlib, hmac
+from src.member_sessions import signing_key, issue_member_session, restore_member_session
 secret = lambda name: None
 valid_ashok_session_token = lambda value: False
 issue_ashok_session_token = lambda: 'test-token'
@@ -38,6 +39,13 @@ def test_login_form_accepts_authorized_four_and_five_digit_codes(code, member):
     assert not app.exception
     assert app.session_state["authenticated_user"] == member
     assert app.success[0].value == "Authenticated: " + member
+    token = app.query_params['member_session']
+    refreshed = login_app()
+    refreshed.query_params['member_session'] = token
+    refreshed.run()
+    assert not refreshed.exception
+    assert refreshed.session_state['authenticated_user'] == member
+    assert refreshed.session_state['is_special_member'] == (member == 'Shyam')
 
 
 @pytest.mark.parametrize("code", ["101", "0000", "abcd", "1234567"])

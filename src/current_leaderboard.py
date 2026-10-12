@@ -23,8 +23,8 @@ def current_month_leaderboard(rows, today, branches=()):
 
 
 def canonical_branch(value):
-    original = " ".join(str(value or "").split()).strip()
-    return "Vadodara" if original.casefold() in {"vadodra", "vadodara"} else original
+    from .branch_names import canonical_branch as normalize
+    return normalize(value)
 
 
 def branch_trip_leaderboard(rows, branches=()):

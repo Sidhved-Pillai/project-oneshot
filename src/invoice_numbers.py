@@ -18,11 +18,19 @@ def combined_invoice_number(values):
 
 
 def _identifier_parts(value):
-    return {
+    text = str(value or "")
+    # Slashes inside GK's invoice format are part of ONE identifier, not
+    # separators between invoices. Neither GST nor the financial year is an ID.
+    structured = re.findall(r"GST\s*/\s*GST\s*/\s*\d+\s*/\s*\d{2}\s*-\s*\d{2}", text, re.I)
+    text = re.sub(r"GST\s*/\s*GST\s*/\s*\d+\s*/\s*\d{2}\s*-\s*\d{2}", "", text, flags=re.I)
+    return {re.sub(r"[^a-z0-9]", "", part.casefold()) for part in structured} | {
         re.sub(r"[^a-z0-9]", "", part.casefold())
-        for part in re.split(r"\s*/\s*", str(value or ""))
+        for part in re.split(r"\s*/\s*", text)
         if re.sub(r"[^a-z0-9]", "", part.casefold())
     }
+
+
+invoice_identifier_tokens = _identifier_parts
 
 
 def _dtr_data(record):

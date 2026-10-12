@@ -65,14 +65,26 @@ def build_business_memory(rows):
             for key, records in groups.items()
         }
 
+    # Banking profiles are coherent snapshots, not independent majority votes.
+    # Order by save time so a newly saved beneficiary wins even for an older trip.
+    transporter_profiles, transporter_beneficiaries = {}, {}
+    for key, records in transporters.items():
+        ordered = sorted(records, key=lambda r: (str(r.get('updated_at') or r.get('created_at') or ''), int(r.get('id') or 0)))
+        associated = {}
+        for record in ordered:
+            beneficiary = _text(record.get('beneficiary_name'))
+            profile = {field: (_text(record.get(field)), sum(_key(r.get(field)) == _key(record.get(field)) for r in records)) for field in
+                       ('transporter_name', 'beneficiary_name', 'account_number', 'ifsc')}
+            if beneficiary:
+                associated[_key(beneficiary)] = profile
+            transporter_profiles[key] = profile
+        transporter_beneficiaries[key] = associated
     return {
         "vehicles": compile_group(vehicles, ["vehicle_capacity", "transporter_name", "ownership_type", "vehicle_placed_by"]),
         "companies": compile_group(companies, ["branch"]),
         "beneficiaries": compile_group(beneficiaries, ["account_number", "ifsc", "transporter_name"]),
-        "transporters": compile_group(
-            transporters,
-            ["transporter_name", "beneficiary_name", "account_number", "ifsc"],
-        ),
+        "transporters": transporter_profiles,
+        "transporter_beneficiaries": transporter_beneficiaries,
     }
 
 
