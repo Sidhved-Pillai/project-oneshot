@@ -70,11 +70,12 @@ def build_business_memory(rows):
     transporter_profiles, transporter_beneficiaries = {}, {}
     for key, records in transporters.items():
         ordered = sorted(records, key=lambda r: (str(r.get('updated_at') or r.get('created_at') or ''), int(r.get('id') or 0)))
+        fields = ('transporter_name', 'beneficiary_name', 'account_number', 'ifsc')
+        support = {field: Counter(_key(r.get(field)) for r in records) for field in fields}
         associated = {}
         for record in ordered:
             beneficiary = _text(record.get('beneficiary_name'))
-            profile = {field: (_text(record.get(field)), sum(_key(r.get(field)) == _key(record.get(field)) for r in records)) for field in
-                       ('transporter_name', 'beneficiary_name', 'account_number', 'ifsc')}
+            profile = {field: (_text(record.get(field)), support[field][_key(record.get(field))]) for field in fields}
             if beneficiary:
                 associated[_key(beneficiary)] = profile
             transporter_profiles[key] = profile

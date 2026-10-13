@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 
 from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record, can_view_trip_leaderboard
 from src.ai_intake import extract_intake, merge_same_trip_intake_rows, should_autofill_field
-from src.business_memory_v2 import build_business_memory, recall
+from src.business_memory_v3 import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
 from src.entry_state import clear_entry_state, clear_expense_state, entry_state_prefix, expense_state_prefix
@@ -35,7 +35,7 @@ from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report_v2 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
-from src.records_store_v13 import RequestStore
+from src.records_store_v14 import RequestStore
 from src.upi_payments import can_send_upi, upi_rtgs_rows
 from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, balance_rtgs_rows, can_send_balance
 from src.report_scroll import latest_rows_scroll_script
@@ -47,7 +47,7 @@ from src.branch_names import canonical_branch as normalized_branch_name
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
-STORE_INTERFACE_VERSION = 13
+STORE_INTERFACE_VERSION = 14
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Debit"]
@@ -1177,10 +1177,11 @@ except Exception as exc:
     st.error(f"Database connection failed: {exc}")
     st.stop()
 
-normalization_rows = store.list(status="All active")
-balance_requests = store.list_balance_payments()
-upi_requests = store.list_upi_payments()
 current_user = st.session_state.get("authenticated_user", "Unknown member")
+normalization_rows, balance_requests, upi_requests, dashboard_logs = store.dashboard_snapshot(
+    include_payments=current_user in BALANCE_PAYMENT_USERS or current_user in SPECIAL_MEMBERS,
+    include_logs=current_user in SPECIAL_MEMBERS,
+)
 historical_business_memory = cached_business_memory(normalization_rows)
 business_memory = historical_business_memory
 if current_user == "Ashok":
@@ -2336,7 +2337,7 @@ with logs_tab:
     if not is_special_member:
         st.warning("Logs are available only to special members.")
     else:
-        log_rows = store.list_activity_logs()
+        log_rows = dashboard_logs
         if not log_rows:
             st.info("No activity has been recorded yet.")
         else:

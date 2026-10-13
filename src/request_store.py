@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Integer, LargeBinary, MetaData, Numeric,
-    String, Table, Text, create_engine, delete, false, func, insert, inspect, select, text, update,
+    String, Table, Text, create_engine, delete, false, func, insert, inspect, literal, select, text, union_all, update,
 )
 
 from .config import DATA
@@ -635,6 +635,27 @@ class RequestStore:
         query = query.order_by(requests.c.trip_date.desc(), requests.c.id.desc())
         with self.engine.connect() as conn:
             return [dict(row) for row in conn.execute(query).mappings()]
+
+    def dashboard_snapshot(self, include_payments=True, include_logs=False):
+        """Fresh dashboard data using one connection, without time-based caching."""
+        balances, upi, logs = {}, {}, []
+        with self.engine.connect() as conn:
+            rows = [dict(row) for row in conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
+                requests.c.status != 'Cancelled', requests.c.is_archived.is_(False),
+            ).order_by(requests.c.trip_date.desc(), requests.c.id.desc())).mappings()]
+            if include_payments:
+                query = union_all(
+                    select(literal('balance').label('_kind'), *balance_payments.c),
+                    select(literal('upi').label('_kind'), *upi_payments.c),
+                )
+                for result in conn.execute(query).mappings():
+                    payment = dict(result)
+                    kind = payment.pop('_kind')
+                    (balances if kind == 'balance' else upi)[payment['request_number']] = payment
+            if include_logs:
+                logs = [dict(row) for row in conn.execute(select(activity_logs).order_by(
+                    activity_logs.c.id.desc()).limit(500)).mappings()]
+        return rows, balances, upi, logs
 
     def archive_before(self, cutoff):
         with self.engine.begin() as conn:
