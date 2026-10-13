@@ -148,15 +148,6 @@ def number(value):
         return 0.0
 
 
-def vijay_trips_missing_rtgs(trips):
-    return [row for row in trips if
-            (clean_text(row.get('created_by')) == 'Vijay' or
-             canonical_vehicle_placer(unpack(row.get('dtr_data')).get('Veh Placed by')) == 'Vijay')
-            and row.get('report_scope') != 'Expense'
-            and not is_own_vehicle(row.get('ownership_type'))
-            and number(row.get('rtgs_advance')) <= 0]
-
-
 def dtr_cell_value(value):
     """Normalize editor values so unchanged rows are not written again."""
     if value is None or (not isinstance(value, str) and pd.isna(value)):
@@ -1580,14 +1571,9 @@ with new_tab:
             values = trip_form(entry_prefix, business_memory, allowed_entry_branches, simplified=current_user == "Manish")
             repair_reason_missing = values["simplified"] and number(values["repairs_maintenance"]) > 0 and not clean_text(values["repair_reason"])
             invalid_ashok_date = current_user == "Ashok" and parse_month_date(values["date"], dt.date.today()) is None
-            vijay_missing_rtgs = current_user == "Vijay" and not is_own_vehicle(values["ownership_type"]) and number(values.get("rtgs_advance")) <= 0
-            confirm_without_rtgs = False
-            if vijay_missing_rtgs:
-                st.warning("RTGS amount is blank or zero. This trip will not appear in the payable RTGS list until an amount is entered.")
-                confirm_without_rtgs = st.checkbox("Save without RTGS for now — I will enter the payment amount later", key=f"{entry_prefix}_confirm_no_rtgs")
             if invalid_ashok_date:
                 st.error("Select a trip date within the current month. Dates outside this month cannot be saved as new trips.")
-            save_disabled = not values["branch"] or not values["vehicle_number"] or repair_reason_missing or values["has_duplicate_identifiers"] or invalid_ashok_date or (vijay_missing_rtgs and not confirm_without_rtgs)
+            save_disabled = not values["branch"] or not values["vehicle_number"] or repair_reason_missing or values["has_duplicate_identifiers"] or invalid_ashok_date
             if st.button("Save and Another Entry", type="primary", disabled=save_disabled, key=f"{entry_prefix}_save"):
                 saved = store.create({**trip_payload(values, files, invoice_filename), "created_by": current_user})
                 audit_action("Created trip record", saved, request_label(saved, values["date"]))
@@ -2146,15 +2132,6 @@ with reports_tab:
                 st.rerun()
         st.download_button("Download DTR report", cached_dtr_excel(edited_frame), f"DTR-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=edited_frame.empty or not can_generate_reports, on_click=audit_action, args=("Downloaded DTR report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
     elif report_type == "RTGS":
-        missing_vijay_rtgs = vijay_trips_missing_rtgs(trips)
-        if missing_vijay_rtgs:
-            st.warning(f"{len(missing_vijay_rtgs)} Vijay trip(s) have no RTGS amount and cannot be included in the bank payment file yet. Enter the correct RTGS amount through View Evidence → Save record changes in Records.")
-            with st.expander("Vijay trips awaiting an RTGS amount"):
-                st.dataframe(pd.DataFrame([{
-                    "Record": request_label(row), "Date": row.get("trip_date"),
-                    "Vehicle": row.get("vehicle_number"), "Invoice No.": row.get("invoice_number"),
-                    "Transporter": row.get("transporter_name"), "RTGS": number(row.get("rtgs_advance")),
-                } for row in missing_vijay_rtgs]), hide_index=True, width="stretch")
         show_only_balance_payable = st.toggle(
             "Show only Balance Payable records",
             value=False,
