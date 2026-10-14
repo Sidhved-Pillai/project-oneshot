@@ -25,7 +25,7 @@ from src.number_format import format_inr, indian_number
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
 from src.current_leaderboard import branch_trip_leaderboard, current_month_leaderboard
 from src import current_pnl_report_v2 as pnl_reporting
-from src.record_filters import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, direct_expense_headings, filter_direct_expenses, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
+from src.record_filters_v2 import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, direct_expense_headings, filter_direct_expenses, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
 from src.records_export import export_records_excel
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS, edited_dtr_frame, export_operational_dtr
 from src.rtgs_report_v2 import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
@@ -35,7 +35,7 @@ from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report_v2 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
-from src.records_store_v14 import RequestStore
+from src.records_store_v15 import RequestStore
 from src.upi_payments import can_send_upi, upi_rtgs_rows
 from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, balance_rtgs_rows, can_send_balance
 from src.report_scroll import latest_rows_scroll_script
@@ -44,12 +44,12 @@ from src.dtr_dates import parse_dtr_date, dtr_editor_key
 from src.ashok_dates import parse_month_date
 from src.member_sessions import signing_key, issue_member_session, restore_member_session
 from src.branch_names import canonical_branch as normalized_branch_name
-from src.batched_records_v2 import render_filters
-from src.operational_dates import OPERATIONS_START
+from src.batched_records_v3 import render_filters
+from src.operational_dates_v2 import OPERATIONS_START
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
-STORE_INTERFACE_VERSION = 14
+STORE_INTERFACE_VERSION = 15
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Debit"]
@@ -99,7 +99,9 @@ def secret(name):
 
 @st.cache_resource
 def get_store(url, interface_version):
-    return RequestStore(url)
+    result = RequestStore(url)
+    result.legacy_year_repair = result.repair_legacy_years()
+    return result
 
 
 @st.cache_data(show_spinner=False, max_entries=12)
@@ -730,7 +732,7 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
                 if blank:
                     if field == 'date' and parse_dtr_date(value) and parse_dtr_date(value) < OPERATIONS_START:
                         st.session_state[state_key] = None
-                        st.warning('The extracted date is before 1 September 2026. Please select the correct operational date before saving.')
+                        st.warning('The extracted date is before 2026. Please select the correct operational date before saving.')
                         continue
                     if field == "date" and mode == "ENTRY" and current_user == "Ashok":
                         resolved = parse_month_date(value, dt.date.today())
@@ -785,11 +787,8 @@ def file_values(files, preferred_filename=None):
 
 
 def trip_payload(v, files, invoice_filename=None):
-    if current_user == "Ashok":
-        resolved_date = parse_month_date(v.get("date"), dt.date.today())
-        if resolved_date is None:
-            raise ValueError("New Ashok trips must be dated within the current month.")
-        v = {**v, "date": resolved_date}
+    if v.get('date') is None or v['date'] < OPERATIONS_START:
+        raise ValueError('Choose a date in 2026 or later.')
     company = canonical_company(v["company_name"], KNOWN_COMPANIES)
     origin = canonical_location(v["from_location"], KNOWN_LOCATIONS)
     destination = canonical_location(v["to_location"], KNOWN_LOCATIONS)
@@ -944,15 +943,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     previous_date = parse_dtr_date(st.session_state.get(f"{prefix}_date"))
     if previous_date and previous_date < OPERATIONS_START:
         st.session_state[f"{prefix}_date"] = None
-        st.warning("Choose a trip date on or after 1 September 2026.")
-    if current_user == "Ashok":
-        today = dt.date.today()
-        first = today.replace(day=1)
-        last = (first.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
-        date_options = {"min_value": first, "max_value": last}
-        date_key = f"{prefix}_date"
-        if date_key in st.session_state:
-            st.session_state[date_key] = parse_month_date(st.session_state[date_key], today)
+        st.warning("Choose a trip date in 2026 or later.")
     v.update({"date": c1.date_input("Date *", value=st.session_state.get(f"{prefix}_date", dt.date.today()), format="DD/MM/YYYY", key=f"{prefix}_date", **date_options), "branch": c2.selectbox("Branch *", branch_choices, index=branch_choices.index(current_branch), key=branch_key, placeholder="Select a branch"), "company_name": st.text_input("Company name *", key=f"{prefix}_company_name", placeholder="e.g., SG Logistics")})
     c1, c2 = st.columns(2)
     v["from_location"] = c1.text_input("From *", key=f"{prefix}_from_location", placeholder="e.g., Talegaon, Pune")
@@ -1188,6 +1179,8 @@ except Exception as exc:
     st.stop()
 
 current_user = st.session_state.get("authenticated_user", "Unknown member")
+if current_user == 'Sid' and store.legacy_year_repair.get('skipped'):
+    st.warning('These older dates need manual review and were not changed: ' + ', '.join(store.legacy_year_repair['skipped']))
 normalization_rows, balance_requests, upi_requests, dashboard_logs = store.dashboard_snapshot(
     include_payments=current_user in BALANCE_PAYMENT_USERS or current_user in SPECIAL_MEMBERS,
     include_logs=current_user in SPECIAL_MEMBERS,
@@ -1382,7 +1375,7 @@ def view_record(row):
                         if row.get("created_by") == "Ashok" else parse_dtr_date(edited_item.get("Date")))
     invalid_ashok_date = edited_trip_date is None or edited_trip_date < OPERATIONS_START
     if invalid_ashok_date:
-        st.error("Enter a date on or after 1 September 2026. Ashok's historical edits must also stay in the original month.")
+        st.error("Enter a date in 2026 or later. Ashok's historical edits must also stay in the original month.")
     if st.button(
         "Save record changes", type="primary", key=f"save_record_{row['request_number']}",
         disabled=repair_reason_missing or replacement_missing or invalid_ashok_date,
@@ -1542,6 +1535,34 @@ if hidden_tabs:
     st.markdown(f"<style>{hidden_tab_css}</style>", unsafe_allow_html=True)
 new_tab, expense_tab, records_tab, reports_tab, logs_tab = st.tabs(["Review DTR" if current_user == "Shyam" else "New Entry", "Direct Expenses", "Records", "Generate Reports", "Logs"])
 
+def finish_trip_save(payload, generation):
+    if generation != st.session_state.get('new_entry_generation', 0):
+        st.error('This entry was already saved or replaced. No duplicate was created.')
+        return
+    if payload.get('created_by') != current_user:
+        raise ValueError('The signed-in user changed. Reopen the entry before saving.')
+    latest = store.list(status='All active')
+    if user_invoice_duplicates(latest, current_user, payload.get('invoice_number')) or user_lr_duplicates(latest, current_user, payload.get('dtr_data', {}).get('LR No.')):
+        st.error('This invoice or LR is already saved. No duplicate was created.')
+        return
+    saved = store.create(payload)
+    audit_action('Created trip record', saved, request_label(saved, payload['trip_date']))
+    st.session_state['saved_entry_notice'] = f"Saved {request_label(saved, payload['trip_date'])}. Ready for another entry."
+    st.session_state['reset_trip_form'] = True
+    st.session_state['new_entry_generation'] = generation + 1
+    st.rerun()
+
+
+@st.dialog('Confirm entry date')
+def confirm_trip_month(payload, generation):
+    st.write(f"The date is set as {payload['trip_date']:%B %Y}. Are you sure you want to proceed?")
+    yes, no = st.columns(2)
+    if yes.button('Yes', type='primary', key='confirm_outside_month_yes'):
+        finish_trip_save(payload, generation)
+    if no.button('No', key='confirm_outside_month_no'):
+        st.rerun()
+
+
 @st.fragment
 def render_new_entry():
     if current_user == "Shyam":
@@ -1579,24 +1600,20 @@ def render_new_entry():
         with st.container(border=True):
             values = trip_form(entry_prefix, business_memory, allowed_entry_branches, simplified=current_user == "Manish")
             repair_reason_missing = values["simplified"] and number(values["repairs_maintenance"]) > 0 and not clean_text(values["repair_reason"])
-            invalid_ashok_date = current_user == "Ashok" and parse_month_date(values["date"], dt.date.today()) is None
             invalid_operational_date = values['date'] is None or values['date'] < OPERATIONS_START
             if invalid_operational_date:
-                st.error('Choose a date on or after 1 September 2026 before saving.')
-            if invalid_ashok_date:
-                st.error("Select a trip date within the current month. Dates outside this month cannot be saved as new trips.")
-            save_disabled = not values["branch"] or not values["vehicle_number"] or repair_reason_missing or values["has_duplicate_identifiers"] or invalid_ashok_date or invalid_operational_date
+                st.error('Choose a date in 2026 or later before saving.')
+            save_disabled = not values["branch"] or not values["vehicle_number"] or repair_reason_missing or values["has_duplicate_identifiers"] or invalid_operational_date
             if st.button("Save and Another Entry", type="primary", disabled=save_disabled, key=f"{entry_prefix}_save"):
                 latest = store.list(status="All active")
                 if user_invoice_duplicates(latest, current_user, values["invoice_number"]) or user_lr_duplicates(latest, current_user, values["lr_number"]):
                     st.error("This invoice or LR was saved by another session. Refresh and review the existing record before saving.")
                     st.stop()
-                saved = store.create({**trip_payload(values, files, invoice_filename), "created_by": current_user})
-                audit_action("Created trip record", saved, request_label(saved, values["date"]))
-                st.session_state["saved_entry_notice"] = f"Saved {request_label(saved, values['date'])}. Ready for another entry."
-                st.session_state["reset_trip_form"] = True
-                st.session_state["new_entry_generation"] = entry_generation + 1
-                st.rerun()
+                payload = {**trip_payload(values, files, invoice_filename), 'created_by': current_user}
+                if (values['date'].year, values['date'].month) != (dt.date.today().year, dt.date.today().month):
+                    confirm_trip_month(payload, entry_generation)
+                else:
+                    finish_trip_save(payload, entry_generation)
 
 with new_tab:
     render_new_entry()
@@ -1722,7 +1739,7 @@ def render_direct_expenses():
             st.warning("Expense total and payment-mode total do not match. Review before saving.")
         invalid_expense_date = v['date'] is None or v['date'] < OPERATIONS_START
         if invalid_expense_date:
-            st.error('Choose an expense date on or after 1 September 2026.')
+            st.error('Choose an expense date in 2026 or later.')
         save_disabled = not can_use_direct_expenses or not v["branch"] or invalid_period or invalid_expense_date
         if current_user == "Nikhat":
             save_expense = False

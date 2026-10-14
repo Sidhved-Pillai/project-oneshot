@@ -6,7 +6,8 @@ import pandas as pd
 
 TRIP_RECORDS = "Trip Records"
 DIRECT_EXPENSES = "Direct Expenses"
-RECORD_TYPES = (TRIP_RECORDS, DIRECT_EXPENSES)
+BOTH_RECORDS = "Both"
+RECORD_TYPES = (TRIP_RECORDS, DIRECT_EXPENSES, BOTH_RECORDS)
 SORT_ORDERS = ("Newest first", "Oldest first")
 
 
@@ -16,6 +17,8 @@ def is_direct_expense(record):
 
 def filter_record_type(records, record_type):
     """Return only trips or direct expenses without altering the source rows."""
+    if record_type == BOTH_RECORDS:
+        return list(records)
     want_expenses = record_type == DIRECT_EXPENSES
     return [record for record in records if is_direct_expense(record) == want_expenses]
 

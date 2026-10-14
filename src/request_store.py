@@ -657,6 +657,32 @@ class RequestStore:
                     activity_logs.c.id.desc()).limit(500)).mappings()]
         return rows, balances, upi, logs
 
+    def repair_legacy_years(self):
+        """User-authorized year-only repair; revisions retain original values."""
+        from .legacy_year_repair import year_correction
+        repaired, skipped = [], []
+        with self.engine.begin() as conn:
+            rows = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
+                requests.c.trip_date < dt.date(2026,1,1), requests.c.is_archived.is_(False),
+                requests.c.status != 'Cancelled',
+            ).with_for_update()).mappings().all()
+            for result in rows:
+                row = dict(result)
+                try:
+                    values = year_correction(row)
+                except (ValueError, TypeError):
+                    skipped.append(row['request_number'])
+                    continue
+                self._insert_revision(conn,row['request_number'],row,'before_2026_year_repair','Sid')
+                conn.execute(update(requests).where(requests.c.id==row['id']).values(
+                    **self._clean_values(values),updated_at=dt.datetime.now()))
+                self._insert_revision(conn,row['request_number'],{**row,**values},'2026_year_repair','Sid')
+                repaired.append(row['request_number'])
+            if repaired:
+                conn.execute(insert(activity_logs).values(user_name='Sid',action='Corrected legacy record years',
+                    details=f'{len(repaired)} active records moved to 2026; {len(skipped)} dates require review.'))
+        return {'repaired':repaired,'skipped':skipped}
+
     def archive_before(self, cutoff):
         with self.engine.begin() as conn:
             result = conn.execute(
