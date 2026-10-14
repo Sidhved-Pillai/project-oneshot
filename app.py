@@ -44,7 +44,8 @@ from src.dtr_dates import parse_dtr_date, dtr_editor_key
 from src.ashok_dates import parse_month_date
 from src.member_sessions import signing_key, issue_member_session, restore_member_session
 from src.branch_names import canonical_branch as normalized_branch_name
-from src.batched_records import render_filters
+from src.batched_records_v2 import render_filters
+from src.operational_dates import OPERATIONS_START
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
@@ -176,7 +177,7 @@ def dtr_record_update_values(saved_row, edited_row):
     data = dict(edited_row)
     trip_date = (parse_month_date(data.get("Date"), saved_row.get("trip_date"))
                  if saved_row.get("created_by") == "Ashok" else parse_dtr_date(data.get("Date")))
-    if trip_date is None or (saved_row.get("created_by") == "Ashok" and trip_date.year < 2026):
+    if trip_date is None or trip_date < OPERATIONS_START:
         raise ValueError("Enter a valid trip date. Ashok's historical edits must stay in the record's original month.")
     branch = canonical_branch(data.get("Branch"))
     company = canonical_company(data.get("Compnay Name"), KNOWN_COMPANIES)
@@ -727,6 +728,10 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
                 current = st.session_state.get(state_key)
                 blank = current in (None, "", 0, 0.0) or (field == "date" and current == dt.date.today())
                 if blank:
+                    if field == 'date' and parse_dtr_date(value) and parse_dtr_date(value) < OPERATIONS_START:
+                        st.session_state[state_key] = None
+                        st.warning('The extracted date is before 1 September 2026. Please select the correct operational date before saving.')
+                        continue
                     if field == "date" and mode == "ENTRY" and current_user == "Ashok":
                         resolved = parse_month_date(value, dt.date.today())
                         if resolved is None:
@@ -935,7 +940,11 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     if st.session_state.get(branch_key) != current_branch:
         st.session_state[branch_key] = current_branch
     branch_choices = ["", *available_branches]
-    date_options = {}
+    date_options = {"min_value": OPERATIONS_START}
+    previous_date = parse_dtr_date(st.session_state.get(f"{prefix}_date"))
+    if previous_date and previous_date < OPERATIONS_START:
+        st.session_state[f"{prefix}_date"] = None
+        st.warning("Choose a trip date on or after 1 September 2026.")
     if current_user == "Ashok":
         today = dt.date.today()
         first = today.replace(day=1)
@@ -1371,11 +1380,9 @@ def view_record(row):
         st.caption("Upload the replacement invoice before saving record changes.")
     edited_trip_date = (parse_month_date(edited_item.get("Date"), row.get("trip_date"))
                         if row.get("created_by") == "Ashok" else parse_dtr_date(edited_item.get("Date")))
-    invalid_ashok_date = row.get("created_by") == "Ashok" and (
-        edited_trip_date is None or edited_trip_date.year < 2026
-    )
+    invalid_ashok_date = edited_trip_date is None or edited_trip_date < OPERATIONS_START
     if invalid_ashok_date:
-        st.error("Enter a valid date within this record's original month.")
+        st.error("Enter a date on or after 1 September 2026. Ashok's historical edits must also stay in the original month.")
     if st.button(
         "Save record changes", type="primary", key=f"save_record_{row['request_number']}",
         disabled=repair_reason_missing or replacement_missing or invalid_ashok_date,
@@ -1573,9 +1580,12 @@ def render_new_entry():
             values = trip_form(entry_prefix, business_memory, allowed_entry_branches, simplified=current_user == "Manish")
             repair_reason_missing = values["simplified"] and number(values["repairs_maintenance"]) > 0 and not clean_text(values["repair_reason"])
             invalid_ashok_date = current_user == "Ashok" and parse_month_date(values["date"], dt.date.today()) is None
+            invalid_operational_date = values['date'] is None or values['date'] < OPERATIONS_START
+            if invalid_operational_date:
+                st.error('Choose a date on or after 1 September 2026 before saving.')
             if invalid_ashok_date:
                 st.error("Select a trip date within the current month. Dates outside this month cannot be saved as new trips.")
-            save_disabled = not values["branch"] or not values["vehicle_number"] or repair_reason_missing or values["has_duplicate_identifiers"] or invalid_ashok_date
+            save_disabled = not values["branch"] or not values["vehicle_number"] or repair_reason_missing or values["has_duplicate_identifiers"] or invalid_ashok_date or invalid_operational_date
             if st.button("Save and Another Entry", type="primary", disabled=save_disabled, key=f"{entry_prefix}_save"):
                 latest = store.list(status="All active")
                 if user_invoice_duplicates(latest, current_user, values["invoice_number"]) or user_lr_duplicates(latest, current_user, values["lr_number"]):
@@ -1622,7 +1632,7 @@ def render_direct_expenses():
         if current_user == "Nikhat":
             c1, c2, c3, c4 = st.columns(4)
             v = {
-                "date": c1.date_input("Date *", format="DD/MM/YYYY", key=f"{expense_prefix}_date"),
+                "date": c1.date_input("Date *", format="DD/MM/YYYY", key=f"{expense_prefix}_date", min_value=OPERATIONS_START),
                 "invoice_number": c2.text_input("Invoice No:", key=f"{expense_prefix}_invoice_number", placeholder="e.g., INV-1234"),
                 "beneficiary_name": c3.text_input("Beneficiary name", key=f"{expense_prefix}_beneficiary", placeholder="e.g., Rajesh Kumar"),
                 "vehicle_number": c4.text_input("Vehicle name / number", key=f"{expense_prefix}_vehicle", placeholder="e.g., MH14JL9818"),
@@ -1630,7 +1640,7 @@ def render_direct_expenses():
         else:
             c1, c2, c3 = st.columns(3)
             v = {
-                "date": c1.date_input("Date *", format="DD/MM/YYYY", key=f"{expense_prefix}_date"),
+                "date": c1.date_input("Date *", format="DD/MM/YYYY", key=f"{expense_prefix}_date", min_value=OPERATIONS_START),
                 "invoice_number": "",
                 "beneficiary_name": c2.text_input("Beneficiary name", key=f"{expense_prefix}_beneficiary", placeholder="e.g., Rajesh Kumar"),
                 "vehicle_number": c3.text_input("Vehicle name / number", key=f"{expense_prefix}_vehicle", placeholder="e.g., MH14JL9818"),
@@ -1676,6 +1686,7 @@ def render_direct_expenses():
             period_columns[index].caption(category)
             v[f"{category}_period"] = period_columns[index].date_input(
                 "Period", value=(v["date"], v["date"]), format="DD/MM/YYYY",
+                min_value=OPERATIONS_START,
                 key=f"{expense_prefix}_period_{category.casefold().replace(' ', '_')}",
             )
         invalid_period = any(not normalize_period(v.get(f"{category}_period")) for category in active_period_categories)
@@ -1709,7 +1720,10 @@ def render_direct_expenses():
         c2.metric("Payment modes total", format_inr(paid_total))
         if paid_total and abs(expense_total - paid_total) > 0.01:
             st.warning("Expense total and payment-mode total do not match. Review before saving.")
-        save_disabled = not can_use_direct_expenses or not v["branch"] or invalid_period
+        invalid_expense_date = v['date'] is None or v['date'] < OPERATIONS_START
+        if invalid_expense_date:
+            st.error('Choose an expense date on or after 1 September 2026.')
+        save_disabled = not can_use_direct_expenses or not v["branch"] or invalid_period or invalid_expense_date
         if current_user == "Nikhat":
             save_expense = False
             save_another_expense = st.button(
@@ -1984,8 +1998,8 @@ with reports_tab:
     workflow_steps(["Choose dates", "Select format", "Download"], 0)
     c1, c2 = st.columns(2)
     today = dt.date.today()
-    start = c1.date_input("Records from", value=today.replace(day=1), format="DD/MM/YYYY", key="report_from_v2")
-    end = c2.date_input("Records to", value=today, format="DD/MM/YYYY", key="report_to_v2")
+    start = c1.date_input("Records from", value=today.replace(day=1), format="DD/MM/YYYY", key="report_from_v2", min_value=OPERATIONS_START)
+    end = c2.date_input("Records to", value=today, format="DD/MM/YYYY", key="report_to_v2", min_value=OPERATIONS_START)
     report_options = ["DTR"] if current_user == "Ashok" else ["DTR", "RTGS", *(["P&L"] if can_generate_pnl else [])]
     if st.session_state.get("report_type") not in (None, *report_options):
         st.session_state["report_type"] = "DTR"

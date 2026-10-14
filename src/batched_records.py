@@ -8,6 +8,7 @@ from .record_filters import RECORD_TYPES, TRIP_RECORDS, DIRECT_EXPENSES, direct_
 from .vehicle_normalization import canonical_vehicle_number
 from .vehicle_placer import canonical_vehicle_placer
 from .number_format import format_inr
+from .operational_dates import OPERATIONS_START
 
 
 def render_filters(rows, user, today):
@@ -25,8 +26,8 @@ def render_filters(rows, user, today):
     applied = st.session_state.get(saved_key, defaults)
     with st.form(f'records_filters_batch_{user}', border=False):
         a,b,c = st.columns(3)
-        start = a.date_input('Records from', value=applied['start'], format='DD/MM/YYYY')
-        end = b.date_input('Records to', value=applied['end'], format='DD/MM/YYYY')
+        start = a.date_input('Records from', value=max(applied['start'], OPERATIONS_START), format='DD/MM/YYYY', min_value=OPERATIONS_START)
+        end = b.date_input('Records to', value=max(applied['end'], OPERATIONS_START), format='DD/MM/YYYY', min_value=OPERATIONS_START)
         kind = c.selectbox('Record Type', RECORD_TYPES, index=RECORD_TYPES.index(applied['record_type']))
         a,b,c = st.columns(3)
         def select(column, label, options, field):

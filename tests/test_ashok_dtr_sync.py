@@ -11,13 +11,14 @@ from src.dtr_dates import parse_dtr_date
 from src.entry_finance import advance_summary
 from src.request_store import RequestStore
 from src.trip_dtr_report import DTR_REVIEW_COLUMNS
+from src.operational_dates import OPERATIONS_START
 
 
 def translator():
     tree = ast.parse(Path('app.py').read_text())
     names = {'clean_text', 'number', 'unpack', 'dtr_record_update_values'}
     functions = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in names]
-    context = dict(pd=pd, json=json, parse_month_date=parse_month_date,
+    context = dict(pd=pd, json=json, OPERATIONS_START=OPERATIONS_START, parse_month_date=parse_month_date,
                    parse_dtr_date=parse_dtr_date, advance_summary=advance_summary,
                    DTR_REVIEW_COLUMNS=DTR_REVIEW_COLUMNS, KNOWN_COMPANIES=[], KNOWN_LOCATIONS=[])
     for name in ('canonical_branch', 'canonical_company', 'canonical_vehicle_number',
