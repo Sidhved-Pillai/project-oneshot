@@ -23,7 +23,7 @@ def render_filters(rows, user, today):
                     without_evidence=False, order='↓')
     saved_key = f'applied_records_filters_{user}'
     applied = st.session_state.get(saved_key, defaults)
-    with st.form(f'records_filters_batch_{user}'):
+    with st.form(f'records_filters_batch_{user}', border=False):
         a,b,c = st.columns(3)
         start = a.date_input('Records from', value=applied['start'], format='DD/MM/YYYY')
         end = b.date_input('Records to', value=applied['end'], format='DD/MM/YYYY')
@@ -33,24 +33,22 @@ def render_filters(rows, user, today):
             value = applied[field]
             return column.selectbox(label, options, index=options.index(value) if value in options else 0,
                 format_func=(lambda item: 'All' if item == 'All' else format_inr(item)) if label == 'By Amount' else str)
-        vehicle = select(a,'Vehicle no.',['All',*vehicles],'vehicle')
+        vehicle_column = b if kind == TRIP_RECORDS and user not in {'Ashok','Ajit'} else a
+        vehicle = select(vehicle_column,'Vehicle no.',['All',*vehicles],'vehicle')
         placer, ownership, amount, heading = 'All', 'Both', 'All', 'All'
         if kind == TRIP_RECORDS:
             if user not in {'Ashok','Ajit'}:
-                placer = select(b,'Vehicle placed by',['All',*placers],'placer')
+                placer = select(a,'Vehicle placed by',['All',*placers],'placer')
                 ownership = select(c,'Own or outside',['Both','Own','Outside'],'ownership')
         elif kind == DIRECT_EXPENSES:
             amount = select(b,'By Amount',['All',*amounts],'amount')
             heading = select(c,'Heading',['All',*direct_expense_headings(expenses)],'heading')
-        st.caption('Changing Record Type takes effect on Apply Filters; its specific controls then appear.')
-        without = st.toggle('Show Records without Invoice Evidence', value=applied['without_evidence'])
-        order = st.selectbox('Record order',['↓','↑'], index=0 if applied['order']=='↓' else 1)
         submitted = st.form_submit_button('Apply Filters', type='primary')
     if submitted:
         if start > end:
             st.error('Records from must be on or before Records to. Previous filters remain applied.')
         else:
             applied = dict(start=start,end=end,record_type=kind,vehicle=vehicle,placer=placer,
-                           ownership=ownership,amount=amount,heading=heading,without_evidence=without,order=order)
+                           ownership=ownership,amount=amount,heading=heading,without_evidence=False,order='↓')
             st.session_state[saved_key] = applied
     return applied

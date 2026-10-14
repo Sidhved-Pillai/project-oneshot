@@ -48,22 +48,26 @@ st.session_state['test_returned_values'] = values
     return AppTest.from_string(source).run()
 
 
-def test_entry_batch_forms_allow_transporter_callbacks_and_financial_calculation():
+def test_entry_preserves_original_controls_without_extra_buttons():
     for user in ('Nitish','Vijay','Manish','Ashok'):
         app = trip_app(user)
         assert not app.exception
-        calculate = next(button for button in app.button if button.label == 'Calculate payments')
-        calculate.click().run()
-        assert not app.exception
+        assert not any(button.label in {'Calculate payments','Apply trip details'} for button in app.button)
 
 
-def test_save_submits_latest_payment_values_without_an_extra_calculate_click():
+def test_payment_calculations_update_without_a_calculate_button():
     app = trip_app('Nitish')
     rtgs = next(widget for widget in app.number_input if widget.label == 'RTGS (₹)')
-    rtgs.set_value(1250)
-    save = next(button for button in app.button if button.label == 'Save and Another Entry')
-    save.click().run()
+    rtgs.set_value(1250).run()
     assert not app.exception
     values = app.session_state['test_returned_values']
-    assert values['_save_requested'] is True
     assert values['rtgs_advance'] == 1250
+
+
+def test_order_controls_remain_beside_live_records_not_in_filter_form():
+    form_source = Path('src/batched_records.py').read_text()
+    assert "selectbox('Record order'" not in form_source
+    assert "st.toggle('Show Records without Invoice Evidence'" not in form_source
+    app_source = Path('app.py').read_text()
+    assert 'sort_arrow = live_sort.segmented_control(' in app_source
+    assert '@st.fragment\ndef render_new_entry()' in app_source

@@ -924,102 +924,102 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         st.session_state[f"{prefix}_to_location"] = canonical_vijay_location(
             st.session_state.get(f"{prefix}_to_location"),
         )
-    with st.form(f"{prefix}_trip_details", enter_to_submit=False):
-        st.caption("Edit the trip fields together, then click Apply trip details before choosing a transporter or saving.")
-        st.markdown("#### 1. Basic information")
-        c1, c2 = st.columns(2)
-        branch_key = f"{prefix}_branch"
-        available_branches = allowed_branches or BRANCHES
-        if current_user == "Vijay" and "Andheri" in available_branches:
-            st.session_state[branch_key] = "Andheri"
-        branch_lookup = {branch.casefold(): branch for branch in available_branches}
-        current_branch = branch_lookup.get(clean_text(st.session_state.get(branch_key)).casefold(), "")
-        if st.session_state.get(branch_key) != current_branch:
-            st.session_state[branch_key] = current_branch
-        branch_choices = ["", *available_branches]
-        date_options = {}
-        if current_user == "Ashok":
-            today = dt.date.today()
-            first = today.replace(day=1)
-            last = (first.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
-            date_options = {"min_value": first, "max_value": last}
-            date_key = f"{prefix}_date"
-            if date_key in st.session_state:
-                st.session_state[date_key] = parse_month_date(st.session_state[date_key], today)
-        v.update({"date": c1.date_input("Date *", value=st.session_state.get(f"{prefix}_date", dt.date.today()), format="DD/MM/YYYY", key=f"{prefix}_date", **date_options), "branch": c2.selectbox("Branch *", branch_choices, index=branch_choices.index(current_branch), key=branch_key, placeholder="Select a branch"), "company_name": st.text_input("Company name *", key=f"{prefix}_company_name", placeholder="e.g., SG Logistics")})
-        c1, c2 = st.columns(2)
-        v["from_location"] = c1.text_input("From *", key=f"{prefix}_from_location", placeholder="e.g., Talegaon, Pune")
-        v["to_location"] = c2.text_input("To *", key=f"{prefix}_to_location", placeholder="e.g., Bhiwandi, Thane")
-        c1, c2 = st.columns(2)
-        lr_key = f"{prefix}_lr_number"
-        v["lr_number"] = c1.text_input("LR number", key=lr_key, placeholder="e.g., LR-12234")
-        invoice_keys = []
-        if current_user == "Vijay":
-            extracted_invoices = normalized_invoice_numbers(st.session_state.get(f"{prefix}_invoice_numbers", []))
-            invoice_slots = max(1, int(st.session_state.get(f"{prefix}_invoice_slots", 1)), len(extracted_invoices))
-            invoice_values = []
-            for index in range(invoice_slots):
-                key = f"{prefix}_invoice_number" if index == 0 else f"{prefix}_invoice_number_{index + 1}"
-                invoice_keys.append(key)
-                if index < len(extracted_invoices) and not clean_text(st.session_state.get(key)):
-                    st.session_state[key] = extracted_invoices[index]
-                invoice_values.append(c2.text_input(
-                    "Invoice number" if index == 0 else f"Invoice number {index + 1}",
-                    key=key, placeholder="e.g., MUMCIN270034867",
-                ))
-            v["invoice_number"] = combined_invoice_number(invoice_values)
-        else:
-            invoice_keys.append(f"{prefix}_invoice_number")
-            v["invoice_number"] = c2.text_input("Invoice number", key=invoice_keys[0], placeholder="e.g., INV-10595976")
-        duplicate_lrs = user_lr_duplicates(normalization_rows, current_user, v["lr_number"])
-        invoice_duplicates_by_key = {
-            key: user_invoice_duplicates(normalization_rows, current_user, st.session_state.get(key))
-            for key in invoice_keys
-        }
-        duplicate_invoices = []
-        for matches in invoice_duplicates_by_key.values():
-            for match in matches:
-                if match not in duplicate_invoices:
-                    duplicate_invoices.append(match)
-        if duplicate_lrs:
-            labels = ", ".join(request_label(row) for row in duplicate_lrs[:3])
-            c1.error(f"This LR number already exists in {labels}. Change it before saving.", icon="🚫")
-        if duplicate_invoices:
-            labels = ", ".join(request_label(row) for row in duplicate_invoices[:3])
-            c2.error(f"This invoice number already exists in {labels}. Change it before saving.", icon="🚫")
-        invalid_keys = ([lr_key] if duplicate_lrs else []) + [
-            key for key, matches in invoice_duplicates_by_key.items() if matches
-        ]
-        if invalid_keys:
-            selectors = ",".join(f'.st-key-{key} [data-baseweb="input"]' for key in invalid_keys)
-            st.markdown(
-                f"<style>{selectors}{{border:1px solid #dc2626!important;border-radius:.5rem;"
-                "box-shadow:0 0 0 1px #dc2626!important}}</style>",
-                unsafe_allow_html=True,
-            )
-        v["has_duplicate_identifiers"] = bool(duplicate_lrs or duplicate_invoices)
-        st.markdown("#### 2. Vehicle information")
-        c1, c2, c3 = st.columns(3)
-        vehicle_input_kwargs = {}
-        v["vehicle_number"] = c1.text_input(
-            "Vehicle number *", key=f"{prefix}_vehicle_number", placeholder="e.g., MH14JL9818",
-            **vehicle_input_kwargs,
+    st.markdown("#### 1. Basic information")
+    c1, c2 = st.columns(2)
+    branch_key = f"{prefix}_branch"
+    available_branches = allowed_branches or BRANCHES
+    if current_user == "Vijay" and "Andheri" in available_branches:
+        st.session_state[branch_key] = "Andheri"
+    branch_lookup = {branch.casefold(): branch for branch in available_branches}
+    current_branch = branch_lookup.get(clean_text(st.session_state.get(branch_key)).casefold(), "")
+    if st.session_state.get(branch_key) != current_branch:
+        st.session_state[branch_key] = current_branch
+    branch_choices = ["", *available_branches]
+    date_options = {}
+    if current_user == "Ashok":
+        today = dt.date.today()
+        first = today.replace(day=1)
+        last = (first.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+        date_options = {"min_value": first, "max_value": last}
+        date_key = f"{prefix}_date"
+        if date_key in st.session_state:
+            st.session_state[date_key] = parse_month_date(st.session_state[date_key], today)
+    v.update({"date": c1.date_input("Date *", value=st.session_state.get(f"{prefix}_date", dt.date.today()), format="DD/MM/YYYY", key=f"{prefix}_date", **date_options), "branch": c2.selectbox("Branch *", branch_choices, index=branch_choices.index(current_branch), key=branch_key, placeholder="Select a branch"), "company_name": st.text_input("Company name *", key=f"{prefix}_company_name", placeholder="e.g., SG Logistics")})
+    c1, c2 = st.columns(2)
+    v["from_location"] = c1.text_input("From *", key=f"{prefix}_from_location", placeholder="e.g., Talegaon, Pune")
+    v["to_location"] = c2.text_input("To *", key=f"{prefix}_to_location", placeholder="e.g., Bhiwandi, Thane")
+    c1, c2 = st.columns(2)
+    lr_key = f"{prefix}_lr_number"
+    v["lr_number"] = c1.text_input("LR number", key=lr_key, placeholder="e.g., LR-12234")
+    invoice_keys = []
+    if current_user == "Vijay":
+        extracted_invoices = normalized_invoice_numbers(st.session_state.get(f"{prefix}_invoice_numbers", []))
+        invoice_slots = max(1, int(st.session_state.get(f"{prefix}_invoice_slots", 1)), len(extracted_invoices))
+        invoice_values = []
+        for index in range(invoice_slots):
+            key = f"{prefix}_invoice_number" if index == 0 else f"{prefix}_invoice_number_{index + 1}"
+            invoice_keys.append(key)
+            if index < len(extracted_invoices) and not clean_text(st.session_state.get(key)):
+                st.session_state[key] = extracted_invoices[index]
+            invoice_values.append(c2.text_input(
+                "Invoice number" if index == 0 else f"Invoice number {index + 1}",
+                key=key, placeholder="e.g., MUMCIN270034867",
+            ))
+        v["invoice_number"] = combined_invoice_number(invoice_values)
+    else:
+        invoice_keys.append(f"{prefix}_invoice_number")
+        v["invoice_number"] = c2.text_input("Invoice number", key=invoice_keys[0], placeholder="e.g., INV-10595976")
+    duplicate_lrs = user_lr_duplicates(normalization_rows, current_user, v["lr_number"])
+    invoice_duplicates_by_key = {
+        key: user_invoice_duplicates(normalization_rows, current_user, st.session_state.get(key))
+        for key in invoice_keys
+    }
+    duplicate_invoices = []
+    for matches in invoice_duplicates_by_key.values():
+        for match in matches:
+            if match not in duplicate_invoices:
+                duplicate_invoices.append(match)
+    if duplicate_lrs:
+        labels = ", ".join(request_label(row) for row in duplicate_lrs[:3])
+        c1.error(f"This LR number already exists in {labels}. Change it before saving.", icon="🚫")
+    if duplicate_invoices:
+        labels = ", ".join(request_label(row) for row in duplicate_invoices[:3])
+        c2.error(f"This invoice number already exists in {labels}. Change it before saving.", icon="🚫")
+    invalid_keys = ([lr_key] if duplicate_lrs else []) + [
+        key for key, matches in invoice_duplicates_by_key.items() if matches
+    ]
+    if invalid_keys:
+        selectors = ",".join(f'.st-key-{key} [data-baseweb="input"]' for key in invalid_keys)
+        st.markdown(
+            f"<style>{selectors}{{border:1px solid #dc2626!important;border-radius:.5rem;"
+            "box-shadow:0 0 0 1px #dc2626!important}}</style>",
+            unsafe_allow_html=True,
         )
-        if current_user == "Vijay":
-            # The vehicle widget is already instantiated here; its value was
-            # resolved before rendering, so only apply dependent fields.
-            apply_vijay_vehicle_profile(prefix, update_vehicle=False)
-        v["vehicle_capacity"] = c2.text_input("Vehicle capacity", key=f"{prefix}_vehicle_capacity", placeholder="e.g., 20MT")
-        choices = ["", "Own", "Outside"]
-        current = st.session_state.get(f"{prefix}_ownership_type", "")
-        v["ownership_type"] = c3.selectbox("Own or outside", choices, index=choices.index(current) if current in choices else 0, key=f"{prefix}_ownership_type")
-        own_workflow = simplified or is_own_vehicle(v["ownership_type"])
-        v["simplified"] = own_workflow
-        placer_key = f"{prefix}_vehicle_placed_by"
-        v["vehicle_placed_by"] = st.text_input(
-            "Vehicle placed by", key=placer_key, placeholder="e.g., Ajit Thakur",
-        )
-        st.form_submit_button("Apply trip details", type="primary")
+    v["has_duplicate_identifiers"] = bool(duplicate_lrs or duplicate_invoices)
+    st.markdown("#### 2. Vehicle information")
+    c1, c2, c3 = st.columns(3)
+    vehicle_input_kwargs = {
+        "on_change": apply_vijay_vehicle_profile, "args": (prefix,),
+    } if current_user == "Vijay" else {}
+    v["vehicle_number"] = c1.text_input(
+        "Vehicle number *", key=f"{prefix}_vehicle_number", placeholder="e.g., MH14JL9818",
+        **vehicle_input_kwargs,
+    )
+    if current_user == "Vijay":
+        # The vehicle widget is already instantiated here; its value was
+        # resolved before rendering, so only apply dependent fields.
+        apply_vijay_vehicle_profile(prefix, update_vehicle=False)
+    v["vehicle_capacity"] = c2.text_input("Vehicle capacity", key=f"{prefix}_vehicle_capacity", placeholder="e.g., 20MT")
+    choices = ["", "Own", "Outside"]
+    current = st.session_state.get(f"{prefix}_ownership_type", "")
+    v["ownership_type"] = c3.selectbox("Own or outside", choices, index=choices.index(current) if current in choices else 0, key=f"{prefix}_ownership_type")
+    own_workflow = simplified or is_own_vehicle(v["ownership_type"])
+    v["simplified"] = own_workflow
+    placer_key = f"{prefix}_vehicle_placed_by"
+    v["vehicle_placed_by"] = st.text_input(
+        "Vehicle placed by", key=placer_key, placeholder="e.g., Ajit Thakur",
+        on_change=canonicalize_placer_state, args=(placer_key,),
+    )
     memory_prompt(prefix, f"Known setup for {v['vehicle_number']}", f"vehicle_{v['vehicle_number']}", recall(memory, "vehicles", v["vehicle_number"]), ["vehicle_capacity", "transporter_name", "ownership_type", "vehicle_placed_by"])
     memory_prompt(prefix, f"Known branch for {v['company_name']}", f"company_{v['company_name']}", recall(memory, "companies", v["company_name"]), ["branch"])
     if own_workflow:
@@ -1048,105 +1048,99 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         beneficiary_memory = associated.get(re.sub(r"[^A-Z0-9]", "", v["beneficiary_name"].upper()), {})
         beneficiary_memory = {"beneficiary_account_number" if key == "account_number" else "beneficiary_ifsc_code" if key == "ifsc" else key: value for key, value in beneficiary_memory.items()}
         memory_prompt(prefix, f"Known beneficiary details for {v['beneficiary_name']}", f"beneficiary_{v['beneficiary_name']}", beneficiary_memory, ["beneficiary_account_number", "beneficiary_ifsc_code"])
-    with st.form(f"{prefix}_payments", enter_to_submit=False):
-        st.markdown(f"#### {'3' if own_workflow else '4'}. Payment details")
-        if own_workflow:
-            if current_user == "Vijay":
-                revenue_key = f"{prefix}_revenue"
-                if vijay_transporter_freight(st.session_state.get(revenue_key)) is None:
-                    st.session_state[revenue_key] = None
-                v["revenue"] = st.selectbox(
-                    "Revenue freight (₹)", [None, *VIJAY_FREIGHT_RATES], key=revenue_key,
-                    format_func=lambda value: "Select revenue freight" if value is None else format_inr(value, 0),
-                )
-            else:
-                v["revenue"] = st.number_input("Revenue freight (₹)", min_value=0.0, value=None, placeholder="e.g., 50,000", key=f"{prefix}_revenue")
-            v["transporter_freight"] = 0.0
+    st.markdown(f"#### {'3' if own_workflow else '4'}. Payment details")
+    if own_workflow:
+        if current_user == "Vijay":
+            revenue_key = f"{prefix}_revenue"
+            if vijay_transporter_freight(st.session_state.get(revenue_key)) is None:
+                st.session_state[revenue_key] = None
+            v["revenue"] = st.selectbox(
+                "Revenue freight (₹)", [None, *VIJAY_FREIGHT_RATES], key=revenue_key,
+                format_func=lambda value: "Select revenue freight" if value is None else format_inr(value, 0),
+                on_change=apply_vijay_freight_rate, args=(prefix,),
+            )
         else:
-            c1, c2 = st.columns(2)
-            if current_user == "Vijay":
-                revenue_key = f"{prefix}_revenue"
-                if vijay_transporter_freight(st.session_state.get(revenue_key)) is None:
-                    st.session_state[revenue_key] = None
-                v["revenue"] = c1.selectbox(
-                    "Revenue freight (₹)", [None, *VIJAY_FREIGHT_RATES], key=revenue_key,
-                    format_func=lambda value: "Select revenue freight" if value is None else format_inr(value, 0),
-                )
-            else:
-                v["revenue"] = c1.number_input("Revenue freight (₹)", min_value=0.0, value=None, placeholder="e.g., 50,000", key=f"{prefix}_revenue")
-            own_vehicle = is_own_vehicle(v["ownership_type"])
-            transporter_freight_key = f"{prefix}_transporter_freight"
-            if own_vehicle:
-                st.session_state[transporter_freight_key] = None
-            v["transporter_freight"] = c2.number_input("Transporter freight (₹)", min_value=0.0, value=None, placeholder="Not applicable for own vehicles" if own_vehicle else "e.g., 38,000", disabled=own_vehicle or current_user == "Vijay", key=transporter_freight_key)
-            if own_vehicle:
-                c2.caption("Not applicable for an own vehicle.")
-        st.caption("Enter amounts in every payment mode used. Repairs and maintenance are deducted from Profit / Loss." if own_workflow else "Enter amounts in every payment mode used. Billtee is also deducted before calculating the balance payable.")
-        if simplified:
-            deduction_columns = st.columns(6)
-            v["upi"] = deduction_columns[0].number_input(
-                "Route Expense (UPI) (₹)", min_value=0.0, value=None,
-                placeholder="e.g., 2,000", key=f"{prefix}_upi",
+            v["revenue"] = st.number_input("Revenue freight (₹)", min_value=0.0, value=None, placeholder="e.g., 50,000", key=f"{prefix}_revenue")
+        v["transporter_freight"] = 0.0
+    else:
+        c1, c2 = st.columns(2)
+        if current_user == "Vijay":
+            revenue_key = f"{prefix}_revenue"
+            if vijay_transporter_freight(st.session_state.get(revenue_key)) is None:
+                st.session_state[revenue_key] = None
+            v["revenue"] = c1.selectbox(
+                "Revenue freight (₹)", [None, *VIJAY_FREIGHT_RATES], key=revenue_key,
+                format_func=lambda value: "Select revenue freight" if value is None else format_inr(value, 0),
+                on_change=apply_vijay_freight_rate, args=(prefix,),
             )
-            v["diesel_quantity"] = deduction_columns[1].number_input(
-                "Diesel Qty", min_value=0.0, value=None, placeholder="e.g., 100",
-                key=f"{prefix}_diesel_quantity",
-            )
-            v["diesel_rate"] = deduction_columns[2].number_input(
-                "Diesel Rate (₹)", min_value=0.0, value=None, placeholder="e.g., 90",
-                key=f"{prefix}_diesel_rate",
-            )
-            diesel_total = float(diesel_expense(v["diesel_quantity"], v["diesel_rate"]))
-            calculated_key = f"{prefix}_diesel_calculated"
-            st.session_state[calculated_key] = diesel_total
-            v["diesel_advance"] = deduction_columns[3].number_input(
-                "Diesel (₹)", min_value=0.0, disabled=True, key=calculated_key,
-                help="Automatically calculated from Diesel Qty × Diesel Rate.",
-            )
-            v["toll_expense"] = deduction_columns[4].number_input(
-                "Toll Expense (₹)", min_value=0.0, value=None,
-                placeholder="e.g., 2,000", key=f"{prefix}_toll_expense",
-            )
-            v["repairs_maintenance"] = deduction_columns[5].number_input(
-                "Repairs & Maintenance (₹)", min_value=0.0, value=None,
-                placeholder="e.g., 1,000", key=f"{prefix}_repairs_maintenance",
-            )
-            v["cash_advance"], v["rtgs_advance"], v["billtee"] = 0.0, 0.0, 0.0
-            v["repair_reason"] = st.text_input("Reason", key=f"{prefix}_repair_reason", placeholder="e.g., Tyre puncture repair") if number(v["repairs_maintenance"]) > 0 else ""
-            if number(v["repairs_maintenance"]) > 0 and not clean_text(v["repair_reason"]):
-                st.caption("Reason is required when Repairs & Maintenance has an amount.")
-        elif own_workflow:
-            deduction_columns = st.columns(6)
-            simplified_fields = [
-                ("Route Expense (UPI)", "upi"), ("Diesel", "diesel_advance"), ("Cash", "cash_advance"),
-                ("Toll Expense", "toll_expense"), ("RTGS", "rtgs_advance"),
-            ]
-            for col, (label, field) in zip(deduction_columns, simplified_fields):
-                v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 2,000", key=f"{prefix}_{field}")
-            v["billtee"] = 0.0
-            v["repairs_maintenance"] = deduction_columns[-1].number_input("Repairs & Maintenance (₹)", min_value=0.0, value=None, placeholder="e.g., 1,000", key=f"{prefix}_repairs_maintenance")
-            v["repair_reason"] = st.text_input("Reason", key=f"{prefix}_repair_reason", placeholder="e.g., Tyre puncture repair") if number(v["repairs_maintenance"]) > 0 else ""
-            if number(v["repairs_maintenance"]) > 0 and not clean_text(v["repair_reason"]):
-                st.caption("Reason is required when Repairs & Maintenance has an amount.")
         else:
-            deduction_columns = st.columns(5)
-            for col, (label, field) in zip(deduction_columns, PAYMENT_FIELDS.items()):
-                v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 2,000", key=f"{prefix}_{field}")
-            v["billtee"] = deduction_columns[-1].number_input("Billtee (₹)", min_value=0.0, value=None, placeholder="e.g., 1,000", key=f"{prefix}_billtee")
-            v["toll_expense"], v["repairs_maintenance"], v["repair_reason"] = 0.0, 0.0, ""
-        if number(v["diesel_advance"]) > 0:
-            pump_col, card_col = st.columns(2)
-            v["diesel_pump_name"] = pump_col.text_input("Add Pumps", key=f"{prefix}_diesel_pump_name", placeholder="e.g., HP Petrol Pump")
-            v["card_name"] = card_col.text_input("Card Name", key=f"{prefix}_card_name", placeholder="e.g., HPCL DriveTrack")
-        else:
-            v["diesel_pump_name"], v["card_name"] = "", ""
-        st.form_submit_button("Calculate payments", type="primary",
-            on_click=apply_vijay_freight_rate if current_user == "Vijay" else None,
-            args=(prefix,) if current_user == "Vijay" else ())
-        v['_save_requested'] = st.form_submit_button('Save and Another Entry',
-            disabled=not v['branch'] or not v['vehicle_number'] or v['has_duplicate_identifiers'],
-            on_click=apply_vijay_freight_rate if current_user == 'Vijay' else None,
-            args=(prefix,) if current_user == 'Vijay' else ())
+            v["revenue"] = c1.number_input("Revenue freight (₹)", min_value=0.0, value=None, placeholder="e.g., 50,000", key=f"{prefix}_revenue")
+        own_vehicle = is_own_vehicle(v["ownership_type"])
+        transporter_freight_key = f"{prefix}_transporter_freight"
+        if own_vehicle:
+            st.session_state[transporter_freight_key] = None
+        v["transporter_freight"] = c2.number_input("Transporter freight (₹)", min_value=0.0, value=None, placeholder="Not applicable for own vehicles" if own_vehicle else "e.g., 38,000", disabled=own_vehicle or current_user == "Vijay", key=transporter_freight_key)
+        if own_vehicle:
+            c2.caption("Not applicable for an own vehicle.")
+    st.caption("Enter amounts in every payment mode used. Repairs and maintenance are deducted from Profit / Loss." if own_workflow else "Enter amounts in every payment mode used. Billtee is also deducted before calculating the balance payable.")
+    if simplified:
+        deduction_columns = st.columns(6)
+        v["upi"] = deduction_columns[0].number_input(
+            "Route Expense (UPI) (₹)", min_value=0.0, value=None,
+            placeholder="e.g., 2,000", key=f"{prefix}_upi",
+        )
+        v["diesel_quantity"] = deduction_columns[1].number_input(
+            "Diesel Qty", min_value=0.0, value=None, placeholder="e.g., 100",
+            key=f"{prefix}_diesel_quantity",
+        )
+        v["diesel_rate"] = deduction_columns[2].number_input(
+            "Diesel Rate (₹)", min_value=0.0, value=None, placeholder="e.g., 90",
+            key=f"{prefix}_diesel_rate",
+        )
+        diesel_total = float(diesel_expense(v["diesel_quantity"], v["diesel_rate"]))
+        calculated_key = f"{prefix}_diesel_calculated"
+        st.session_state[calculated_key] = diesel_total
+        v["diesel_advance"] = deduction_columns[3].number_input(
+            "Diesel (₹)", min_value=0.0, disabled=True, key=calculated_key,
+            help="Automatically calculated from Diesel Qty × Diesel Rate.",
+        )
+        v["toll_expense"] = deduction_columns[4].number_input(
+            "Toll Expense (₹)", min_value=0.0, value=None,
+            placeholder="e.g., 2,000", key=f"{prefix}_toll_expense",
+        )
+        v["repairs_maintenance"] = deduction_columns[5].number_input(
+            "Repairs & Maintenance (₹)", min_value=0.0, value=None,
+            placeholder="e.g., 1,000", key=f"{prefix}_repairs_maintenance",
+        )
+        v["cash_advance"], v["rtgs_advance"], v["billtee"] = 0.0, 0.0, 0.0
+        v["repair_reason"] = st.text_input("Reason", key=f"{prefix}_repair_reason", placeholder="e.g., Tyre puncture repair") if number(v["repairs_maintenance"]) > 0 else ""
+        if number(v["repairs_maintenance"]) > 0 and not clean_text(v["repair_reason"]):
+            st.caption("Reason is required when Repairs & Maintenance has an amount.")
+    elif own_workflow:
+        deduction_columns = st.columns(6)
+        simplified_fields = [
+            ("Route Expense (UPI)", "upi"), ("Diesel", "diesel_advance"), ("Cash", "cash_advance"),
+            ("Toll Expense", "toll_expense"), ("RTGS", "rtgs_advance"),
+        ]
+        for col, (label, field) in zip(deduction_columns, simplified_fields):
+            v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 2,000", key=f"{prefix}_{field}")
+        v["billtee"] = 0.0
+        v["repairs_maintenance"] = deduction_columns[-1].number_input("Repairs & Maintenance (₹)", min_value=0.0, value=None, placeholder="e.g., 1,000", key=f"{prefix}_repairs_maintenance")
+        v["repair_reason"] = st.text_input("Reason", key=f"{prefix}_repair_reason", placeholder="e.g., Tyre puncture repair") if number(v["repairs_maintenance"]) > 0 else ""
+        if number(v["repairs_maintenance"]) > 0 and not clean_text(v["repair_reason"]):
+            st.caption("Reason is required when Repairs & Maintenance has an amount.")
+    else:
+        deduction_columns = st.columns(5)
+        for col, (label, field) in zip(deduction_columns, PAYMENT_FIELDS.items()):
+            v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 2,000", key=f"{prefix}_{field}")
+        v["billtee"] = deduction_columns[-1].number_input("Billtee (₹)", min_value=0.0, value=None, placeholder="e.g., 1,000", key=f"{prefix}_billtee")
+        v["toll_expense"], v["repairs_maintenance"], v["repair_reason"] = 0.0, 0.0, ""
+    if number(v["diesel_advance"]) > 0:
+        pump_col, card_col = st.columns(2)
+        v["diesel_pump_name"] = pump_col.text_input("Add Pumps", key=f"{prefix}_diesel_pump_name", placeholder="e.g., HP Petrol Pump")
+        v["card_name"] = card_col.text_input("Card Name", key=f"{prefix}_card_name", placeholder="e.g., HPCL DriveTrack")
+    else:
+        v["diesel_pump_name"], v["card_name"] = "", ""
     if own_workflow:
         total = sum(number(v[field]) for field in PAYMENT_FIELDS.values()) + number(v["toll_expense"]) + number(v["repairs_maintenance"])
         balance = number(v["revenue"]) - total
@@ -1582,7 +1576,7 @@ def render_new_entry():
             if invalid_ashok_date:
                 st.error("Select a trip date within the current month. Dates outside this month cannot be saved as new trips.")
             save_disabled = not values["branch"] or not values["vehicle_number"] or repair_reason_missing or values["has_duplicate_identifiers"] or invalid_ashok_date
-            if values.get('_save_requested') and not save_disabled:
+            if st.button("Save and Another Entry", type="primary", disabled=save_disabled, key=f"{entry_prefix}_save"):
                 latest = store.list(status="All active")
                 if user_invoice_duplicates(latest, current_user, values["invoice_number"]) or user_lr_duplicates(latest, current_user, values["lr_number"]):
                     st.error("This invoice or LR was saved by another session. Refresh and review the existing record before saving.")
@@ -1847,11 +1841,16 @@ with records_tab:
             f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_html}</tbody></table>',
             unsafe_allow_html=True,
         )
-    st.markdown("#### Live records")
-    active_filters = st.session_state.get(f'applied_records_filters_{current_user}', {})
-    without_invoice_evidence = active_filters.get('without_evidence', False)
+    live_title, live_evidence_filter, live_sort = st.columns([5, 3, 1], vertical_alignment="center")
+    live_title.markdown("#### Live records")
+    without_invoice_evidence = live_evidence_filter.toggle(
+        "Show Records without Invoice Evidence", key="records_without_invoice_evidence",
+    )
     rows = filter_without_invoice_evidence(rows, without_invoice_evidence)
-    sort_arrow = active_filters.get('order', '↓')
+    sort_arrow = live_sort.segmented_control(
+        "Record order", ["↓", "↑"], default="↓", key="records_sort_arrow",
+        label_visibility="collapsed", help="↓ Newest to oldest · ↑ Oldest to newest",
+    )
     trip_record_count = sum(row.get("report_scope") != "Expense" for row in rows)
     expense_record_count = sum(row.get("report_scope") == "Expense" for row in rows)
     st.caption(f"{trip_record_count} trip record(s) and {expense_record_count} direct expense record(s) listed.")
