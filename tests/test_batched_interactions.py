@@ -1,0 +1,69 @@
+import ast
+from pathlib import Path
+
+from streamlit.testing.v1 import AppTest
+
+
+def test_record_filters_apply_together_and_reject_invalid_dates():
+    app = AppTest.from_string('''
+import datetime as dt
+import streamlit as st
+from src.batched_records import render_filters
+filters = render_filters([], 'Sid', dt.date(2026,10,14))
+st.write('APPLIED: ' + filters['record_type'])
+''').run()
+    assert not app.exception
+    app.selectbox[0].select('Direct Expenses')
+    app.button[0].click().run()
+    assert not app.exception
+    assert app.session_state['applied_records_filters_Sid']['record_type'] == 'Direct Expenses'
+    import datetime as dt
+    app.date_input[0].set_value(dt.date(2026,10,20))
+    app.button[0].click().run()
+    assert not app.exception
+    assert app.error
+    assert app.session_state['applied_records_filters_Sid']['start'] == dt.date(2026,10,1)
+
+
+def trip_app(user):
+    tree = ast.parse(Path('app.py').read_text())
+    imports = [n for n in tree.body if isinstance(n,(ast.Import,ast.ImportFrom))]
+    definitions = [n for n in tree.body if isinstance(n,ast.FunctionDef) and not n.decorator_list]
+    constants = [n for n in tree.body if isinstance(n,ast.Assign) and
+                 any(isinstance(t,ast.Name) and t.id in {'PAYMENT_FIELDS','BRANCHES'} for t in n.targets)]
+    source = '\n'.join(ast.unparse(n) for n in imports + constants + definitions)
+    source += f"\ncurrent_user = {user!r}\n"
+    source += '''
+normalization_rows = []
+business_memory = {}
+historical_business_memory = {}
+KNOWN_COMPANIES = []
+KNOWN_LOCATIONS = []
+st.session_state.setdefault('test_branch','Pune' if current_user != 'Vijay' else 'Andheri')
+st.session_state.setdefault('test_ownership_type','Outside')
+st.session_state.setdefault('test_vehicle_number','MH14JL9818' if current_user != 'Vijay' else 'MH17AG4504')
+values = trip_form('test', {}, BRANCHES, simplified=current_user == 'Manish')
+st.session_state['test_returned_values'] = values
+'''
+    return AppTest.from_string(source).run()
+
+
+def test_entry_batch_forms_allow_transporter_callbacks_and_financial_calculation():
+    for user in ('Nitish','Vijay','Manish','Ashok'):
+        app = trip_app(user)
+        assert not app.exception
+        calculate = next(button for button in app.button if button.label == 'Calculate payments')
+        calculate.click().run()
+        assert not app.exception
+
+
+def test_save_submits_latest_payment_values_without_an_extra_calculate_click():
+    app = trip_app('Nitish')
+    rtgs = next(widget for widget in app.number_input if widget.label == 'RTGS (₹)')
+    rtgs.set_value(1250)
+    save = next(button for button in app.button if button.label == 'Save and Another Entry')
+    save.click().run()
+    assert not app.exception
+    values = app.session_state['test_returned_values']
+    assert values['_save_requested'] is True
+    assert values['rtgs_advance'] == 1250
