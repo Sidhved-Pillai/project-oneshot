@@ -787,6 +787,8 @@ def file_values(files, preferred_filename=None):
 
 
 def trip_payload(v, files, invoice_filename=None):
+    if not clean_text(v.get('invoice_number')):
+        raise ValueError('Invoice number is required before saving a trip.')
     if v.get('date') is None or v['date'] < OPERATIONS_START:
         raise ValueError('Choose a date in 2026 or later.')
     company = canonical_company(v["company_name"], KNOWN_COMPANIES)
@@ -962,13 +964,13 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
             if index < len(extracted_invoices) and not clean_text(st.session_state.get(key)):
                 st.session_state[key] = extracted_invoices[index]
             invoice_values.append(c2.text_input(
-                "Invoice number" if index == 0 else f"Invoice number {index + 1}",
+                "Invoice number *" if index == 0 else f"Invoice number {index + 1}",
                 key=key, placeholder="e.g., MUMCIN270034867",
             ))
         v["invoice_number"] = combined_invoice_number(invoice_values)
     else:
         invoice_keys.append(f"{prefix}_invoice_number")
-        v["invoice_number"] = c2.text_input("Invoice number", key=invoice_keys[0], placeholder="e.g., INV-10595976")
+        v["invoice_number"] = c2.text_input("Invoice number *", key=invoice_keys[0], placeholder="e.g., INV-10595976")
     duplicate_lrs = user_lr_duplicates(normalization_rows, current_user, v["lr_number"])
     invoice_duplicates_by_key = {
         key: user_invoice_duplicates(normalization_rows, current_user, st.session_state.get(key))
@@ -1536,6 +1538,9 @@ if hidden_tabs:
 new_tab, expense_tab, records_tab, reports_tab, logs_tab = st.tabs(["Review DTR" if current_user == "Shyam" else "New Entry", "Direct Expenses", "Records", "Generate Reports", "Logs"])
 
 def finish_trip_save(payload, generation):
+    if not clean_text(payload.get('invoice_number')):
+        st.error('Invoice number is required before saving a trip.')
+        return
     if generation != st.session_state.get('new_entry_generation', 0):
         st.error('This entry was already saved or replaced. No duplicate was created.')
         return
@@ -1603,7 +1608,10 @@ def render_new_entry():
             invalid_operational_date = values['date'] is None or values['date'] < OPERATIONS_START
             if invalid_operational_date:
                 st.error('Choose a date in 2026 or later before saving.')
-            save_disabled = not values["branch"] or not values["vehicle_number"] or repair_reason_missing or values["has_duplicate_identifiers"] or invalid_operational_date
+            missing_invoice = not clean_text(values.get('invoice_number'))
+            if missing_invoice:
+                st.caption('Invoice number is required before saving a trip.')
+            save_disabled = not values["branch"] or not values["vehicle_number"] or missing_invoice or repair_reason_missing or values["has_duplicate_identifiers"] or invalid_operational_date
             if st.button("Save and Another Entry", type="primary", disabled=save_disabled, key=f"{entry_prefix}_save"):
                 latest = store.list(status="All active")
                 if user_invoice_duplicates(latest, current_user, values["invoice_number"]) or user_lr_duplicates(latest, current_user, values["lr_number"]):

@@ -2,6 +2,7 @@ import ast
 import datetime as dt
 import json
 from pathlib import Path
+import pytest
 
 from streamlit.testing.v1 import AppTest
 from src.records_store_v15 import RequestStore
@@ -42,6 +43,7 @@ def dialog_app():
 import streamlit as st
 import datetime as dt
 current_user='Nitish'
+clean_text=lambda value: str(value or '').strip()
 st.session_state.setdefault('_saved',[])
 class Store:
     def list(self,**kwargs):return []
@@ -58,7 +60,7 @@ st.text_input('Draft',key='draft')
 if st.button('Save'):
     st.session_state['_dialog_open'] = True
 if st.session_state.get('_dialog_open'):
-    confirm_trip_month({'trip_date':dt.date(2026,6,12),'created_by':'Nitish','dtr_data':{}},0)
+    confirm_trip_month({'trip_date':dt.date(2026,6,12),'created_by':'Nitish','invoice_number':'INV1','dtr_data':{}},0)
 '''
     return AppTest.from_string(source).run()
 
@@ -75,3 +77,19 @@ def test_no_keeps_draft_and_yes_saves_once():
     next(b for b in app.button if b.label=='Yes').click().run()
     assert not app.exception and len(app.session_state['_saved'])==1
     assert app.session_state['_saved'][0]['trip_date']==dt.date(2026,6,12)
+
+
+@pytest.mark.parametrize('invoice', [None, '', '   ', '\t\n'])
+def test_new_trip_rejects_missing_invoice_before_building_or_saving(invoice):
+    tree = ast.parse(Path('app.py').read_text())
+    functions = [n for n in tree.body if isinstance(n, ast.FunctionDef)
+                 and n.name in {'trip_payload', 'finish_trip_save'}]
+    errors = []
+    from types import SimpleNamespace
+    namespace = {'clean_text': lambda value: str(value or '').strip(),
+                 'st': SimpleNamespace(error=errors.append)}
+    exec(compile(ast.Module(body=functions, type_ignores=[]), 'app.py', 'exec'), namespace)
+    with pytest.raises(ValueError, match='Invoice number is required'):
+        namespace['trip_payload']({'invoice_number': invoice}, [])
+    namespace['finish_trip_save']({'invoice_number': invoice}, 0)
+    assert errors == ['Invoice number is required before saving a trip.']
