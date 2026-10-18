@@ -21,9 +21,9 @@ def render_filters(rows, user, today):
     amounts = sorted({float(r.get('amount') or 0) for r in expenses})
     defaults = dict(start=today.replace(day=1), end=today, record_type=TRIP_RECORDS,
                     vehicle='All', placer='All', ownership='Both', amount='All', heading='All',
-                    without_evidence=False, order='↓')
+                    without_evidence=False, order='↓', lr_number='', invoice_number='')
     saved_key = f'applied_records_filters_{user}'
-    applied = st.session_state.get(saved_key, defaults)
+    applied = {**defaults, **st.session_state.get(saved_key, {})}
     with st.form(f'records_filters_batch_{user}', border=False):
         a,b,c = st.columns(3)
         start = a.date_input('Records from', value=max(applied['start'], OPERATIONS_START), format='DD/MM/YYYY', min_value=OPERATIONS_START)
@@ -34,22 +34,38 @@ def render_filters(rows, user, today):
             value = applied[field]
             return column.selectbox(label, options, index=options.index(value) if value in options else 0,
                 format_func=(lambda item: 'All' if item == 'All' else format_inr(item)) if label == 'By Amount' else str)
-        vehicle_column = b if kind == TRIP_RECORDS and user not in {'Ashok','Ajit'} else a
+        vehicle_column = b if kind == TRIP_RECORDS and user != 'Ashok' else a
         vehicle = select(vehicle_column,'Vehicle no.',['All',*vehicles],'vehicle')
         placer, ownership, amount, heading = 'All', 'Both', 'All', 'All'
         if kind == TRIP_RECORDS:
-            if user not in {'Ashok','Ajit'}:
+            if user != 'Ashok':
                 placer = select(a,'Vehicle placed by',['All',*placers],'placer')
                 ownership = select(c,'Own or outside',['Both','Own','Outside'],'ownership')
         elif kind == DIRECT_EXPENSES:
             amount = select(b,'By Amount',['All',*amounts],'amount')
             heading = select(c,'Heading',['All',*direct_expense_headings(expenses)],'heading')
+        a,b = st.columns(2)
+        lr_number = a.text_input('LR No.', value=applied['lr_number'])
+        invoice_number = b.text_input('Invoice No.', value=applied['invoice_number'])
         submitted = st.form_submit_button('Apply Filters', type='primary')
     if submitted:
         if start > end:
             st.error('Records from must be on or before Records to. Previous filters remain applied.')
         else:
             applied = dict(start=start,end=end,record_type=kind,vehicle=vehicle,placer=placer,
-                           ownership=ownership,amount=amount,heading=heading,without_evidence=False,order='↓')
+                           ownership=ownership,amount=amount,heading=heading,without_evidence=False,order='↓',
+                           lr_number=lr_number.strip(), invoice_number=invoice_number.strip())
             st.session_state[saved_key] = applied
     return applied
+
+
+def filter_identifiers(rows, filters):
+    """Case-insensitive partial identifier search, preserving full invoice numbers."""
+    def matches(row):
+        raw = row.get('dtr_data') or {}
+        dtr = json.loads(raw) if isinstance(raw, str) else raw
+        lr = str(dtr.get('LR No.') or '').strip().casefold()
+        invoice = str(row.get('invoice_number') or dtr.get('Invoice No.') or '').strip().casefold()
+        return (filters.get('lr_number', '').strip().casefold() in lr
+                and filters.get('invoice_number', '').strip().casefold() in invoice)
+    return [row for row in rows if matches(row)]

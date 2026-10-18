@@ -44,7 +44,7 @@ from src.dtr_dates import parse_dtr_date, dtr_editor_key
 from src.ashok_dates import parse_month_date
 from src.member_sessions import signing_key, issue_member_session, restore_member_session
 from src.branch_names import canonical_branch as normalized_branch_name
-from src.batched_records_v3 import render_filters
+from src.batched_records_v4 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
 
 load_dotenv(ROOT / ".env")
@@ -1749,23 +1749,11 @@ def render_direct_expenses():
         if invalid_expense_date:
             st.error('Choose an expense date in 2026 or later.')
         save_disabled = not can_use_direct_expenses or not v["branch"] or invalid_period or invalid_expense_date
-        if current_user == "Nikhat":
-            save_expense = False
-            save_another_expense = st.button(
-                "Save & Add Another", type="primary", key=f"{expense_prefix}_save_another",
-                disabled=save_disabled,
-            )
-        else:
-            save_col, another_col = st.columns(2)
-            save_expense = save_col.button(
-                "Save direct expense", type="primary", key=f"{expense_prefix}_save",
-                disabled=save_disabled,
-            )
-            save_another_expense = another_col.button(
-                "Save & Add Another", key=f"{expense_prefix}_save_another",
-                disabled=save_disabled,
-            )
-        if save_expense or save_another_expense:
+        save_another_expense = st.button(
+            "Save & Add Another", type="primary", key=f"{expense_prefix}_save_another",
+            disabled=save_disabled,
+        )
+        if save_another_expense:
             saved = store.create({
                 **expense_payload(v, expense_files), "created_by": current_user,
             })
@@ -1811,7 +1799,8 @@ with records_tab:
         vehicle_filter = applied_filters['vehicle']
         placed_by_filter = applied_filters['placer'] if record_type == TRIP_RECORDS else 'All'
         ownership_filter = applied_filters['ownership'] if record_type == TRIP_RECORDS else 'Both'
-        type_rows = filter_record_type(scoped_rows, record_type)
+        identifier_rows = filter_identifiers(scoped_rows, applied_filters)
+        type_rows = filter_record_type(identifier_rows, record_type)
         if record_type == DIRECT_EXPENSES:
             type_rows = filter_direct_expenses(type_rows,
                 None if applied_filters['amount'] == 'All' else applied_filters['amount'],
@@ -1824,7 +1813,7 @@ with records_tab:
         outside_date_rows = []
         if not rows and vehicle_filter != "All" and record_type == TRIP_RECORDS:
             outside_date_rows = [
-                row for row in filter_record_type(scoped_rows, record_type)
+                row for row in filter_record_type(identifier_rows, record_type)
                 if canonical_vehicle_number(row.get("vehicle_number")) == vehicle_filter
                 and (placed_by_filter == "All" or canonical_vehicle_placer(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter)
                 and ownership_matches(row.get("ownership_type"), ownership_filter)

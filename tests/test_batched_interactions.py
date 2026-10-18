@@ -71,3 +71,47 @@ def test_order_controls_remain_beside_live_records_not_in_filter_form():
     app_source = Path('app.py').read_text()
     assert 'sort_arrow = live_sort.segmented_control(' in app_source
     assert '@st.fragment\ndef render_new_entry()' in app_source
+
+
+def test_ajit_has_all_filters_and_identifiers_are_batched():
+    app = AppTest.from_string('''
+import datetime as dt
+import streamlit as st
+from src.batched_records_v4 import render_filters
+filters = render_filters([], 'Ajit', dt.date(2026,10,18))
+''').run()
+    assert not app.exception
+    assert {'Vehicle placed by', 'Vehicle no.', 'Own or outside'} <= {w.label for w in app.selectbox}
+    next(w for w in app.text_input if w.label == 'LR No.').set_value(' UTPL-139 ')
+    next(w for w in app.text_input if w.label == 'Invoice No.').set_value('GST/GST/1087')
+    assert 'applied_records_filters_Ajit' not in app.session_state
+    app.button[0].click().run()
+    assert not app.exception
+    assert app.session_state['applied_records_filters_Ajit']['lr_number'] == 'UTPL-139'
+    assert app.session_state['applied_records_filters_Ajit']['invoice_number'] == 'GST/GST/1087'
+    app.selectbox[0].select('Direct Expenses')
+    app.button[0].click().run()
+    assert not app.exception
+    assert {'By Amount', 'Heading'} <= {w.label for w in app.selectbox}
+
+
+def test_identifier_filters_preserve_invoice_serials_and_support_json():
+    from src.batched_records_v4 import filter_identifiers
+    rows = [
+        {'invoice_number': 'GST/GST/1087/26-27', 'dtr_data': {'LR No.': 'UTPL-139'}},
+        {'dtr_data': '{"LR No.": "UTPL-118", "Invoice No.": "GST/GST/0885/26-27"}'},
+    ]
+    assert filter_identifiers(rows, {}) == rows
+    assert filter_identifiers(rows, {'lr_number': ' utpl-139 '}) == rows[:1]
+    assert filter_identifiers(rows, {'invoice_number': 'gst/gst/0885'}) == rows[1:]
+    assert filter_identifiers(rows, {'lr_number': '139', 'invoice_number': '0885'}) == []
+
+
+def test_direct_expense_has_only_save_and_add_another():
+    tree = ast.parse(Path('app.py').read_text())
+    function = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'render_direct_expenses')
+    labels = [n.args[0].value for n in ast.walk(function) if isinstance(n, ast.Call)
+              and isinstance(n.func, ast.Attribute) and n.func.attr == 'button'
+              and n.args and isinstance(n.args[0], ast.Constant)]
+    assert labels.count('Save & Add Another') == 1
+    assert 'Save direct expense' not in labels
