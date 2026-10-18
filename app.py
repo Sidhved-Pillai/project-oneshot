@@ -49,6 +49,11 @@ from src.operational_dates_v2 import OPERATIONS_START
 
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
+st.markdown(
+    '<style>[data-testid="stToolbar"], [data-testid="stAppToolbar"], '
+    '[data-testid="stDecoration"], #MainMenu {display:none !important;}</style>',
+    unsafe_allow_html=True,
+)
 STORE_INTERFACE_VERSION = 15
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
