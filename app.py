@@ -44,7 +44,7 @@ from src.dtr_dates import parse_dtr_date, dtr_editor_key
 from src.ashok_dates import parse_month_date
 from src.member_sessions import signing_key, issue_member_session, restore_member_session
 from src.branch_names import canonical_branch as normalized_branch_name
-from src.batched_records_v4 import render_filters, filter_identifiers
+from src.batched_records_v5 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
 
 load_dotenv(ROOT / ".env")

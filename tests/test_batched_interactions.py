@@ -77,13 +77,14 @@ def test_ajit_has_all_filters_and_identifiers_are_batched():
     app = AppTest.from_string('''
 import datetime as dt
 import streamlit as st
-from src.batched_records_v4 import render_filters
-filters = render_filters([], 'Ajit', dt.date(2026,10,18))
+from src.batched_records_v5 import render_filters
+filters = render_filters([{'invoice_number':'GST/GST/1087', 'dtr_data':{'LR No.':'UTPL-139'}}], 'Ajit', dt.date(2026,10,18))
 ''').run()
     assert not app.exception
     assert {'Vehicle placed by', 'Vehicle no.', 'Own or outside'} <= {w.label for w in app.selectbox}
-    next(w for w in app.text_input if w.label == 'LR No.').set_value(' UTPL-139 ')
-    next(w for w in app.text_input if w.label == 'Invoice No.').set_value('GST/GST/1087')
+    assert next(w for w in app.selectbox if w.label == 'LR No.').options == ['All', 'UTPL-139']
+    next(w for w in app.selectbox if w.label == 'LR No.').select('UTPL-139')
+    next(w for w in app.selectbox if w.label == 'Invoice No.').select('GST/GST/1087')
     assert 'applied_records_filters_Ajit' not in app.session_state
     app.button[0].click().run()
     assert not app.exception

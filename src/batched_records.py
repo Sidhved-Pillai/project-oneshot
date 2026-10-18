@@ -45,8 +45,17 @@ def render_filters(rows, user, today):
             amount = select(b,'By Amount',['All',*amounts],'amount')
             heading = select(c,'Heading',['All',*direct_expense_headings(expenses)],'heading')
         a,b = st.columns(2)
-        lr_number = a.text_input('LR No.', value=applied['lr_number'])
-        invoice_number = b.text_input('Invoice No.', value=applied['invoice_number'])
+        def identifier_select(column, label, field, values):
+            options = ['', *sorted(({str(value).strip() for value in values if value}
+                                    | {applied[field]}) - {''}, key=str.casefold)]
+            return column.selectbox(
+                label, options, index=options.index(applied[field]),
+                format_func=lambda value: value or 'All', accept_new_options=True,
+            )
+        lr_number = identifier_select(a, 'LR No.', 'lr_number',
+            [data(row).get('LR No.') for row in rows])
+        invoice_number = identifier_select(b, 'Invoice No.', 'invoice_number',
+            [row.get('invoice_number') or data(row).get('Invoice No.') for row in rows])
         submitted = st.form_submit_button('Apply Filters', type='primary')
     if submitted:
         if start > end:
