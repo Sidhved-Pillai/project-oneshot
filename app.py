@@ -35,7 +35,8 @@ from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report_v2 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
-from src.records_store_v16 import RequestStore
+from src.records_store_v17 import RequestStore
+from src.invoice_viewer import invoice_viewer_html
 from src.upi_payments import can_send_upi, upi_rtgs_rows
 from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, balance_rtgs_rows, can_send_balance
 from src.report_scroll import latest_rows_scroll_script
@@ -55,7 +56,7 @@ st.markdown(
     '[data-testid="stDecoration"], #MainMenu {display:none !important;}</style>',
     unsafe_allow_html=True,
 )
-STORE_INTERFACE_VERSION = 16
+STORE_INTERFACE_VERSION = 17
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Debit"]
@@ -1268,7 +1269,7 @@ def complete_rtgs_download(request_numbers, start, end):
     )
 
 
-@st.dialog("View evidence and edit record", width="large")
+@st.dialog("Edit record and view invoice", width="large")
 def view_record(row):
     if not can_view_record(current_user, row):
         st.error("You are not authorized to view this record.")
@@ -1355,7 +1356,9 @@ def view_record(row):
                 replace_evidence = True
             if not replace_evidence:
                 if clean_text(evidence.get("source_mime_type")).startswith("image/"):
-                    st.image(evidence["source_image"], caption=evidence.get("source_filename", "Invoice evidence"), width=500)
+                    components.html(invoice_viewer_html(evidence['source_image'], evidence.get('source_mime_type')),
+                                    height=520, scrolling=False)
+                    st.caption(evidence.get('source_filename') or 'Invoice evidence')
                 else:
                     st.download_button(
                         "Open invoice evidence", evidence["source_image"], evidence.get("source_filename", "invoice.pdf"),
@@ -1525,6 +1528,14 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background:rgba(255,255,255,.92)
 [class*="st-key-evidence_image_frame_"]{position:relative!important;width:min(500px,calc(100% - 18px))!important;overflow:visible!important}[class*="st-key-evidence_image_frame_"] [class*="st-key-remove_record_evidence_"]{position:absolute!important;z-index:20!important;top:-13px!important;right:-13px!important;width:38px!important;height:38px!important}[class*="st-key-remove_record_evidence_"] button{display:flex!important;align-items:center!important;justify-content:center!important;gap:0!important;min-width:38px!important;width:38px!important;height:38px!important;min-height:38px!important;padding:0!important;border-radius:50%!important}[class*="st-key-remove_record_evidence_"] button>div{display:flex!important;align-items:center!important;justify-content:center!important;gap:0!important;width:100%!important;height:100%!important}[class*="st-key-remove_record_evidence_"] button p{display:none!important;width:0!important;margin:0!important;padding:0!important}[class*="st-key-remove_record_evidence_"] button span,[class*="st-key-remove_record_evidence_"] button [data-testid="stIconMaterial"]{display:grid!important;place-items:center!important;width:24px!important;height:24px!important;margin:0!important;padding:0!important;line-height:24px!important;font-size:1.35rem!important;transform:none!important}
 div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);border:1px solid #d6e7f7;border-radius:16px;padding:13px 16px;box-shadow:0 5px 16px rgba(0,80,160,.05)}[data-testid="stMetricLabel"]{color:#6e7781;font-weight:700}[data-testid="stMetricValue"]{font:800 1.28rem 'Manrope';color:#0066cc}.profit-loss-card{min-height:91px;padding:13px 16px;border:1px solid #d6e7f7;border-radius:16px;background:linear-gradient(145deg,#f8fbff,#eef6ff);box-shadow:0 5px 16px rgba(0,80,160,.05)}.profit-loss-card span{display:block;color:#6e7781;font-weight:700}.profit-loss-card strong{display:block;margin-top:4px;color:#0066cc;font:800 1.28rem 'Manrope'}.profit-loss-card.negative strong{color:#d70015}[data-testid="stDataFrame"]{border:1px solid var(--line);border-radius:15px;overflow:hidden;box-shadow:0 8px 24px rgba(34,63,68,.06)}[data-testid="stAlert"]{border-radius:14px}details{border:1px solid var(--line)!important;border-radius:13px!important;background:rgba(255,255,255,.78)!important}
 @media(max-width:700px){.block-container{padding:4.5rem .85rem 4rem}.app-hero{padding:17px}.status-pill{display:none}[data-testid="stTabs"] [data-testid="stTab"]{padding:8px 10px;font-size:.75rem}.flow-strip{overflow-x:auto}.flow-step{white-space:nowrap}.page-intro p{font-size:.82rem}}
+</style>
+<style>
+[class*="st-key-view_record_"] button,[class*="st-key-balance_"] button,[class*="st-key-upi_"] button,[class*="st-key-received_"] button,[class*="st-key-delete_record_"] button{border-radius:50%!important;width:38px!important;min-width:38px!important;height:38px!important;min-height:38px!important;padding:0!important;font-weight:800!important}
+[class*="st-key-balance_"] button{background:#0071e3!important;color:white!important;border:0!important}
+[class*="st-key-upi_"] button{background:#ffd324!important;color:#242424!important;border:0!important}
+[class*="st-key-received_"] button{background:#13a957!important;color:white!important;border:0!important}
+[class*="st-key-balance_"] button:disabled,[class*="st-key-upi_"] button:disabled{opacity:.45!important}
+[class*="st-key-received_"] button:disabled{opacity:.65!important}
 </style>
 <div class="app-hero"><div class="brand-row"><img class="brand-mark" src="APP_LOGO_DATA" alt="Project Oneshot logo" style="object-fit:contain"/><div><div class="brand">Project <span>Oneshot</span></div><div class="subtitle">One record. Every operations report.</div></div></div><div class="status-pill"><span class="status-dot"></span>WORKSPACE READY</div></div>
 """.replace('APP_LOGO_DATA', 'data:image/png;base64,' + base64.b64encode(APP_LOGO.read_bytes()).decode('ascii')), unsafe_allow_html=True)
@@ -1926,17 +1937,20 @@ with records_tab:
         visible_rows = rows[page_start:page_start + records_per_page]
         with st.container(height=420, border=True):
             has_delete_column = current_user in {"Sid", "Ajit"} or current_user in SELF_DELETE_USERS
-            record_widths = [1.35, .8, .9, 1.1, 1.15, 1, .85, .65] if has_delete_column else [1.35, .8, .9, 1.1, 1.15, 1, .85]
+            action_names = ['edit']
+            if current_user in BALANCE_PAYMENT_USERS:
+                action_names.append('balance')
+            if current_user == 'Nitish':
+                action_names.append('upi')
+            if current_user == 'Shyam':
+                action_names.append('received')
+            if has_delete_column:
+                action_names.append('delete')
+            record_widths = [1.35, .8, .9, 1.1, 1.15, 1, *([.43] * len(action_names))]
             has_trip_rows = any(clean_text(row.get("report_scope")).casefold() != "expense" for row in visible_rows)
             has_expense_rows = any(clean_text(row.get("report_scope")).casefold() == "expense" for row in visible_rows)
             value_title = "Revenue / Amount" if has_trip_rows and has_expense_rows else ("Amount" if has_expense_rows else "Revenue")
-            record_titles = ("Record", "Date", "Branch", "Vehicle", "Placed by", value_title, "", "") if has_delete_column else ("Record", "Date", "Branch", "Vehicle", "Placed by", value_title, "")
-            if current_user in BALANCE_PAYMENT_USERS:
-                record_widths = [*record_widths, 1.25]
-                record_titles = (*record_titles, "")
-            if current_user == "Nitish":
-                record_widths = [*record_widths, 1.0]
-                record_titles = (*record_titles, "")
+            record_titles = ("Record", "Date", "Branch", "Vehicle", "Placed by", value_title, *([''] * len(action_names)))
             header = st.columns(record_widths)
             for column, title in zip(header, record_titles):
                 column.markdown(f"**{title}**")
@@ -1945,6 +1959,7 @@ with records_tab:
             for record in visible_rows:
                 raw = unpack(record.get("dtr_data"))
                 columns = st.columns(record_widths, vertical_alignment="center")
+                actions = dict(zip(action_names, columns[6:]))
                 columns[0].write(request_label(record))
                 columns[1].write(f"{as_date(record.get('trip_date')):%d/%m/%y}")
                 columns[2].write(canonical_branch(record.get("branch")) or "—")
@@ -1953,15 +1968,15 @@ with records_tab:
                 is_expense_record = clean_text(record.get("report_scope")).casefold() == "expense"
                 displayed_value = record.get("amount") if is_expense_record else record.get("revenue")
                 columns[5].write(format_inr(number(displayed_value), 0))
-                if columns[6].button("View Evidence", key=f"view_record_{record['request_number']}", use_container_width=True):
+                if actions['edit'].button("", icon=":material/edit:", help="Edit record / View invoice evidence", key=f"view_record_{record['request_number']}", use_container_width=True):
                     view_record(record)
                 if can_send_balance(current_user, record):
                     already_sent = record["request_number"] in balance_requests
-                    if columns[-2 if current_user == "Nitish" else -1].button(
-                        "Balance Payment Sent" if already_sent else "Send for Balance Payment",
+                    if actions['balance'].button(
+                        "BP",
                         key=f"balance_{record['request_number']}", use_container_width=True,
                         disabled=already_sent or number(record.get("balance_amount")) <= 0,
-                        help=f"Balance payable: {format_inr(number(record.get('balance_amount')))}",
+                        help=f"{'Balance Payment Sent' if already_sent else 'Send for Balance Payment'} · {format_inr(number(record.get('balance_amount')))}",
                     ):
                         try:
                             store.send_balance_payment(record["request_number"], current_user)
@@ -1971,9 +1986,9 @@ with records_tab:
                             st.rerun()
                 if can_send_upi(current_user, record):
                     upi_sent = record['request_number'] in upi_requests
-                    if columns[-1].button('UPI Payment Sent' if upi_sent else 'Send for UPI',
+                    if actions['upi'].button('₹',
                         key=f"upi_{record['request_number']}", use_container_width=True,
-                        disabled=upi_sent, help=f"UPI amount: {format_inr(number(record.get('upi')))}"):
+                        disabled=upi_sent, help=f"{'UPI Payment Sent' if upi_sent else 'Send for UPI'} · {format_inr(number(record.get('upi')))}"):
                         try:
                             store.send_upi_payment(record['request_number'], current_user)
                         except ValueError as exc:
@@ -1981,7 +1996,17 @@ with records_tab:
                         else:
                             st.rerun()
                 can_delete_visible_record = current_user == "Ajit" or can_delete_record(current_user, record)
-                if can_delete_visible_record and columns[7].button("Delete", icon=":material/delete:", key=f"delete_record_{record['request_number']}", help="Delete record", use_container_width=True):
+                if current_user == 'Shyam' and not is_expense_record:
+                    received = raw.get('_hard_copy_received_by') == 'Shyam'
+                    if actions['received'].button('', icon=':material/check:', key=f"received_{record['request_number']}",
+                        disabled=received, help=f"Hard copy received · {raw.get('Received Date', '')}" if received else 'Mark invoice hard copy received', use_container_width=True):
+                        try:
+                            store.mark_invoice_received(record['request_number'], current_user)
+                        except ValueError as exc:
+                            st.error(str(exc))
+                        else:
+                            st.rerun()
+                if can_delete_visible_record and actions['delete'].button("Delete", icon=":material/delete:", key=f"delete_record_{record['request_number']}", help="Delete record", use_container_width=True):
                     confirm_record_delete(record)
         if current_user == "Sid":
             duplicate_rows = duplicate_records(scoped_rows)

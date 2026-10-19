@@ -450,6 +450,30 @@ class RequestStore:
                 request_number=request_number, details=f'UPI RTGS requested: {amount}'))
         return True
 
+    def mark_invoice_received(self, request_number, user):
+        """Shyam-only, atomic receipt acknowledgement; repeated clicks keep the first date."""
+        if user != 'Shyam':
+            raise ValueError('Only Shyam can acknowledge invoice hard copies.')
+        from zoneinfo import ZoneInfo
+        with self.engine.begin() as conn:
+            row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
+                requests.c.request_number == request_number).with_for_update()).mappings().first()
+            if not row or row.get('report_scope') == 'Expense' or row.get('is_archived') or row.get('status') == 'Cancelled':
+                raise ValueError('Choose an active trip record.')
+            data = json.loads(row.get('dtr_data') or '{}')
+            if data.get('_hard_copy_received_by') == 'Shyam':
+                return False
+            received = dt.datetime.now(ZoneInfo('Asia/Kolkata')).date().isoformat()
+            data.update({'LR Status': 'Received', 'Received Date': received,
+                         '_hard_copy_received_by': user})
+            self._insert_revision(conn, request_number, dict(row), 'before_invoice_received', user)
+            values = {'dtr_data': json.dumps(data), 'updated_at': dt.datetime.now()}
+            conn.execute(update(requests).where(requests.c.request_number == request_number).values(**values))
+            self._insert_revision(conn, request_number, {**dict(row), **values}, 'invoice_received', user)
+            conn.execute(insert(activity_logs).values(user_name=user, action='Invoice hard copy received',
+                request_number=request_number, details=f'Received on {received}'))
+        return True
+
     def list_upi_payments(self):
         with self.engine.connect() as conn:
             rows = conn.execute(select(upi_payments)).mappings().all()
