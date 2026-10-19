@@ -35,7 +35,7 @@ from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report_v2 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
-from src.records_store_v17 import RequestStore
+from src.records_store_v18 import RequestStore
 from src.invoice_viewer import invoice_viewer_html
 from src.upi_payments import can_send_upi, upi_rtgs_rows
 from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, balance_rtgs_rows, can_send_balance
@@ -56,7 +56,7 @@ st.markdown(
     '[data-testid="stDecoration"], #MainMenu {display:none !important;}</style>',
     unsafe_allow_html=True,
 )
-STORE_INTERFACE_VERSION = 17
+STORE_INTERFACE_VERSION = 18
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Debit"]
@@ -1534,6 +1534,7 @@ div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);b
 [class*="st-key-balance_"] button{background:#0071e3!important;color:white!important;border:0!important}
 [class*="st-key-upi_"] button{background:#ffd324!important;color:#242424!important;border:0!important}
 [class*="st-key-received_"] button{background:#13a957!important;color:white!important;border:0!important}
+[class*="st-key-received_undo_"] button{background:#e11d2e!important;color:white!important}
 [class*="st-key-balance_"] button:disabled,[class*="st-key-upi_"] button:disabled{opacity:.45!important}
 [class*="st-key-received_"] button:disabled{opacity:.65!important}
 </style>
@@ -1998,10 +1999,11 @@ with records_tab:
                 can_delete_visible_record = current_user == "Ajit" or can_delete_record(current_user, record)
                 if current_user == 'Shyam' and not is_expense_record:
                     received = raw.get('_hard_copy_received_by') == 'Shyam'
-                    if actions['received'].button('', icon=':material/check:', key=f"received_{record['request_number']}",
-                        disabled=received, help=f"Hard copy received · {raw.get('Received Date', '')}" if received else 'Mark invoice hard copy received', use_container_width=True):
+                    if actions['received'].button('', icon=':material/close:' if received else ':material/check:',
+                        key=f"received_{'undo_' if received else ''}{record['request_number']}",
+                        help=f"Undo hard copy receipt · Received {raw.get('Received Date', '')}" if received else 'Mark invoice hard copy received', use_container_width=True):
                         try:
-                            store.mark_invoice_received(record['request_number'], current_user)
+                            store.mark_invoice_received(record['request_number'], current_user, received=not received)
                         except ValueError as exc:
                             st.error(str(exc))
                         else:

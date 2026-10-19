@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from src.records_store_v17 import RequestStore
+from src.records_store_v18 import RequestStore
 from src.invoice_viewer import invoice_viewer_html
 
 
@@ -64,3 +64,35 @@ def test_record_action_order_and_shyam_only_tick():
     assert actions.index("append('upi')") < actions.index("append('received')") < actions.index("append('delete')")
     assert "if current_user == 'Shyam':\n                action_names.append('received')" in actions
     assert "if current_user == 'Shyam' and not is_expense_record:" in source
+
+
+@pytest.mark.parametrize('original', [{}, {'LR Status':'Pending', 'Received Date':''},
+    {'LR Status':'In transit','Received Date':'2026-09-30'}])
+def test_receipt_can_be_reversed_and_recorded_again(tmp_path, original):
+    store = RequestStore(f"sqlite:///{tmp_path / 'toggle.db'}")
+    number = store.create({'trip_date':dt.date(2026,10,1),'vehicle_number':'MH1234',
+        'dtr_data':{**original,'other':'keep'}, 'revenue':1234})
+    assert store.mark_invoice_received(number,'Shyam')
+    with pytest.raises(ValueError, match='Only Shyam'):
+        store.mark_invoice_received(number,'Sid',received=False)
+    assert store.mark_invoice_received(number,'Shyam',received=False)
+    row = store.get(number)
+    assert json.loads(row['dtr_data']) == {**original,'other':'keep'}
+    assert row['revenue'] == 1234
+    assert not store.mark_invoice_received(number,'Shyam',received=False)
+    assert store.get(number) == row
+    assert store.mark_invoice_received(number,'Shyam')
+    assert json.loads(store.get(number)['dtr_data'])['LR Status'] == 'Received'
+
+
+def test_legacy_receipt_undo_uses_audit_snapshot(tmp_path):
+    store = RequestStore(f"sqlite:///{tmp_path / 'legacy.db'}")
+    number = store.create({'trip_date':dt.date(2026,10,1),'vehicle_number':'MH1234',
+        'dtr_data':{'LR Status':'Pending','Received Date':'','other':'keep'}})
+    assert store.mark_invoice_received(number,'Shyam')
+    raw = json.loads(store.get(number)['dtr_data'])
+    raw.pop('_hard_copy_previous')
+    raw['other'] = 'later edit'
+    store.update(number,{'dtr_data':raw})
+    assert store.mark_invoice_received(number,'Shyam',received=False)
+    assert json.loads(store.get(number)['dtr_data']) == {'LR Status':'Pending','Received Date':'','other':'later edit'}

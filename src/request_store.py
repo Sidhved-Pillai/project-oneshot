@@ -450,8 +450,8 @@ class RequestStore:
                 request_number=request_number, details=f'UPI RTGS requested: {amount}'))
         return True
 
-    def mark_invoice_received(self, request_number, user):
-        """Shyam-only, atomic receipt acknowledgement; repeated clicks keep the first date."""
+    def mark_invoice_received(self, request_number, user, received=True):
+        """Set the desired receipt state atomically, preserving pre-receipt LR fields."""
         if user != 'Shyam':
             raise ValueError('Only Shyam can acknowledge invoice hard copies.')
         from zoneinfo import ZoneInfo
@@ -461,17 +461,38 @@ class RequestStore:
             if not row or row.get('report_scope') == 'Expense' or row.get('is_archived') or row.get('status') == 'Cancelled':
                 raise ValueError('Choose an active trip record.')
             data = json.loads(row.get('dtr_data') or '{}')
-            if data.get('_hard_copy_received_by') == 'Shyam':
+            if (data.get('_hard_copy_received_by') == 'Shyam') == bool(received):
                 return False
-            received = dt.datetime.now(ZoneInfo('Asia/Kolkata')).date().isoformat()
-            data.update({'LR Status': 'Received', 'Received Date': received,
-                         '_hard_copy_received_by': user})
-            self._insert_revision(conn, request_number, dict(row), 'before_invoice_received', user)
+            if received:
+                date = dt.datetime.now(ZoneInfo('Asia/Kolkata')).date().isoformat()
+                data['_hard_copy_previous'] = {key: data[key] for key in ('LR Status', 'Received Date') if key in data}
+                data.update({'LR Status': 'Received', 'Received Date': date,
+                             '_hard_copy_received_by': user})
+            else:
+                previous = data.pop('_hard_copy_previous', None)
+                if previous is None:
+                    # Receipts recorded before reversible ticks shipped already have audit snapshots.
+                    snapshot = conn.execute(select(record_revisions.c.snapshot).where(
+                        record_revisions.c.request_number == request_number,
+                        record_revisions.c.change_source == 'before_invoice_received',
+                    ).order_by(record_revisions.c.id.desc()).limit(1)).scalar_one_or_none()
+                    original = json.loads(snapshot or '{}').get('dtr_data') or '{}'
+                    original = json.loads(original) if isinstance(original, str) else original
+                    previous = {key: original[key] for key in ('LR Status', 'Received Date') if key in original}
+                for key in ('LR Status', 'Received Date'):
+                    if key in previous:
+                        data[key] = previous[key]
+                    else:
+                        data.pop(key, None)
+                data.pop('_hard_copy_received_by', None)
+            source = 'invoice_received' if received else 'invoice_receipt_reversed'
+            self._insert_revision(conn, request_number, dict(row), 'before_' + source, user)
             values = {'dtr_data': json.dumps(data), 'updated_at': dt.datetime.now()}
             conn.execute(update(requests).where(requests.c.request_number == request_number).values(**values))
-            self._insert_revision(conn, request_number, {**dict(row), **values}, 'invoice_received', user)
-            conn.execute(insert(activity_logs).values(user_name=user, action='Invoice hard copy received',
-                request_number=request_number, details=f'Received on {received}'))
+            self._insert_revision(conn, request_number, {**dict(row), **values}, source, user)
+            conn.execute(insert(activity_logs).values(user_name=user,
+                action='Invoice hard copy received' if received else 'Invoice hard copy receipt reversed',
+                request_number=request_number, details=f'Received on {date}' if received else 'Previous LR status and received date restored'))
         return True
 
     def list_upi_payments(self):
