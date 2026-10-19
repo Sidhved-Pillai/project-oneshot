@@ -1,12 +1,16 @@
 import datetime as dt
 
-from sqlalchemy import event
+from sqlalchemy import event, insert
+from src.request_store import upi_reimbursement_profiles
 
 from src.records_store_v14 import RequestStore
 
 
 def test_consolidated_snapshot_matches_existing_reads_and_is_fresh(tmp_path):
     store = RequestStore(f"sqlite:///{tmp_path / 'snapshot.db'}")
+    with store.engine.begin() as conn:
+        conn.execute(insert(upi_reimbursement_profiles).values(user_name='Nitish', beneficiary_data=
+            '{"BNF_NAME":"Test reimbursement","BENE_ACC_NO":"009876543210","BENE_IFSC":"TEST0000001"}'))
     number = store.create({'created_by':'Nitish', 'branch':'Pune', 'vehicle_number':'MH1234',
         'trip_date':dt.date(2026,10,1), 'report_scope':'Both', 'upi':100, 'balance_amount':200})
     store.create({'vehicle_number':'archived', 'trip_date':dt.date(2026,10,1), 'is_archived':True})

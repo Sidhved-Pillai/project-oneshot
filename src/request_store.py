@@ -72,6 +72,12 @@ balance_payments = Table(
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
 )
 
+upi_reimbursement_profiles = Table(
+    "upi_reimbursement_profiles", metadata,
+    Column("user_name", String(120), primary_key=True),
+    Column("beneficiary_data", Text, nullable=False),
+)
+
 upi_payments = Table(
     "trip_upi_payments", metadata,
     Column("request_number", String(40), primary_key=True),
@@ -427,7 +433,14 @@ class RequestStore:
                 return False
             amount = row['upi']
             data = json.loads(row.get('rtgs_data') or '{}')
-            data.update(AMOUNT=float(amount), BNF_NAME=data.get('BNF_NAME') or row.get('beneficiary_name',''))
+            profile = conn.execute(select(upi_reimbursement_profiles.c.beneficiary_data).where(
+                upi_reimbursement_profiles.c.user_name == user)).scalar_one_or_none()
+            beneficiary = json.loads(profile or '{}')
+            required = ('BNF_NAME', 'BENE_ACC_NO', 'BENE_IFSC')
+            if not all(str(beneficiary.get(key) or '').strip() for key in required):
+                raise ValueError('UPI reimbursement bank details are not configured. Contact the administrator.')
+            data.update({key: str(beneficiary[key]).strip() for key in required})
+            data['AMOUNT'] = float(amount)
             data.update(REMARK=str(data.get('REMARK') or row.get('notes') or '') + ' UPI Payment',
                         _payment_kind='upi', _payment_id=UPI_PREFIX + request_number)
             data['Origin Area'] = row.get('branch','')

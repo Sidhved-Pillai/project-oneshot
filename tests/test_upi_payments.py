@@ -7,6 +7,8 @@ from src.records_store_v13 import RequestStore
 from src.upi_payments import can_send_upi, upi_rtgs_rows, UPI_PREFIX
 from src.balance_payments import BALANCE_PREFIX
 from src.rtgs_report_v2 import normalize_rtgs_records
+from src.request_store import upi_reimbursement_profiles
+from sqlalchemy import insert
 
 
 def test_upi_export_does_not_merge_separate_trip_requests():
@@ -29,6 +31,10 @@ def test_upi_request_is_explicit_unique_and_independent(tmp_path):
     store = RequestStore(f"sqlite:///{tmp_path / 'payments.db'}")
     number = trip(store)
     before = store.get(number)
+    with store.engine.begin() as conn:
+        conn.execute(insert(upi_reimbursement_profiles).values(user_name='Nitish', beneficiary_data=json.dumps({
+            'BNF_NAME': 'Test reimbursement', 'BENE_ACC_NO': '009876543210', 'BENE_IFSC': 'TEST0000001',
+        })))
     assert store.list_upi_payments() == {}
     assert store.send_upi_payment(number, 'Nitish')
     assert not store.send_upi_payment(number, 'Nitish')
@@ -36,12 +42,17 @@ def test_upi_request_is_explicit_unique_and_independent(tmp_path):
     assert store.get(number) == before
     payment = store.list_upi_payments()[number]
     raw = json.loads(payment['rtgs_data'])
-    assert raw['AMOUNT'] == 1250 and raw['BENE_ACC_NO'] == '001234'
+    assert raw['AMOUNT'] == 1250 and raw['BENE_ACC_NO'] == '009876543210'
+    assert raw['BNF_NAME'] == 'Test reimbursement'
+    assert raw['BENE_IFSC'] == 'TEST0000001'
     assert raw['_payment_kind'] == 'upi'
     rows = upi_rtgs_rows(store.list(), store.list_upi_payments())
     assert len(rows) == 1 and rows[0]['request_number'] == UPI_PREFIX + number
     assert rows[0]['trip_date'] != before['trip_date']
     assert rows[0]['_upi_payment'] and not rows[0].get('_balance_payment')
+    assert rows[0]['beneficiary_name'] == 'Test reimbursement'
+    balance = json.loads(store.list_balance_payments()[number]['rtgs_data'])
+    assert balance['BENE_ACC_NO'] == '001234'
     assert store.mark_rtgs_done([UPI_PREFIX + number]) == 1
     assert store.list_upi_payments()[number]['rtgs_done']
     assert not store.get(number)['rtgs_done']
@@ -67,3 +78,13 @@ def test_other_users_cannot_queue_nitish_upi(tmp_path):
     number = trip(store)
     with pytest.raises(ValueError):
         store.send_upi_payment(number, 'Sid')
+
+
+def test_missing_reimbursement_profile_never_falls_back_to_transporter(tmp_path):
+    store = RequestStore(f"sqlite:///{tmp_path / 'missing.db'}")
+    number = trip(store)
+    before = store.get(number)
+    with pytest.raises(ValueError, match='not configured'):
+        store.send_upi_payment(number, 'Nitish')
+    assert store.list_upi_payments() == {}
+    assert store.get(number) == before

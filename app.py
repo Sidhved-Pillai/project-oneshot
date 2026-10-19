@@ -35,7 +35,7 @@ from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report_v2 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
-from src.records_store_v15 import RequestStore
+from src.records_store_v16 import RequestStore
 from src.upi_payments import can_send_upi, upi_rtgs_rows
 from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, balance_rtgs_rows, can_send_balance
 from src.report_scroll import latest_rows_scroll_script
@@ -48,13 +48,14 @@ from src.batched_records_v5 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
 
 load_dotenv(ROOT / ".env")
-st.set_page_config(page_title="Project Oneshot", page_icon="🚚", layout="wide")
+APP_LOGO = ROOT / 'assets' / 'logo-icon.png'
+st.set_page_config(page_title="Project Oneshot", page_icon=str(APP_LOGO), layout="wide")
 st.markdown(
     '<style>[data-testid="stToolbar"], [data-testid="stAppToolbar"], '
     '[data-testid="stDecoration"], #MainMenu {display:none !important;}</style>',
     unsafe_allow_html=True,
 )
-STORE_INTERFACE_VERSION = 15
+STORE_INTERFACE_VERSION = 16
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Debit"]
@@ -1525,8 +1526,8 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background:rgba(255,255,255,.92)
 div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);border:1px solid #d6e7f7;border-radius:16px;padding:13px 16px;box-shadow:0 5px 16px rgba(0,80,160,.05)}[data-testid="stMetricLabel"]{color:#6e7781;font-weight:700}[data-testid="stMetricValue"]{font:800 1.28rem 'Manrope';color:#0066cc}.profit-loss-card{min-height:91px;padding:13px 16px;border:1px solid #d6e7f7;border-radius:16px;background:linear-gradient(145deg,#f8fbff,#eef6ff);box-shadow:0 5px 16px rgba(0,80,160,.05)}.profit-loss-card span{display:block;color:#6e7781;font-weight:700}.profit-loss-card strong{display:block;margin-top:4px;color:#0066cc;font:800 1.28rem 'Manrope'}.profit-loss-card.negative strong{color:#d70015}[data-testid="stDataFrame"]{border:1px solid var(--line);border-radius:15px;overflow:hidden;box-shadow:0 8px 24px rgba(34,63,68,.06)}[data-testid="stAlert"]{border-radius:14px}details{border:1px solid var(--line)!important;border-radius:13px!important;background:rgba(255,255,255,.78)!important}
 @media(max-width:700px){.block-container{padding:4.5rem .85rem 4rem}.app-hero{padding:17px}.status-pill{display:none}[data-testid="stTabs"] [data-testid="stTab"]{padding:8px 10px;font-size:.75rem}.flow-strip{overflow-x:auto}.flow-step{white-space:nowrap}.page-intro p{font-size:.82rem}}
 </style>
-<div class="app-hero"><div class="brand-row"><div class="brand-mark">1×</div><div><div class="brand">Project <span>Oneshot</span></div><div class="subtitle">One record. Every operations report.</div></div></div><div class="status-pill"><span class="status-dot"></span>WORKSPACE READY</div></div>
-""", unsafe_allow_html=True)
+<div class="app-hero"><div class="brand-row"><img class="brand-mark" src="APP_LOGO_DATA" alt="Project Oneshot logo" style="object-fit:contain"/><div><div class="brand">Project <span>Oneshot</span></div><div class="subtitle">One record. Every operations report.</div></div></div><div class="status-pill"><span class="status-dot"></span>WORKSPACE READY</div></div>
+""".replace('APP_LOGO_DATA', 'data:image/png;base64,' + base64.b64encode(APP_LOGO.read_bytes()).decode('ascii')), unsafe_allow_html=True)
 hidden_tabs = []
 if not can_use_direct_expenses:
     hidden_tabs.append(2)
