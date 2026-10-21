@@ -37,6 +37,7 @@ from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS,
 from src.current_pnl_report_v2 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.records_store_v18 import RequestStore
 from src.invoice_viewer import invoice_viewer_html
+from src.duplicate_review import duplicate_review_frame, selected_duplicate_numbers
 from src.upi_payments import can_send_upi, upi_rtgs_rows
 from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, balance_rtgs_rows, can_send_balance
 from src.report_scroll import latest_rows_scroll_script
@@ -1533,8 +1534,8 @@ div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);b
 [class*="st-key-view_record_"] button,[class*="st-key-balance_"] button,[class*="st-key-upi_"] button,[class*="st-key-received_"] button,[class*="st-key-delete_record_"] button{border-radius:50%!important;width:38px!important;min-width:38px!important;height:38px!important;min-height:38px!important;padding:0!important;font-weight:800!important}
 [class*="st-key-balance_"] button{background:#0071e3!important;color:white!important;border:0!important}
 [class*="st-key-upi_"] button{background:#ffd324!important;color:#242424!important;border:0!important}
-[class*="st-key-received_"] button{background:#13a957!important;color:white!important;border:0!important}
-[class*="st-key-received_undo_"] button{background:#e11d2e!important;color:white!important}
+[class*="st-key-received_"] button{background:white!important;color:#13a957!important;border:2px solid #13a957!important}
+[class*="st-key-received_done_"] button{background:#13a957!important;color:white!important}
 [class*="st-key-balance_"] button:disabled,[class*="st-key-upi_"] button:disabled{opacity:.45!important}
 [class*="st-key-received_"] button:disabled{opacity:.65!important}
 </style>
@@ -1999,9 +2000,9 @@ with records_tab:
                 can_delete_visible_record = current_user == "Ajit" or can_delete_record(current_user, record)
                 if current_user == 'Shyam' and not is_expense_record:
                     received = raw.get('_hard_copy_received_by') == 'Shyam'
-                    if actions['received'].button('', icon=':material/close:' if received else ':material/check:',
-                        key=f"received_{'undo_' if received else ''}{record['request_number']}",
-                        help=f"Undo hard copy receipt · Received {raw.get('Received Date', '')}" if received else 'Mark invoice hard copy received', use_container_width=True):
+                    if actions['received'].button('', icon=':material/check:',
+                        key=f"received_{'done_' if received else ''}{record['request_number']}",
+                        help=f"LR received · {raw.get('Received Date', '')} · Click to undo" if received else 'Mark LR hard copy received', use_container_width=True):
                         try:
                             store.mark_invoice_received(record['request_number'], current_user, received=not received)
                         except ValueError as exc:
@@ -2012,29 +2013,32 @@ with records_tab:
                     confirm_record_delete(record)
         if current_user == "Sid":
             duplicate_rows = duplicate_records(scoped_rows)
-            duplicate_labels = {record_select_label(row): row for row in duplicate_rows}
+            duplicate_by_number = {row['request_number']: row for row in duplicate_rows}
             with st.expander("Delete Duplicate records"):
-                if not duplicate_labels:
+                if not duplicate_rows:
                     st.info("No duplicate records found.")
-                duplicate_options = list(duplicate_labels)
-                duplicate_set_version = hashlib.sha256(
-                    "|".join(
-                        clean_text(duplicate_labels[label].get("request_number"))
-                        for label in duplicate_options
-                    ).encode()
-                ).hexdigest()[:12]
-                chosen = st.multiselect(
-                    "Duplicate records selected for deletion",
-                    duplicate_options,
-                    default=duplicate_options,
-                    key=f"records_delete_selection_{duplicate_set_version}",
-                    disabled=not duplicate_labels,
-                    help="All detected duplicates are selected automatically. Deselect any record you want to keep.",
-                )
+                chosen = []
+                if duplicate_rows:
+                    duplicate_set_version = hashlib.sha256(
+                        repr([(row['request_number'], str(row.get('updated_at'))) for row in duplicate_rows]).encode()
+                    ).hexdigest()[:12]
+                    duplicate_frame = duplicate_review_frame(duplicate_rows)
+                    selected_frame = st.data_editor(
+                        duplicate_frame, hide_index=True, width='stretch', height=350,
+                        num_rows='fixed', disabled=[col for col in duplicate_frame if col != 'Select'],
+                        column_config={'Select': st.column_config.CheckboxColumn('Select', help='Select this duplicate for deletion')},
+                        key=f'records_duplicate_grid_{duplicate_set_version}',
+                    )
+                    chosen = selected_duplicate_numbers(selected_frame, duplicate_by_number)
+                    st.caption(f'{len(chosen)} duplicate record(s) selected for deletion.')
                 st.caption("The oldest record in each duplicate group is retained. Deleted copies remain recoverable.")
                 if st.button("Confirm & Delete", disabled=not chosen, key="records_delete"):
-                    for label in chosen:
-                        soft_delete_record(duplicate_labels[label], label)
+                    fresh_duplicates = {row['request_number']: row for row in duplicate_records(store.list(status='All active'))}
+                    if any(number not in fresh_duplicates or fresh_duplicates[number].get('updated_at') != duplicate_by_number[number].get('updated_at') for number in chosen):
+                        st.error('These records changed. Refresh and review the duplicate spreadsheet before deleting. No records were deleted.')
+                        st.stop()
+                    for number in chosen:
+                        soft_delete_record(fresh_duplicates[number], record_select_label(fresh_duplicates[number]))
                     st.success(f"Deleted {len(chosen)} record(s).")
                     st.rerun()
 
