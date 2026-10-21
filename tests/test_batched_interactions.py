@@ -116,3 +116,25 @@ def test_direct_expense_has_only_save_and_add_another():
               and n.args and isinstance(n.args[0], ast.Constant)]
     assert labels.count('Save & Add Another') == 1
     assert 'Save direct expense' not in labels
+
+
+def test_ajit_can_apply_vehicle_filters_repeatedly_without_refresh():
+    app = AppTest.from_string('''
+import datetime as dt
+import streamlit as st
+from src.batched_records_v6 import render_filters
+rows = [{'vehicle_number':v} for v in ['MH12AB1234','MH14CD5678','MH01EF9999']]
+filters = render_filters(rows, 'Ajit', dt.date(2026,10,21))
+st.write('RESULT: ' + filters['vehicle'])
+if st.button('Unrelated rerun'):
+    st.write('Refreshed')
+''').run()
+    for vehicle in ('MH12AB1234','MH14CD5678','MH01EF9999','All','MH14CD5678'):
+        next(w for w in app.selectbox if w.label=='Vehicle no.').select(vehicle)
+        next(w for w in app.button if w.label=='Apply Filters').click().run()
+        assert not app.exception
+        assert app.session_state['applied_records_filters_Ajit']['vehicle']==vehicle
+        assert next(w for w in app.selectbox if w.label=='Vehicle no.').value==vehicle
+        next(w for w in app.button if w.label=='Unrelated rerun').click().run()
+        assert not app.exception
+        assert next(w for w in app.selectbox if w.label=='Vehicle no.').value==vehicle

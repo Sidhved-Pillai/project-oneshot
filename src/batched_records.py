@@ -24,15 +24,21 @@ def render_filters(rows, user, today):
                     without_evidence=False, order='↓', lr_number='', invoice_number='')
     saved_key = f'applied_records_filters_{user}'
     applied = {**defaults, **st.session_state.get(saved_key, {})}
+    def widget_key(field):
+        key = f'records_filter_draft_{user}_{field}'
+        st.session_state.setdefault(key, applied[field])
+        return key
     with st.form(f'records_filters_batch_{user}', border=False):
         a,b,c = st.columns(3)
-        start = a.date_input('Records from', value=max(applied['start'], OPERATIONS_START), format='DD/MM/YYYY', min_value=OPERATIONS_START)
-        end = b.date_input('Records to', value=max(applied['end'], OPERATIONS_START), format='DD/MM/YYYY', min_value=OPERATIONS_START)
-        kind = c.selectbox('Record Type', RECORD_TYPES, index=RECORD_TYPES.index(applied['record_type']))
+        start = a.date_input('Records from', key=widget_key('start'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
+        end = b.date_input('Records to', key=widget_key('end'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
+        kind = c.selectbox('Record Type', RECORD_TYPES, key=widget_key('record_type'))
         a,b,c = st.columns(3)
         def select(column, label, options, field):
-            value = applied[field]
-            return column.selectbox(label, options, index=options.index(value) if value in options else 0,
+            key = widget_key(field)
+            if st.session_state[key] not in options:
+                st.session_state[key] = options[0]
+            return column.selectbox(label, options, key=key,
                 format_func=(lambda item: 'All' if item == 'All' else format_inr(item)) if label == 'By Amount' else str)
         vehicle_column = b if kind == TRIP_RECORDS and user != 'Ashok' else a
         vehicle = select(vehicle_column,'Vehicle no.',['All',*vehicles],'vehicle')
@@ -46,10 +52,11 @@ def render_filters(rows, user, today):
             heading = select(c,'Heading',['All',*direct_expense_headings(expenses)],'heading')
         a,b = st.columns(2)
         def identifier_select(column, label, field, values):
+            key = widget_key(field)
             options = ['', *sorted(({str(value).strip() for value in values if value}
-                                    | {applied[field]}) - {''}, key=str.casefold)]
+                                    | {applied[field], st.session_state[key]}) - {''}, key=str.casefold)]
             return column.selectbox(
-                label, options, index=options.index(applied[field]),
+                label, options, key=key,
                 format_func=lambda value: value or 'All', accept_new_options=True,
             )
         lr_number = identifier_select(a, 'LR No.', 'lr_number',
