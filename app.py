@@ -38,6 +38,7 @@ from src.current_pnl_report_v2 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary
 from src.records_store_v18 import RequestStore
 from src.invoice_viewer import invoice_viewer_html
 from src.duplicate_review import duplicate_review_frame, selected_duplicate_numbers
+from src.expense_autofill import expense_identity_inputs
 from src.upi_payments import can_send_upi, upi_rtgs_rows
 from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, balance_rtgs_rows, can_send_balance
 from src.report_scroll import latest_rows_scroll_script
@@ -1675,19 +1676,21 @@ def render_direct_expenses():
             st.session_state[f"{expense_prefix}_vehicle"] = canonical_vehicle_number(st.session_state[f"{expense_prefix}_vehicle"])
         if current_user == "Nikhat":
             c1, c2, c3, c4 = st.columns(4)
+            expense_beneficiary, expense_vehicle = expense_identity_inputs(expense_prefix, c3, c4, normalization_rows)
             v = {
                 "date": c1.date_input("Date *", format="DD/MM/YYYY", key=f"{expense_prefix}_date", min_value=OPERATIONS_START),
                 "invoice_number": c2.text_input("Invoice No:", key=f"{expense_prefix}_invoice_number", placeholder="e.g., INV-1234"),
-                "beneficiary_name": c3.text_input("Beneficiary name", key=f"{expense_prefix}_beneficiary", placeholder="e.g., Rajesh Kumar"),
-                "vehicle_number": c4.text_input("Vehicle name / number", key=f"{expense_prefix}_vehicle", placeholder="e.g., MH14JL9818"),
+                "beneficiary_name": expense_beneficiary,
+                "vehicle_number": expense_vehicle,
             }
         else:
             c1, c2, c3 = st.columns(3)
+            expense_beneficiary, expense_vehicle = expense_identity_inputs(expense_prefix, c2, c3, normalization_rows)
             v = {
                 "date": c1.date_input("Date *", format="DD/MM/YYYY", key=f"{expense_prefix}_date", min_value=OPERATIONS_START),
                 "invoice_number": "",
-                "beneficiary_name": c2.text_input("Beneficiary name", key=f"{expense_prefix}_beneficiary", placeholder="e.g., Rajesh Kumar"),
-                "vehicle_number": c3.text_input("Vehicle name / number", key=f"{expense_prefix}_vehicle", placeholder="e.g., MH14JL9818"),
+                "beneficiary_name": expense_beneficiary,
+                "vehicle_number": expense_vehicle,
             }
         branch_choices = allowed_entry_branches
         expense_branch_key = f"{expense_prefix}_branch"
@@ -2018,27 +2021,30 @@ with records_tab:
                 if not duplicate_rows:
                     st.info("No duplicate records found.")
                 chosen = []
-                if duplicate_rows:
-                    duplicate_set_version = hashlib.sha256(
-                        repr([(row['request_number'], str(row.get('updated_at'))) for row in duplicate_rows]).encode()
-                    ).hexdigest()[:12]
-                    duplicate_frame = duplicate_review_frame(duplicate_rows)
-                    selected_frame = st.data_editor(
-                        duplicate_frame, hide_index=True, width='stretch', height=350,
-                        num_rows='fixed', disabled=[col for col in duplicate_frame if col != 'Select'],
-                        column_config={'Select': st.column_config.CheckboxColumn('Select', help='Select this duplicate for deletion')},
-                        key=f'records_duplicate_grid_{duplicate_set_version}',
-                    )
-                    chosen = selected_duplicate_numbers(selected_frame, duplicate_by_number)
-                    st.caption(f'{len(chosen)} duplicate record(s) selected for deletion.')
-                st.caption("The oldest record in each duplicate group is retained. Deleted copies remain recoverable.")
-                if st.button("Confirm & Delete", disabled=not chosen, key="records_delete"):
+                with st.form('duplicate_delete_batch', border=False):
+                    if duplicate_rows:
+                        duplicate_set_version = hashlib.sha256(
+                            repr([(row['request_number'], str(row.get('updated_at'))) for row in duplicate_rows]).encode()
+                        ).hexdigest()[:12]
+                        duplicate_frame = duplicate_review_frame(duplicate_rows)
+                        selected_frame = st.data_editor(
+                            duplicate_frame, hide_index=True, width='stretch', height=350,
+                            num_rows='fixed', disabled=[col for col in duplicate_frame if col != 'Select'],
+                            column_config={'Select': st.column_config.CheckboxColumn('Select', help='Select this duplicate for deletion')},
+                            key=f'records_duplicate_grid_{duplicate_set_version}',
+                        )
+                        chosen = selected_duplicate_numbers(selected_frame, duplicate_by_number)
+                    st.caption("Select duplicate rows, then Confirm & Delete. The oldest record in each group is retained; deleted copies remain recoverable.")
+                    delete_submitted = st.form_submit_button("Confirm & Delete", disabled=not duplicate_rows)
+                if delete_submitted and not chosen:
+                    st.warning('Select at least one duplicate record to delete.')
+                if delete_submitted and chosen:
                     fresh_duplicates = {row['request_number']: row for row in duplicate_records(store.list(status='All active'))}
                     if any(number not in fresh_duplicates or fresh_duplicates[number].get('updated_at') != duplicate_by_number[number].get('updated_at') for number in chosen):
                         st.error('These records changed. Refresh and review the duplicate spreadsheet before deleting. No records were deleted.')
                         st.stop()
-                    for number in chosen:
-                        soft_delete_record(fresh_duplicates[number], record_select_label(fresh_duplicates[number]))
+                    for request_number in chosen:
+                        soft_delete_record(fresh_duplicates[request_number], record_select_label(fresh_duplicates[request_number]))
                     st.success(f"Deleted {len(chosen)} record(s).")
                     st.rerun()
 
