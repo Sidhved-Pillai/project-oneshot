@@ -20,7 +20,7 @@ from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
 from src.entry_state import clear_entry_state, clear_expense_state, entry_state_prefix, expense_state_prefix
 from src.expense_linking import link_expenses_to_trips
-from src.invoice_numbers_v2 import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series, user_invoice_duplicates, verified_bisleri_invoice_numbers, invoice_identifier_tokens
+from src.invoice_numbers_v3 import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series, user_invoice_duplicates, verified_bisleri_invoice_numbers, invoice_identifier_tokens
 from src.number_format import format_inr, indian_number
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
 from src.current_leaderboard import branch_trip_leaderboard, current_month_leaderboard
@@ -612,6 +612,11 @@ def duplicate_records(rows):
             "" if invoice else round(number(row.get("revenue")), 2),
             "" if invoice else round(number(row.get("amount")), 2),
         )
+        if clean_text(row.get('created_by')) == 'Manish' and row.get('report_scope') != 'Expense':
+            lr = re.sub(r'[^a-z0-9]', '', clean_text(unpack(row.get('dtr_data')).get('LR No.')).casefold())
+            if not lr:
+                continue  # A repeated invoice alone is never evidence of a duplicate for Manish.
+            signature = ('Manish LR', lr)
         if signature in grouped:
             duplicates.append(row)
         else:

@@ -62,6 +62,8 @@ def _user_identifier_duplicates(records, user_name, entered_value, saved_value):
 
 def user_invoice_duplicates(records, user_name, invoice_value):
     """Return the user's active records sharing any entered invoice identifier."""
+    if str(user_name or '').strip() == 'Manish':
+        return []  # Manish's invoice numbers can repeat; his LR number identifies the trip.
     return _user_identifier_duplicates(
         records, user_name, invoice_value,
         lambda record: record.get("invoice_number") or _dtr_data(record).get("Invoice No."),
