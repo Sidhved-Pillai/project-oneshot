@@ -14,7 +14,8 @@ import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
 from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record, can_view_trip_leaderboard
-from src.ai_intake import extract_intake, merge_same_trip_intake_rows, should_autofill_field
+from src.ai_intake_v2 import extract_intake, merge_same_trip_intake_rows, should_autofill_field
+from src.invoice_recovery import PRIORITY_FIELDS, scan_context, recover_entry_fields
 from src.business_memory_v3 import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
@@ -674,6 +675,8 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
         st.warning('Photo/file autofill did not complete. Use Retry photo/file autofill to try again.')
         return
     try:
+        if mode == 'ENTRY':
+            instruction = scan_context(instruction, current_user, allowed_entry_branches)
         with st.spinner("Reading the evidence and filling the form…"):
             if mode == "ENTRY" and current_user == "Vijay" and len(files) > 1:
                 # Extract each invoice independently. A combined multimodal
@@ -709,6 +712,10 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
                 result.rows = [merged] if merged else []
             else:
                 result, _ = extract_intake(secret("GEMINI_API_KEY"), mode, instruction, files, secret("GEMINI_MODEL"))
+            if mode == 'ENTRY':
+                result = recover_entry_fields(result, extract_intake, secret('GEMINI_API_KEY'), instruction,
+                    files, secret('GEMINI_MODEL'), allowed_entry_branches,
+                    [row.get('vehicle_number') for row in normalization_rows])
             if mode == "ENTRY" and current_user == "Vijay" and result.rows:
                 row = result.rows[0]
                 raw_invoice_candidates = [*row.invoice_numbers, row.invoice_number]
@@ -772,6 +779,12 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
             legacy = clean_text(getattr(result.rows[0], "lr_invoice_number", ""))
             if legacy and not clean_text(st.session_state.get(f"{prefix}_invoice_number")) and not clean_text(st.session_state.get(f"{prefix}_lr_number")):
                 st.session_state[f"{prefix}_invoice_number"] = legacy
+            missing_fields = [field.replace('_', ' ').title() for field in PRIORITY_FIELDS
+                              if not clean_text(st.session_state.get(f'{prefix}_{field}'))]
+            if missing_fields:
+                st.warning('Please complete fields that could not be read reliably: ' + ', '.join(missing_fields))
+            if clean_text(getattr(result.rows[0], 'review_notes', '')):
+                st.caption(result.rows[0].review_notes)
         st.success("Form populated from the evidence. Please review every field before saving.")
         st.session_state[f"{prefix}_evidence_hash"] = signature
         st.session_state.pop(f"{prefix}_failed_evidence_hash", None)

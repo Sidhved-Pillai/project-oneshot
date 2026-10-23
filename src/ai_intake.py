@@ -255,6 +255,12 @@ missing values and explain unclear readings in review_notes.
   from the route. If multiple organisations are visible and the customer is ambiguous, leave company_name blank.
 - Read invoice_number from the document field explicitly labelled Invoice No/Invoice Number. Do not place it
   in lr_number. Read lr_number only from a separately labelled LR/Consignment/Reference field.
+- Before returning, recheck branch, from_location, to_location, lr_number, invoice_number and
+  vehicle_number against the entire document, including header, footer, dispatch/ship-to blocks and
+  handwritten annotations. Read sideways text in the correct orientation. These are priority fields.
+- Origin and destination mean the trip's dispatch and delivery locations, not the bank branch or the
+  transporter's registered office. LR may be labelled L.R.No., Lorry Receipt or Consignment No.
+  Never substitute a GST number, e-way bill, UTR or invoice identifier for a separately labelled LR.
 - When multiple invoices describe the same trip (same date, vehicle and route), return one combined row and
   put every separately labelled invoice identifier in invoice_numbers, in upload order. Also put the first
   identifier in invoice_number for compatibility. Never merge invoice identifiers into one invented number.
@@ -347,7 +353,7 @@ def _log_usage(response, model, file_count):
     )
 
 
-def extract_intake(api_key, mode, operator_context, files, model=None):
+def extract_intake(api_key, mode, operator_context, files, model=None, high_detail=False):
     if not api_key:
         raise ValueError("GEMINI_API_KEY is not configured in Streamlit Secrets.")
     if not files and not str(operator_context).strip():
@@ -375,7 +381,8 @@ def extract_intake(api_key, mode, operator_context, files, model=None):
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     response_schema=schema,
-                    media_resolution=types.MediaResolution.MEDIA_RESOLUTION_MEDIUM,
+                    media_resolution=(types.MediaResolution.MEDIA_RESOLUTION_HIGH if high_detail
+                                      else types.MediaResolution.MEDIA_RESOLUTION_MEDIUM),
                     thinking_config=types.ThinkingConfig(thinking_budget=0),
                 ),
             )

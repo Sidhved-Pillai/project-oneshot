@@ -14,6 +14,9 @@ def functions(extract):
     st = SimpleNamespace(session_state=state, spinner=lambda *a: nullcontext(),
                          error=lambda *a: None, warning=lambda *a: None, success=lambda *a: None)
     scope = dict(st=st, hashlib=hashlib, dt=dt, current_user='Nitish', secret=lambda name: 'test',
+                 allowed_entry_branches=['Pune'], normalization_rows=[], PRIORITY_FIELDS=[],
+                 scan_context=lambda instruction,*args:instruction,
+                 recover_entry_fields=lambda result,*args:result,
                  extract_intake=extract, should_autofill_field=lambda *a: True,
                  normalized_invoice_numbers=lambda v: v, clean_text=lambda v: str(v or ''))
     exec(compile(ast.Module(body=selected, type_ignores=[]), 'app.py', 'exec'), scope)
