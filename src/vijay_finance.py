@@ -50,6 +50,7 @@ def project_vijay_records(records):
             dtr.get("Toll Expense"), dtr.get("Billtee"),
         )
         dtr.update({
+            "LR No.": row.get("invoice_number") or dtr.get("Invoice No.", ""),
             "Own/Outside Veh.": "Own",
             "Transporter Freight": 0.0,
             "Total Adv.": finance["total_advance"],

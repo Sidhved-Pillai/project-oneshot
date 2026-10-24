@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 
 from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record, can_view_trip_leaderboard
 from src.ai_intake_v2 import extract_intake, merge_same_trip_intake_rows, should_autofill_field
-from src.invoice_recovery import PRIORITY_FIELDS, scan_context, recover_entry_fields
+from src.invoice_recovery_v2 import PRIORITY_FIELDS, scan_context, recover_entry_fields
 from src.business_memory_v3 import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
@@ -736,6 +736,9 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
             st.session_state[f"{prefix}_failed_evidence_hash"] = signature
             st.warning("No clear trip details were found. Complete the form manually.")
             return
+        if mode == 'ENTRY' and not parse_dtr_date(getattr(result.rows[0], 'date', '')):
+            st.session_state[f'{prefix}_date'] = None
+            st.warning('The invoice date could not be read reliably. Please select the printed invoice date before saving.')
         expense_keys = {
             "route_expense": "category_0", "bill_discounting": "category_1", "salary": "category_2",
             "driver_salary": "category_3", "rent": "category_4", "office_general_expenses": "category_5",
@@ -780,6 +783,11 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
             legacy = clean_text(getattr(result.rows[0], "lr_invoice_number", ""))
             if legacy and not clean_text(st.session_state.get(f"{prefix}_invoice_number")) and not clean_text(st.session_state.get(f"{prefix}_lr_number")):
                 st.session_state[f"{prefix}_invoice_number"] = legacy
+            if current_user == 'Vijay':
+                st.session_state[f'{prefix}_lr_number'] = combined_invoice_number([
+                    *result.rows[0].invoice_numbers,
+                    st.session_state.get(f'{prefix}_invoice_number'),
+                ])
             missing_fields = [field.replace('_', ' ').title() for field in PRIORITY_FIELDS
                               if not clean_text(st.session_state.get(f'{prefix}_{field}'))]
             if missing_fields:
@@ -819,6 +827,8 @@ def trip_payload(v, files, invoice_filename=None):
         raise ValueError('Invoice number is required before saving a trip.')
     if v.get('date') is None or v['date'] < OPERATIONS_START:
         raise ValueError('Choose a date in 2026 or later.')
+    if current_user == 'Vijay':
+        v = {**v, 'lr_number': v['invoice_number']}
     company = canonical_company(v["company_name"], KNOWN_COMPANIES)
     origin = canonical_location(v["from_location"], KNOWN_LOCATIONS)
     destination = canonical_location(v["to_location"], KNOWN_LOCATIONS)
@@ -995,7 +1005,8 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     v["to_location"] = c2.text_input("To *", key=f"{prefix}_to_location", placeholder="e.g., Bhiwandi, Thane")
     c1, c2 = st.columns(2)
     lr_key = f"{prefix}_lr_number"
-    v["lr_number"] = c1.text_input("LR number", key=lr_key, placeholder="e.g., LR-12234")
+    if current_user != 'Vijay':
+        v["lr_number"] = c1.text_input("LR number", key=lr_key, placeholder="e.g., LR-12234")
     invoice_keys = []
     if current_user == "Vijay":
         extracted_invoices = normalized_invoice_numbers(st.session_state.get(f"{prefix}_invoice_numbers", []))
@@ -1014,6 +1025,10 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     else:
         invoice_keys.append(f"{prefix}_invoice_number")
         v["invoice_number"] = c2.text_input("Invoice number *", key=invoice_keys[0], placeholder="e.g., INV-10595976")
+    if current_user == 'Vijay':
+        st.session_state[lr_key] = v['invoice_number']
+        c1.text_input('LR number', key=lr_key, disabled=True, help='Automatically follows the invoice number.')
+        v['lr_number'] = v['invoice_number']
     duplicate_lrs = user_lr_duplicates(normalization_rows, current_user, v["lr_number"])
     invoice_duplicates_by_key = {
         key: user_invoice_duplicates(normalization_rows, current_user, st.session_state.get(key))
@@ -1511,6 +1526,7 @@ def view_record(row):
             })
         else:
             if is_vijay_record:
+                item['LR No.'] = item['Invoice No.']
                 finance = vijay_finance_summary(
                     item["Revenue"], item["UPI"], item["Diesel"], item["Cash"], item["RTGS"],
                     toll_expense, billtee,

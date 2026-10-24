@@ -4,6 +4,7 @@ import hashlib
 from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
+from src.dtr_dates import parse_dtr_date
 
 
 def functions(extract):
@@ -14,6 +15,7 @@ def functions(extract):
     st = SimpleNamespace(session_state=state, spinner=lambda *a: nullcontext(),
                          error=lambda *a: None, warning=lambda *a: None, success=lambda *a: None)
     scope = dict(st=st, hashlib=hashlib, dt=dt, current_user='Nitish', secret=lambda name: 'test',
+                 parse_dtr_date=parse_dtr_date,
                  allowed_entry_branches=['Pune'], normalization_rows=[], PRIORITY_FIELDS=[],
                  scan_context=lambda instruction,*args:instruction,
                  recover_entry_fields=lambda result,*args:result,

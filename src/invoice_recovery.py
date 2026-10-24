@@ -2,6 +2,7 @@
 import json
 from .branch_names import canonical_branch
 from .vehicle_normalization import canonical_vehicle_number
+from .dtr_dates import parse_dtr_date
 
 PRIORITY_FIELDS = ('branch','from_location','to_location','lr_number','invoice_number','vehicle_number')
 
@@ -42,6 +43,9 @@ def recover_entry_fields(result, extractor, api_key, context, files, model, bran
         if not row.invoice_number and row.invoice_numbers:
             row.invoice_number = row.invoice_numbers[0]
     missing = [field for field in PRIORITY_FIELDS if row is None or not str(getattr(row,field,'') or '').strip()]
+    parsed_date = parse_dtr_date(row.date) if row is not None else None
+    if parsed_date is None or parsed_date.year < 2026:
+        missing.append('date')
     visual = any(str(item.get('mime_type') or '').startswith('image/') or item.get('mime_type')=='application/pdf' for item in files)
     if missing and visual:
         current = row.model_dump() if row is not None else {}
@@ -49,6 +53,10 @@ def recover_entry_fields(result, extractor, api_key, context, files, model, bran
                   '. Inspect labels, rotated text, dispatch/delivery addresses, and handwritten vehicle registration. '
                   'Keep already extracted fields unchanged. Do not copy LR to invoice or vice versa. '
                   'Do not invent unreadable values. Current extracted fields: ' + json.dumps(current,default=str))
+        prompt += ('\nRead the printed Invoice Date/Date in the invoice header, including all four year digits. '
+                   'Prefer this over product batch/manufacturing dates, delivery stamps and fiscal-year codes. '
+                   'Return ISO YYYY-MM-DD. Recheck a missing, invalid or pre-2026 date from the image; '
+                   'never replace its year merely to fit the current year. For example 22-10-2026 is 2026-10-22.')
         # Only relevant plate candidates are hints, never evidence for a route or document identifier.
         raw_vehicle = str(current.get('vehicle_number') or '')
         candidates = sorted({canonical_vehicle_number(v) for v in known_vehicles

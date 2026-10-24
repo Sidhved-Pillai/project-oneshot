@@ -248,6 +248,9 @@ transporter, and remarks. Spoken instructions may be English, Hindi, Marathi, or
 follow their meaning but preserve names and identifiers exactly. If several values are stated for different
 payment modes, keep every amount in its matching field. Return the single best combined row. Never invent
 missing values and explain unclear readings in review_notes.
+- Read date from the labelled Invoice Date/Date in the invoice header and return YYYY-MM-DD.
+  Inspect all four year digits carefully. Do not use manufacturing/batch dates in the product table,
+  fiscal-year codes, or delivery stamps as the invoice date. 22-10-2026 means 2026-10-22.
 - Revenue freight is always entered manually by the operator. Always return revenue as null, even if an
   amount appears in the evidence or spoken instruction.
 - Populate company_name only when the customer or company is explicitly identifiable in the evidence.

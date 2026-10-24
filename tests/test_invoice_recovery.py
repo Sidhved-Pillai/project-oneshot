@@ -6,7 +6,7 @@ FILES=[{'mime_type':'image/jpeg','data':b'photo','filename':'invoice.jpg'}]
 
 
 def complete(**values):
-    return UnifiedIntakeRow(**{'branch':'Pune','from_location':'Talegaon','to_location':'Mumbai',
+    return UnifiedIntakeRow(**{'date':'2026-10-22','branch':'Pune','from_location':'Talegaon','to_location':'Mumbai',
         'lr_number':'LR100','invoice_number':'GST/GST/123/26-27','vehicle_number':'MH04LE8409',**values})
 
 
@@ -31,6 +31,20 @@ def test_complete_scan_has_no_extra_request_and_fixed_login_branch_wins():
     assert result.rows[0].branch=='Wada'
     assert result.rows[0].vehicle_number=='MH04LE8409'
     assert 'please verify' in result.rows[0].review_notes
+
+
+@pytest.mark.parametrize('first_date', ['', '2016-10-22', 'unreadable'])
+def test_unreliable_invoice_date_is_reread_from_header(first_date):
+    result = UnifiedIntakeResult(rows=[complete(date=first_date)])
+    calls = []
+    def extractor(*args, **kwargs):
+        calls.append((args, kwargs))
+        return UnifiedIntakeResult(rows=[complete(date='2026-10-22')]), 'test'
+    recover_entry_fields(result, extractor, 'test', 'context', FILES, None, ['Pune'], [])
+    assert len(calls) == 1
+    assert calls[0][1]['high_detail']
+    assert 'Invoice Date' in calls[0][0][2]
+    assert result.rows[0].date == '2026-10-22'
 
 
 def test_failed_recovery_keeps_first_scan_and_never_invents_identifiers():
