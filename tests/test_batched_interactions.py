@@ -75,6 +75,18 @@ def test_vijay_uses_fixed_own_vehicle_expense_workflow():
     assert 'Transporter freight (₹)' not in labels
     assert 'Repairs & Maintenance (₹)' not in labels
     assert {'Total Expense', 'Total Advance'} <= {metric.label for metric in app.metric}
+    assert {'Transporter name', 'Beneficiary name'} <= {widget.label for widget in app.selectbox}
+    assert {'Account number', 'IFSC code'} <= {widget.label for widget in app.text_input}
+    transporter = next(widget for widget in app.selectbox if widget.label == 'Transporter name')
+    transporter.select('Altaf Khan Transport').run()
+    assert not app.exception
+    values = app.session_state['test_returned_values']
+    assert values['transporter_name'] == 'Altaf Khan Transport'
+    assert values['beneficiary_name']
+    assert values['beneficiary_account_number']
+    assert values['beneficiary_ifsc_code']
+    assert values['ownership_type'] == 'Own'
+    assert values['transporter_freight'] == 0
 
 
 def test_order_controls_remain_beside_live_records_not_in_filter_form():

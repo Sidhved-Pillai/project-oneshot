@@ -1062,7 +1062,8 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     )
     memory_prompt(prefix, f"Known setup for {v['vehicle_number']}", f"vehicle_{v['vehicle_number']}", recall(memory, "vehicles", v["vehicle_number"]), ["vehicle_capacity", "transporter_name", "ownership_type", "vehicle_placed_by"])
     memory_prompt(prefix, f"Known branch for {v['company_name']}", f"company_{v['company_name']}", recall(memory, "companies", v["company_name"]), ["branch"])
-    if own_workflow:
+    show_beneficiary = not own_workflow or current_user == "Vijay"
+    if not show_beneficiary:
         v.update({"beneficiary_name": "", "transporter_name": "", "beneficiary_account_number": "", "beneficiary_ifsc_code": ""})
     else:
         st.markdown("#### 3. Beneficiary details")
@@ -1088,7 +1089,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         beneficiary_memory = associated.get(re.sub(r"[^A-Z0-9]", "", v["beneficiary_name"].upper()), {})
         beneficiary_memory = {"beneficiary_account_number" if key == "account_number" else "beneficiary_ifsc_code" if key == "ifsc" else key: value for key, value in beneficiary_memory.items()}
         memory_prompt(prefix, f"Known beneficiary details for {v['beneficiary_name']}", f"beneficiary_{v['beneficiary_name']}", beneficiary_memory, ["beneficiary_account_number", "beneficiary_ifsc_code"])
-    st.markdown(f"#### {'3' if own_workflow else '4'}. Payment details")
+    st.markdown(f"#### {'4' if show_beneficiary else '3'}. Payment details")
     if own_workflow:
         if current_user == "Vijay":
             revenue_key = f"{prefix}_revenue"
