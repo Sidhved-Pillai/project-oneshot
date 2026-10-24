@@ -64,6 +64,19 @@ def test_payment_calculations_update_without_a_calculate_button():
     assert values['rtgs_advance'] == 1250
 
 
+def test_vijay_uses_fixed_own_vehicle_expense_workflow():
+    app = trip_app('Vijay')
+    assert not app.exception
+    ownership = next(widget for widget in app.selectbox if widget.label == 'Own or outside')
+    assert ownership.value == 'Own'
+    assert ownership.disabled
+    labels = {widget.label for widget in app.number_input}
+    assert {'UPI (₹)', 'Diesel (₹)', 'Cash (₹)', 'RTGS (₹)', 'Toll Expense (₹)', 'Billtee (₹)'} <= labels
+    assert 'Transporter freight (₹)' not in labels
+    assert 'Repairs & Maintenance (₹)' not in labels
+    assert {'Total Expense', 'Total Advance'} <= {metric.label for metric in app.metric}
+
+
 def test_order_controls_remain_beside_live_records_not_in_filter_form():
     form_source = Path('src/batched_records.py').read_text()
     assert "selectbox('Record order'" not in form_source

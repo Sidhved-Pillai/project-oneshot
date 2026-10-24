@@ -50,6 +50,7 @@ from src.member_sessions import signing_key, issue_member_session, restore_membe
 from src.branch_names import canonical_branch as normalized_branch_name
 from src.batched_records_v6 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
+from src.vijay_finance import project_vijay_records, vijay_finance_summary
 
 load_dotenv(ROOT / ".env")
 APP_LOGO = ROOT / 'assets' / 'logo-icon.png'
@@ -426,7 +427,7 @@ def apply_vijay_vehicle_profile(prefix, update_vehicle=True):
     if update_vehicle:
         st.session_state[vehicle_key] = resolved_vehicle
     st.session_state[f"{prefix}_transporter_name"] = transporter
-    st.session_state[f"{prefix}_ownership_type"] = "Outside"
+    st.session_state[f"{prefix}_ownership_type"] = "Own"
     for field, value in vijay_transporter_profile(transporter).items():
         st.session_state[f"{prefix}_{field}"] = value
 
@@ -830,18 +831,28 @@ def trip_payload(v, files, invoice_filename=None):
     repairs_maintenance = number(v.get("repairs_maintenance"))
     toll_expense = number(v.get("toll_expense"))
     transporter_freight = float(applicable_transporter_freight(v["ownership_type"], v["transporter_freight"]))
-    if v.get("simplified"):
+    if current_user == "Vijay":
+        finance = vijay_finance_summary(
+            v["revenue"], v["upi"], v["diesel_advance"], v["cash_advance"],
+            v["rtgs_advance"], toll_expense, billtee,
+        )
+        total, total_advance, balance = (
+            finance["total_expense"], finance["total_advance"], finance["profit_loss"],
+        )
+    elif v.get("simplified"):
         total = sum(payments.values()) + toll_expense + repairs_maintenance
+        total_advance = total
         balance = number(v["revenue"]) - total
     else:
         summary = advance_summary(transporter_freight, *payments.values(), billtee)
         total, balance = float(summary["total_advance"]), float(summary["balance_payable"])
+        total_advance = total
     dtr = {
         "Branch": v["branch"], "Compnay Name": company, "Date": v["date"], "Vehicle No.": vehicle_number,
         "Vehicle Type": capacity, "Own/Outside Veh.": v["ownership_type"], "From": origin,
         "To": destination, "LR No.": v["lr_number"], "Invoice No.": v["invoice_number"],
         "Revenue": v["revenue"], "Transporter Freight": transporter_freight, "RTGS ADVANCE": v["rtgs_advance"],
-        "Cash Adv.": v["cash_advance"], "UPI": v["upi"], "Diesel Adv.": v["diesel_advance"], "Billtee": billtee, "Total Adv.": total,
+        "Cash Adv.": v["cash_advance"], "UPI": v["upi"], "Diesel Adv.": v["diesel_advance"], "Billtee": billtee, "Total Adv.": total_advance,
         "Diesel Qty": number(v.get("diesel_quantity")), "Diesel Rate": number(v.get("diesel_rate")),
         "Balance Amt.": balance, "Toll Expense": toll_expense, "Repairs & Maintenance": repairs_maintenance,
         "Repair Reason": clean_text(v.get("repair_reason")), "Benificiary Name": v["beneficiary_name"],
@@ -856,10 +867,14 @@ def trip_payload(v, files, invoice_filename=None):
         "ownership_type": v["ownership_type"], "from_location": origin, "to_location": destination,
         "company_name": company, "branch": v["branch"], "invoice_number": v["invoice_number"],
         "beneficiary_name": v["beneficiary_name"], "transporter_name": transporter_name, "amount": total,
-        "payment_mode": ", ".join(name for name, amount in payments.items() if amount), "revenue": v["revenue"],
+        "payment_mode": ", ".join([
+            *(name for name, amount in payments.items() if amount),
+            *(["Toll Expense"] if toll_expense else []),
+            *(["Billtee"] if billtee else []),
+        ]), "revenue": v["revenue"],
         "transporter_freight": transporter_freight, "rtgs_advance": v["rtgs_advance"], "cash_advance": v["cash_advance"],
         "upi": v["upi"], "diesel_quantity": number(v.get("diesel_quantity")) or None,
-        "diesel_advance": v["diesel_advance"], "total_advance": total,
+        "diesel_advance": v["diesel_advance"], "total_advance": total_advance,
         "balance_amount": balance, "status": "Verified", "notes": remarks,
         "dtr_data": dtr, "rtgs_data": rtgs, **file_values(files, invoice_filename),
     }
@@ -957,6 +972,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         st.session_state[f"{prefix}_to_location"] = canonical_vijay_location(
             st.session_state.get(f"{prefix}_to_location"),
         )
+        st.session_state[f"{prefix}_ownership_type"] = "Own"
     st.markdown("#### 1. Basic information")
     c1, c2 = st.columns(2)
     branch_key = f"{prefix}_branch"
@@ -1027,21 +1043,16 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     v["has_duplicate_identifiers"] = bool(duplicate_lrs or duplicate_invoices)
     st.markdown("#### 2. Vehicle information")
     c1, c2, c3 = st.columns(3)
-    vehicle_input_kwargs = {
-        "on_change": apply_vijay_vehicle_profile, "args": (prefix,),
-    } if current_user == "Vijay" else {}
     v["vehicle_number"] = c1.text_input(
         "Vehicle number *", key=f"{prefix}_vehicle_number", placeholder="e.g., MH14JL9818",
-        **vehicle_input_kwargs,
     )
-    if current_user == "Vijay":
-        # The vehicle widget is already instantiated here; its value was
-        # resolved before rendering, so only apply dependent fields.
-        apply_vijay_vehicle_profile(prefix, update_vehicle=False)
     v["vehicle_capacity"] = c2.text_input("Vehicle capacity", key=f"{prefix}_vehicle_capacity", placeholder="e.g., 20MT")
     choices = ["", "Own", "Outside"]
     current = st.session_state.get(f"{prefix}_ownership_type", "")
-    v["ownership_type"] = c3.selectbox("Own or outside", choices, index=choices.index(current) if current in choices else 0, key=f"{prefix}_ownership_type")
+    v["ownership_type"] = c3.selectbox(
+        "Own or outside", choices, index=choices.index(current) if current in choices else 0,
+        key=f"{prefix}_ownership_type", disabled=current_user == "Vijay",
+    )
     own_workflow = simplified or is_own_vehicle(v["ownership_type"])
     v["simplified"] = own_workflow
     placer_key = f"{prefix}_vehicle_placed_by"
@@ -1081,12 +1092,11 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     if own_workflow:
         if current_user == "Vijay":
             revenue_key = f"{prefix}_revenue"
-            if vijay_transporter_freight(st.session_state.get(revenue_key)) is None:
+            if st.session_state.get(revenue_key) not in (None, *VIJAY_FREIGHT_RATES):
                 st.session_state[revenue_key] = None
             v["revenue"] = st.selectbox(
                 "Revenue freight (₹)", [None, *VIJAY_FREIGHT_RATES], key=revenue_key,
                 format_func=lambda value: "Select revenue freight" if value is None else format_inr(value, 0),
-                on_change=apply_vijay_freight_rate, args=(prefix,),
             )
         else:
             v["revenue"] = st.number_input("Revenue freight (₹)", min_value=0.0, value=None, placeholder="e.g., 50,000", key=f"{prefix}_revenue")
@@ -1111,8 +1121,20 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         v["transporter_freight"] = c2.number_input("Transporter freight (₹)", min_value=0.0, value=None, placeholder="Not applicable for own vehicles" if own_vehicle else "e.g., 38,000", disabled=own_vehicle or current_user == "Vijay", key=transporter_freight_key)
         if own_vehicle:
             c2.caption("Not applicable for an own vehicle.")
-    st.caption("Enter amounts in every payment mode used. Repairs and maintenance are deducted from Profit / Loss." if own_workflow else "Enter amounts in every payment mode used. Billtee is also deducted before calculating the balance payable.")
-    if simplified:
+    st.caption("Enter amounts in every payment mode used. Each amount is included in the Profit / Loss calculation." if current_user == "Vijay" else "Enter amounts in every payment mode used. Repairs and maintenance are deducted from Profit / Loss." if own_workflow else "Enter amounts in every payment mode used. Billtee is also deducted before calculating the balance payable.")
+    if current_user == "Vijay":
+        payment_columns = st.columns(6)
+        vijay_fields = [
+            ("UPI", "upi"), ("Diesel", "diesel_advance"), ("Cash", "cash_advance"),
+            ("RTGS", "rtgs_advance"), ("Toll Expense", "toll_expense"), ("Billtee", "billtee"),
+        ]
+        for col, (label, field) in zip(payment_columns, vijay_fields):
+            v[field] = col.number_input(
+                f"{label} (₹)", min_value=0.0, value=None,
+                placeholder="e.g., 2,000", key=f"{prefix}_{field}",
+            )
+        v["repairs_maintenance"], v["repair_reason"] = 0.0, ""
+    elif simplified:
         deduction_columns = st.columns(6)
         v["upi"] = deduction_columns[0].number_input(
             "Route Expense (UPI) (₹)", min_value=0.0, value=None,
@@ -1170,22 +1192,38 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         v["card_name"] = card_col.text_input("Card Name", key=f"{prefix}_card_name", placeholder="e.g., HPCL DriveTrack")
     else:
         v["diesel_pump_name"], v["card_name"] = "", ""
-    if own_workflow:
+    if current_user == "Vijay":
+        finance = vijay_finance_summary(
+            v["revenue"], v["upi"], v["diesel_advance"], v["cash_advance"],
+            v["rtgs_advance"], v["toll_expense"], v["billtee"],
+        )
+        total, total_advance, balance = (
+            finance["total_expense"], finance["total_advance"], finance["profit_loss"],
+        )
+    elif own_workflow:
         total = sum(number(v[field]) for field in PAYMENT_FIELDS.values()) + number(v["toll_expense"]) + number(v["repairs_maintenance"])
+        total_advance = total
         balance = number(v["revenue"]) - total
     else:
         payment = advance_summary(v["transporter_freight"], *(v[f] for f in PAYMENT_FIELDS.values()), v["billtee"])
         total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
-    summary = st.columns(2 if own_workflow else 3)
+        total_advance = total
+    summary = st.columns(3 if current_user == "Vijay" or not own_workflow else 2)
     metric_offset = 0
     if not own_workflow:
         summary[0].metric("Transporter freight", format_inr(number(v["transporter_freight"])))
         metric_offset = 1
-    summary[metric_offset].metric("Total expense" if own_workflow else "Total advance", format_inr(total))
-    if own_workflow:
+    if current_user == "Vijay":
+        summary[0].metric("Total Expense", format_inr(total))
+        summary[1].metric("Total Advance", format_inr(total_advance))
+        loss_class = " negative" if balance < 0 else ""
+        summary[2].markdown(f'<div class="profit-loss-card{loss_class}"><span>Profit / Loss</span><strong>{format_inr(balance)}</strong></div>', unsafe_allow_html=True)
+    else:
+        summary[metric_offset].metric("Total expense" if own_workflow else "Total advance", format_inr(total))
+    if own_workflow and current_user != "Vijay":
         loss_class = " negative" if balance < 0 else ""
         summary[metric_offset + 1].markdown(f'<div class="profit-loss-card{loss_class}"><span>Profit / Loss</span><strong>{format_inr(balance)}</strong></div>', unsafe_allow_html=True)
-    else:
+    elif not own_workflow:
         summary[metric_offset + 1].metric("Balance payable", format_inr(balance), help="Transporter freight minus RTGS, Cash, UPI, Diesel and Billtee deductions. A negative amount indicates an overpayment.")
     if balance < 0 and not own_workflow:
         st.warning(f"Advance exceeds transporter freight by {format_inr(abs(balance))}. Please review the payment amounts.")
@@ -1214,6 +1252,7 @@ normalization_rows, balance_requests, upi_requests, dashboard_logs = store.dashb
     include_payments=current_user in BALANCE_PAYMENT_USERS or current_user in SPECIAL_MEMBERS,
     include_logs=current_user in SPECIAL_MEMBERS,
 )
+normalization_rows = project_vijay_records(normalization_rows)
 historical_business_memory = cached_business_memory(normalization_rows)
 business_memory = historical_business_memory
 if current_user == "Ashok":
@@ -1309,6 +1348,7 @@ def view_record(row):
     evidence = st.session_state.get("evidence_record") or {}
     raw, is_expense = unpack(row.get("dtr_data")), row.get("report_scope") == "Expense"
     is_manish_expense = clean_text(row.get("created_by")) == "Manish" and is_expense
+    is_vijay_record = clean_text(row.get("created_by")) == "Vijay" and not is_expense
     is_own_record = is_own_vehicle(row.get("ownership_type")) and not is_expense
     rtgs_raw = unpack(row.get("rtgs_data"))
     display = {
@@ -1347,12 +1387,16 @@ def view_record(row):
                 "Cardholders Name": raw.get("Cardholders Name", ""),
             })
     if is_own_record:
-        display.pop("Billtee", None)
         display.update({
             "Toll Expense": number(raw.get("Toll Expense")),
-            "Repairs & Maintenance": number(raw.get("Repairs & Maintenance")),
-            "Reason": raw.get("Repair Reason", ""), "Profit / Loss": number(row.get("balance_amount")),
+            "Profit / Loss": number(row.get("balance_amount")),
         })
+        if not is_vijay_record:
+            display.pop("Billtee", None)
+            display.update({
+                "Repairs & Maintenance": number(raw.get("Repairs & Maintenance")),
+                "Reason": raw.get("Repair Reason", ""),
+            })
     locked_columns = ["Type", "Branch"] if record_branch_scope else ["Type"]
     if is_own_record:
         locked_columns.append("Profit / Loss")
@@ -1465,12 +1509,22 @@ def view_record(row):
                 },
             })
         else:
-            if is_own_record:
+            if is_vijay_record:
+                finance = vijay_finance_summary(
+                    item["Revenue"], item["UPI"], item["Diesel"], item["Cash"], item["RTGS"],
+                    toll_expense, billtee,
+                )
+                total, total_advance, balance = (
+                    finance["total_expense"], finance["total_advance"], finance["profit_loss"],
+                )
+            elif is_own_record:
                 total = sum(number(item[name]) for name in ("RTGS", "Cash", "UPI", "Diesel")) + toll_expense + repairs_maintenance
+                total_advance = total
                 balance = number(item["Revenue"]) - total
             else:
                 payment = advance_summary(transporter_freight, *(item[name] for name in ("RTGS", "Cash", "UPI", "Diesel")), billtee)
                 total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
+                total_advance = total
             normalized_company = canonical_company(item["Company"], KNOWN_COMPANIES)
             normalized_from = canonical_location(item["From"], KNOWN_LOCATIONS)
             normalized_to = canonical_location(item["To"], KNOWN_LOCATIONS)
@@ -1485,7 +1539,7 @@ def view_record(row):
                 "LR No.": item["LR No."], "Invoice No.": item["Invoice No."], "Revenue": item["Revenue"],
                 "Transporter Freight": transporter_freight, "RTGS ADVANCE": item["RTGS"], "Cash Adv.": item["Cash"],
                 "UPI": item["UPI"], "Diesel Adv.": item["Diesel"], "Diesel Pump Name": clean_text(item["Add Pumps"]),
-                "Card Name": clean_text(item["Card Name"]), "Billtee": billtee, "Total Adv.": total,
+                "Card Name": clean_text(item["Card Name"]), "Billtee": billtee, "Total Adv.": total_advance,
                 "Balance Amt.": balance, "Toll Expense": toll_expense, "Repairs & Maintenance": repairs_maintenance,
                 "Repair Reason": clean_text(item.get("Reason")), "Benificiary Name": item["Beneficiary"],
                 "Transporter Name": canonical_transporter_name(item["Transporter Name"], row.get("created_by")),
@@ -1500,9 +1554,13 @@ def view_record(row):
                 "Origin Area": item["Branch"],
             }
             update_values.update({
-                "amount": total, "total_advance": total, "balance_amount": balance,
+                "amount": total, "total_advance": total_advance, "balance_amount": balance,
                 "payment_mode": ", ".join(
-                    name for name in ("RTGS", "Cash", "UPI", "Diesel") if number(item.get(name))
+                    [
+                        *(name for name in ("RTGS", "Cash", "UPI", "Diesel") if number(item.get(name))),
+                        *(["Toll Expense"] if toll_expense else []),
+                        *(["Billtee"] if billtee else []),
+                    ]
                 ),
                 "dtr_data": updated_dtr, "rtgs_data": updated_rtgs,
             })
@@ -1573,7 +1631,7 @@ if hidden_tabs:
         for index in hidden_tabs
     )
     st.markdown(f"<style>{hidden_tab_css}</style>", unsafe_allow_html=True)
-new_tab, expense_tab, records_tab, reports_tab, logs_tab = st.tabs(["Review DTR" if current_user == "Shyam" else "New Entry", "Direct Expenses", "Records", "Generate Reports", "Logs"])
+new_tab, expense_tab, records_tab, reports_tab, logs_tab = st.tabs(["New Entry", "Direct Expenses", "Records", "Generate Reports", "Logs"])
 
 def finish_trip_save(payload, generation):
     if not clean_text(payload.get('invoice_number')):
@@ -1608,9 +1666,7 @@ def confirm_trip_month(payload, generation):
 
 @st.fragment
 def render_new_entry():
-    if current_user == "Shyam":
-        render_dtr_review(normalization_rows)
-    else:
+    if True:
         page_intro("Smart capture", "New trip entry", "Add evidence once, review the details, and keep every report in sync.", "✦")
         workflow_steps(["Add evidence", "Review details", "Save and add another"], 0)
         if saved_entry_notice:
