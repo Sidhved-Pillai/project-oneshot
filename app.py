@@ -2042,28 +2042,30 @@ with records_tab:
                 action_names.append('received')
             if has_delete_column:
                 action_names.append('delete')
-            record_widths = [1.35, .8, .9, 1.1, 1.15, 1, *([.43] * len(action_names))]
+            record_widths = [.75, 1.1, .8, .9, 1.1, 1.15, 1, *([.43] * len(action_names))]
             has_trip_rows = any(clean_text(row.get("report_scope")).casefold() != "expense" for row in visible_rows)
             has_expense_rows = any(clean_text(row.get("report_scope")).casefold() == "expense" for row in visible_rows)
             value_title = "Revenue / Amount" if has_trip_rows and has_expense_rows else ("Amount" if has_expense_rows else "Revenue")
-            record_titles = ("Record", "Date", "Branch", "Vehicle", "Placed by", value_title, *([''] * len(action_names)))
+            record_titles = ("Record", "LR No.", "Date", "Branch", "Vehicle", "Placed by", value_title, *([''] * len(action_names)))
             header = st.columns(record_widths)
             for column, title in zip(header, record_titles):
                 column.markdown(f"**{title}**")
             if record_type == DIRECT_EXPENSES and current_user in EXPENSE_RECORD_SUMMARY_USERS:
-                header[5].caption(f"Total Figure = {format_inr(sum(number(row.get('amount')) for row in rows))}")
+                header[6].caption(f"Total Figure = {format_inr(sum(number(row.get('amount')) for row in rows))}")
             for record in visible_rows:
                 raw = unpack(record.get("dtr_data"))
                 columns = st.columns(record_widths, vertical_alignment="center")
-                actions = dict(zip(action_names, columns[6:]))
-                columns[0].write(request_label(record))
-                columns[1].write(f"{as_date(record.get('trip_date')):%d/%m/%y}")
-                columns[2].write(canonical_branch(record.get("branch")) or "—")
-                columns[3].write(canonical_vehicle_number(record.get("vehicle_number")) or "—")
-                columns[4].write(canonical_vehicle_placer(raw.get("Veh Placed by")) or "—")
+                actions = dict(zip(action_names, columns[7:]))
+                record_suffix = clean_text(record.get('request_number')).split('-')[-1].lstrip('0') or '1'
+                columns[0].write(f"Req- {record_suffix}")
+                columns[1].write(clean_text(raw.get('LR No.')) or "—")
+                columns[2].write(f"{as_date(record.get('trip_date')):%d/%m/%y}")
+                columns[3].write(canonical_branch(record.get("branch")) or "—")
+                columns[4].write(canonical_vehicle_number(record.get("vehicle_number")) or "—")
+                columns[5].write(canonical_vehicle_placer(raw.get("Veh Placed by")) or "—")
                 is_expense_record = clean_text(record.get("report_scope")).casefold() == "expense"
                 displayed_value = record.get("amount") if is_expense_record else record.get("revenue")
-                columns[5].write(format_inr(number(displayed_value), 0))
+                columns[6].write(format_inr(number(displayed_value), 0))
                 if actions['edit'].button("", icon=":material/edit:", help="Edit record / View invoice evidence", key=f"view_record_{record['request_number']}", use_container_width=True):
                     view_record(record)
                 if can_send_balance(current_user, record):
