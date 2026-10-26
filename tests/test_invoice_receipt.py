@@ -8,6 +8,22 @@ from src.records_store_v18 import RequestStore
 from src.invoice_viewer import invoice_viewer_html
 
 
+def test_receipt_batch_commits_together_and_rolls_back_on_invalid_trip(tmp_path):
+    store = RequestStore(f"sqlite:///{tmp_path / 'batch.db'}")
+    first = store.create({'created_by':'Ashok', 'vehicle_number':'TEST1', 'trip_date':dt.date(2026,10,26), 'dtr_data':{'LR Status':'Pending'}})
+    second = store.create({'created_by':'Vijay', 'vehicle_number':'TEST2', 'trip_date':dt.date(2026,10,26), 'dtr_data':{'LR Status':'Pending'}})
+    with pytest.raises(ValueError):
+        store.mark_invoice_receipts({first:True, 'ZZZ-missing':True}, 'Shyam')
+    assert json.loads(store.get(first)['dtr_data'])['LR Status'] == 'Pending'
+    with pytest.raises(ValueError, match='Only Shyam'):
+        store.mark_invoice_receipts({first:True}, 'Ajit')
+    assert store.mark_invoice_receipts({first:True, second:True}, 'Shyam') == 2
+    assert json.loads(store.get(first)['dtr_data'])['LR Status'] == 'Received'
+    assert json.loads(store.get(second)['dtr_data'])['LR Status'] == 'Received'
+    assert store.mark_invoice_receipts({first:False, second:True}, 'Shyam') == 1
+    assert json.loads(store.get(first)['dtr_data'])['LR Status'] == 'Pending'
+
+
 def test_receipt_preserves_trip_and_bank_data_and_first_received_date(tmp_path):
     store = RequestStore(f"sqlite:///{tmp_path / 'receipt.db'}")
     number = store.create({'created_by':'Ashok','branch':'Vadodara','trip_date':dt.date(2026,9,1),'vehicle_number':'MH1234',

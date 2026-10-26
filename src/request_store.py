@@ -450,12 +450,21 @@ class RequestStore:
                 request_number=request_number, details=f'UPI RTGS requested: {amount}'))
         return True
 
-    def mark_invoice_received(self, request_number, user, received=True):
+    def mark_invoice_receipts(self, changes, user):
+        """Save a receipt batch in one transaction, including its audit history."""
+        if user != 'Shyam':
+            raise ValueError('Only Shyam can acknowledge invoice hard copies.')
+        with self.engine.begin() as conn:
+            return sum(self.mark_invoice_received(key, user, received=value, _conn=conn)
+                       for key, value in sorted(changes.items()))
+
+    def mark_invoice_received(self, request_number, user, received=True, _conn=None):
         """Set the desired receipt state atomically, preserving pre-receipt LR fields."""
         if user != 'Shyam':
             raise ValueError('Only Shyam can acknowledge invoice hard copies.')
         from zoneinfo import ZoneInfo
-        with self.engine.begin() as conn:
+        from contextlib import nullcontext
+        with (nullcontext(_conn) if _conn is not None else self.engine.begin()) as conn:
             row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
                 requests.c.request_number == request_number).with_for_update()).mappings().first()
             if not row or row.get('report_scope') == 'Expense' or row.get('is_archived') or row.get('status') == 'Cancelled':

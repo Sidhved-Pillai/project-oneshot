@@ -36,7 +36,7 @@ from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report_v3 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
-from src.records_store_v18 import RequestStore
+from src.records_store_v19 import RequestStore
 from src.invoice_viewer import invoice_viewer_html
 from src.duplicate_review import duplicate_review_frame, selected_duplicate_numbers
 from src.expense_autofill import expense_identity_inputs
@@ -60,7 +60,7 @@ st.markdown(
     '[data-testid="stDecoration"], #MainMenu {display:none !important;}</style>',
     unsafe_allow_html=True,
 )
-STORE_INTERFACE_VERSION = 18
+STORE_INTERFACE_VERSION = 19
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Debit"]
@@ -1630,6 +1630,12 @@ div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);b
 [class*="st-key-upi_"] button{background:#ffd324!important;color:#242424!important;border:0!important}
 [class*="st-key-received_"] button{background:white!important;color:#13a957!important;border:2px solid #13a957!important}
 [class*="st-key-received_done_"] button{background:#13a957!important;color:white!important}
+[class*="st-key-receipt_draft_"] label{position:relative;display:flex!important;align-items:center;justify-content:center;width:38px;height:38px;border:2px solid #13a957;border-radius:50%;background:white;cursor:pointer}
+[class*="st-key-receipt_draft_"] label>span{position:absolute!important;inset:0!important;opacity:0!important;width:100%!important;height:100%!important}
+[class*="st-key-receipt_draft_"] label p{margin:0!important;color:#13a957;font-size:25px!important;font-weight:800}
+[class*="st-key-receipt_draft_"] label:has(input:checked){background:#13a957}
+[class*="st-key-receipt_draft_"] label:has(input:checked) p{color:white}
+[class*="st-key-receipt_draft_"] label:focus-within{outline:2px solid #0071e3;outline-offset:2px}
 [class*="st-key-balance_"] button:disabled,[class*="st-key-upi_"] button:disabled{opacity:.45!important}
 [class*="st-key-received_"] button:disabled{opacity:.65!important}
 </style>
@@ -1881,6 +1887,36 @@ def render_direct_expenses():
 with expense_tab:
     render_direct_expenses()
 
+@st.fragment
+def stage_invoice_receipt(request_number, saved_received):
+    if current_user != 'Shyam':
+        return
+    pending = st.session_state.setdefault('shyam_pending_receipts', {})
+    key = f'receipt_draft_{request_number}'
+    st.session_state.setdefault(key, pending.get(request_number, saved_received))
+    marked = st.checkbox('✓', key=key, help='Stage LR receipt · Save using Mark as Invoice Received below')
+    if marked == saved_received:
+        pending.pop(request_number, None)
+    else:
+        pending[request_number] = marked
+
+
+def save_invoice_receipt_batch():
+    if current_user != 'Shyam':
+        return
+    pending = dict(st.session_state.get('shyam_pending_receipts', {}))
+    if not pending:
+        st.session_state['receipt_batch_notice'] = 'No receipt changes to save.'
+        return
+    try:
+        store.mark_invoice_receipts(pending, current_user)
+    except ValueError as exc:
+        st.session_state['receipt_batch_error'] = str(exc)
+    else:
+        st.session_state['shyam_pending_receipts'] = {}
+        st.session_state['receipt_batch_notice'] = f'Saved {len(pending)} invoice receipt change(s).'
+
+
 with records_tab:
     page_intro("", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
     all_record_rows = list(normalization_rows)
@@ -2103,17 +2139,18 @@ with records_tab:
                 can_delete_visible_record = current_user == "Ajit" or can_delete_record(current_user, record)
                 if current_user == 'Shyam' and not is_expense_record:
                     received = raw.get('_hard_copy_received_by') == 'Shyam'
-                    if actions['received'].button('', icon=':material/check:',
-                        key=f"received_{'done_' if received else ''}{record['request_number']}",
-                        help=f"LR received · {raw.get('Received Date', '')} · Click to undo" if received else 'Mark LR hard copy received', use_container_width=True):
-                        try:
-                            store.mark_invoice_received(record['request_number'], current_user, received=not received)
-                        except ValueError as exc:
-                            st.error(str(exc))
-                        else:
-                            st.rerun()
+                    with actions['received']:
+                        stage_invoice_receipt(record['request_number'], received)
                 if can_delete_visible_record and actions['delete'].button("Delete", icon=":material/delete:", key=f"delete_record_{record['request_number']}", help="Delete record", use_container_width=True):
                     confirm_record_delete(record)
+        if current_user == 'Shyam':
+            st.caption('Ticks are staged until saved. Click a tick again to undo your selection.')
+            st.button('Mark as Invoice Received', type='primary', key='save_invoice_receipt_batch',
+                      on_click=save_invoice_receipt_batch)
+            if notice := st.session_state.pop('receipt_batch_notice', None):
+                st.success(notice)
+            if error := st.session_state.pop('receipt_batch_error', None):
+                st.error(error)
         if current_user == "Sid":
             duplicate_rows = duplicate_records(scoped_rows)
             duplicate_by_number = {row['request_number']: row for row in duplicate_rows}

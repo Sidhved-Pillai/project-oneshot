@@ -25,6 +25,6 @@ def test_duplicate_grid_only_edits_selection_and_shyam_has_no_cross_icon():
     assert "disabled=[col for col in duplicate_frame if col != 'Select']" in source
     assert 'records_duplicate_grid_' in source
     assert 'records_delete_selection_' not in source
-    assert "actions['received'].button('', icon=':material/check:'" in source
+    assert "stage_invoice_receipt(record['request_number'], received)" in source
     assert "received_undo_" not in source
     assert 'st-key-received_done_' in source
