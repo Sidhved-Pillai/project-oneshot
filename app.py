@@ -1630,12 +1630,14 @@ div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);b
 [class*="st-key-upi_"] button{background:#ffd324!important;color:#242424!important;border:0!important}
 [class*="st-key-received_"] button{background:white!important;color:#13a957!important;border:2px solid #13a957!important}
 [class*="st-key-received_done_"] button{background:#13a957!important;color:white!important}
-[class*="st-key-receipt_draft_"] label{position:relative;display:flex!important;align-items:center;justify-content:center;width:38px;height:38px;border:2px solid #13a957;border-radius:50%;background:white;cursor:pointer}
-[class*="st-key-receipt_draft_"] label>span{position:absolute!important;inset:0!important;opacity:0!important;width:100%!important;height:100%!important}
-[class*="st-key-receipt_draft_"] label p{margin:0!important;color:#13a957;font-size:25px!important;font-weight:800}
-[class*="st-key-receipt_draft_"] label:has(input:checked){background:#13a957}
-[class*="st-key-receipt_draft_"] label:has(input:checked) p{color:white}
-[class*="st-key-receipt_draft_"] label:focus-within{outline:2px solid #0071e3;outline-offset:2px}
+[class*="st-key-receipt_draft_"]{min-width:38px!important;width:38px!important}
+[class*="st-key-receipt_draft_"] label[data-baseweb="checkbox"]{position:relative;display:flex!important;align-items:center;justify-content:center;box-sizing:border-box;width:38px!important;height:38px!important;min-height:38px!important;margin:0!important;padding:0!important;border:2px solid #13a957;border-radius:50%;background:white;cursor:pointer}
+[class*="st-key-receipt_draft_"] label[data-baseweb="checkbox"]>span{opacity:0!important;margin:0!important;width:0!important;min-width:0!important}
+[class*="st-key-receipt_draft_"] label[data-baseweb="checkbox"] [data-testid="stMarkdownContainer"]{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:0!important;margin:0!important;pointer-events:none}
+[class*="st-key-receipt_draft_"] label[data-baseweb="checkbox"] p{margin:0!important;color:#13a957;font-size:25px!important;font-weight:800;line-height:1!important}
+[class*="st-key-receipt_draft_"] label[data-baseweb="checkbox"]:has(input:checked){background:#13a957}
+[class*="st-key-receipt_draft_"] label[data-baseweb="checkbox"]:has(input:checked) p{color:white}
+[class*="st-key-receipt_draft_"] label[data-baseweb="checkbox"]:focus-within{outline:2px solid #0071e3;outline-offset:2px}
 [class*="st-key-balance_"] button:disabled,[class*="st-key-upi_"] button:disabled{opacity:.45!important}
 [class*="st-key-received_"] button:disabled{opacity:.65!important}
 </style>
@@ -1894,7 +1896,7 @@ def stage_invoice_receipt(request_number, saved_received):
     pending = st.session_state.setdefault('shyam_pending_receipts', {})
     key = f'receipt_draft_{request_number}'
     st.session_state.setdefault(key, pending.get(request_number, saved_received))
-    marked = st.checkbox('✓', key=key, help='Stage LR receipt · Save using Mark as Invoice Received below')
+    marked = st.checkbox('✓', key=key)
     if marked == saved_received:
         pending.pop(request_number, None)
     else:
