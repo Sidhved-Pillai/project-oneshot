@@ -1,5 +1,6 @@
 from io import BytesIO
 import json
+from decimal import Decimal, ROUND_HALF_UP
 from collections import Counter, defaultdict
 
 import pandas as pd
@@ -141,7 +142,7 @@ def _dominant(values, fallback="Not specified"):
     return Counter(cleaned).most_common(1)[0][0] if cleaned else fallback
 
 
-def branch_pnl_summary(trip_rows, expense_rows):
+def branch_pnl_summary(trip_rows, expense_rows, distribute_interest=True):
     """Build the horizontal, branch-wise P&L used by the Both report."""
     vehicle_branches = defaultdict(Counter)
     for row in trip_rows:
@@ -164,6 +165,20 @@ def branch_pnl_summary(trip_rows, expense_rows):
         branch = canonical_branch(row.get("branch")) or "Not specified"
         trips_by_branch[branch].append(row)
     branches = sorted(set(trips_by_branch) | set(expenses_by_branch), key=str.casefold)
+    interest_shares = None
+    if distribute_interest:
+        interest = sum((Decimal(str(_amount(row.get("categories", {}), "Interest")))
+                        for row in expense_rows), Decimal("0"))
+        if interest:
+            allocation_branches = ("Andheri", "Pune", "Vadodara", "Wada")
+            # Allocate in paise so rounded branch figures always equal the total.
+            paise = int((interest * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+            share, remainder = divmod(paise, len(allocation_branches))
+            interest_shares = {
+                branch: (share + (index < remainder)) / 100
+                for index, branch in enumerate(allocation_branches)
+            }
+            branches = sorted(set(branches) | set(allocation_branches), key=str.casefold)
 
     rows = []
     for branch in branches:
@@ -204,7 +219,7 @@ def branch_pnl_summary(trip_rows, expense_rows):
             "Toll": toll,
             "Driver's Salary": categories["Driver's salary"],
             "Diesel": diesel,
-            "Interest": categories["Interest"],
+            "Interest": interest_shares.get(branch, 0.0) if interest_shares is not None else categories["Interest"],
         }
         row["Expense"] = sum(row[column] for column in BRANCH_PNL_COLUMNS[4:-2])
         row["Profit"] = row["Total Revenue"] - row["Expense"]
@@ -358,7 +373,7 @@ def vehicle_number_pnl_summary(trip_rows, expense_rows):
             {**row, "branch": branch, "ownership_type": ownership}
             for row in vehicle_expenses
         ]
-        branch_rows = branch_pnl_summary(normalized_trips, normalized_expenses)
+        branch_rows = branch_pnl_summary(normalized_trips, normalized_expenses, distribute_interest=False)
         totals = next((row for row in reversed(branch_rows) if row.get("Branch") == "Total"), {})
         rows.append({
             "Vehicle No.": vehicle,
