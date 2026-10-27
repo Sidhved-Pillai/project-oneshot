@@ -1,5 +1,6 @@
 from io import BytesIO
 import json
+import math
 from decimal import Decimal, ROUND_HALF_UP
 from collections import Counter, defaultdict
 
@@ -38,8 +39,8 @@ def _rounded_money_rows(rows):
 
 
 def pnl_summary(trip_rows, expense_rows):
-    revenue = sum(float(row.get("revenue") or 0) for row in trip_rows)
-    transporter = sum(float(row.get("transporter_freight") or 0) for row in trip_rows)
+    revenue = sum(_amount(row, "revenue") for row in trip_rows)
+    transporter = sum(_amount(row, "transporter_freight") for row in trip_rows)
     branches = sorted({canonical_branch(row.get("branch")) for row in trip_rows} - {""}, key=str.casefold)
     toll = sum(_amount(row.get("dtr_data", {}), "Toll Expense") for row in trip_rows)
     diesel = sum(_amount(row, "diesel_advance") for row in trip_rows)
@@ -48,7 +49,7 @@ def pnl_summary(trip_rows, expense_rows):
     for row in expense_rows:
         for name, value in row.get("categories", {}).items():
             if name in categories:
-                categories[name] += float(value or 0)
+                categories[name] += _amount({name: value}, name)
     direct_total = sum(categories.values())
     gross = revenue - transporter
     rows = [
@@ -77,7 +78,8 @@ def _amount(row, field):
     if not isinstance(row, dict):
         row = {}
     try:
-        return float(row.get(field) or 0)
+        value = float(row.get(field) or 0)
+        return value if math.isfinite(value) else 0.0
     except (TypeError, ValueError):
         return 0.0
 
@@ -221,8 +223,10 @@ def branch_pnl_summary(trip_rows, expense_rows, distribute_interest=True):
             "Diesel": diesel,
             "Interest": interest_shares.get(branch, 0.0) if interest_shares is not None else categories["Interest"],
         }
-        row["Expense"] = sum(row[column] for column in BRANCH_PNL_COLUMNS[4:-2])
-        row["Profit"] = row["Total Revenue"] - row["Expense"]
+        row = _rounded_money_rows([row])[0]
+        row["Total Revenue"] = round(row["Revenue-Own"] + row["Revenue OS"], 2)
+        row["Expense"] = round(math.fsum(row[column] for column in BRANCH_PNL_COLUMNS[4:-2]), 2)
+        row["Profit"] = round(row["Total Revenue"] - row["Expense"], 2)
         rows.append(row)
 
     total = {"Branch": "Total"}
