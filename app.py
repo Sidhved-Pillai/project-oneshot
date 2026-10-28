@@ -51,7 +51,7 @@ from src.branch_names import canonical_branch as normalized_branch_name
 from src.batched_records_v6 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
 from src.vijay_finance import project_vijay_records, vijay_finance_summary
-from src.shyam_record_form import record_form
+from src.record_form_v2 import record_form
 from src.dialog_close import close_active_dialog
 
 load_dotenv(ROOT / ".env")
@@ -1382,10 +1382,6 @@ def view_record(row):
         st.error("You are not authorized to view this record.")
         return
     request_number = row["request_number"]
-    if st.session_state.get("evidence_request_number") != request_number:
-        st.session_state["evidence_request_number"] = request_number
-        st.session_state["evidence_record"] = store.get_evidence(request_number)
-    evidence = st.session_state.get("evidence_record") or {}
     raw, is_expense = unpack(row.get("dtr_data")), row.get("report_scope") == "Expense"
     is_manish_expense = clean_text(row.get("created_by")) == "Manish" and is_expense
     is_vijay_record = clean_text(row.get("created_by")) == "Vijay" and not is_expense
@@ -1441,7 +1437,8 @@ def view_record(row):
     if is_own_record:
         locked_columns.append("Profit / Loss")
     edited_item, replacement_evidence, save_clicked = record_form(
-        display, evidence, request_number, locked_columns, BRANCHES)
+        display, {}, request_number, locked_columns, BRANCHES,
+        load_evidence=lambda: store.get_evidence(request_number))
     replace_evidence_key = f"replace_record_evidence_{request_number}"
     repair_reason_missing = is_own_record and number(edited_item.get("Repairs & Maintenance")) > 0 and not clean_text(edited_item.get("Reason"))
     if repair_reason_missing:

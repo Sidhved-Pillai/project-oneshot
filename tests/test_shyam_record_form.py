@@ -1,6 +1,22 @@
 from streamlit.testing.v1 import AppTest
 
 
+def test_invoice_is_loaded_only_after_view_invoice_click():
+    app = AppTest.from_string('''
+import streamlit as st
+from src.shyam_record_form import record_form
+def load():
+    st.session_state['evidence_reads'] = st.session_state.get('evidence_reads', 0) + 1
+    return {}
+record_form({'Beneficiary':'Example','Remarks':''}, {}, 'LAZY-1', [], ['Pune'], load_evidence=load)
+''').run()
+    assert not app.exception
+    assert 'evidence_reads' not in app.session_state
+    next(widget for widget in app.button if widget.label == 'View Invoice').click().run()
+    assert not app.exception
+    assert app.session_state['evidence_reads'] == 1
+
+
 def test_shyam_form_batches_edits_and_preserves_bank_identifiers():
     app = AppTest.from_string('''
 import datetime as dt
