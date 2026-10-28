@@ -1559,8 +1559,9 @@ def view_record(row):
                 ),
                 "dtr_data": updated_dtr, "rtgs_data": updated_rtgs,
             })
-        store.update(row["request_number"], update_values, "records_tab", current_user)
-        audit_action("Updated record", row["request_number"], request_label(row))
+        with st.spinner('Saving record changes…'):
+            store.update(row["request_number"], update_values, "records_tab", current_user)
+            audit_action("Updated record", row["request_number"], request_label(row))
         st.session_state.pop(replace_evidence_key, None)
         st.session_state.pop("evidence_request_number", None)
         st.session_state.pop("evidence_record", None)
@@ -1868,6 +1869,14 @@ with expense_tab:
     render_direct_expenses()
 
 @st.fragment
+def record_edit_control(record):
+    # Open the dialog without rebuilding every tab, report, and database snapshot.
+    if st.button('', icon=':material/edit:', help='Edit record / View invoice evidence',
+                 key=f"view_record_{record['request_number']}", use_container_width=True):
+        view_record(record)
+
+
+@st.fragment
 def stage_invoice_receipt(request_number, saved_received):
     if current_user != 'Shyam':
         return
@@ -2089,8 +2098,8 @@ with records_tab:
                 is_expense_record = clean_text(record.get("report_scope")).casefold() == "expense"
                 displayed_value = record.get("amount") if is_expense_record else record.get("revenue")
                 columns[6 + detail_offset].write(format_inr(number(displayed_value), 0))
-                if actions['edit'].button("", icon=":material/edit:", help="Edit record / View invoice evidence", key=f"view_record_{record['request_number']}", use_container_width=True):
-                    view_record(record)
+                with actions['edit']:
+                    record_edit_control(record)
                 if can_send_balance(current_user, record):
                     already_sent = record["request_number"] in balance_requests
                     if actions['balance'].button(
