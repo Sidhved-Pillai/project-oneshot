@@ -52,7 +52,7 @@ from src.batched_records_v6 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
 from src.vijay_finance import project_vijay_records, vijay_finance_summary
 from src.record_form_v2 import record_form
-from src.dialog_close import close_active_dialog
+from src.dialog_browser import explicit_close_script
 
 load_dotenv(ROOT / ".env")
 APP_LOGO = ROOT / 'assets' / 'logo-icon.png'
@@ -1356,20 +1356,15 @@ def complete_rtgs_download(request_numbers, start, end):
     )
 
 
-@st.dialog("Edit record and view invoice", width="large", dismissible=False)
+@st.dialog("Edit record and view invoice", width="large", dismissible=True, on_dismiss="ignore")
 def view_record(row):
     st.markdown('''<style>
     [data-testid="stDialog"] [role="dialog"]{position:relative;width:min(1400px,96vw);max-width:96vw;max-height:calc(100dvh - 80px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable;scrollbar-width:auto;scrollbar-color:#8b949e #e8edf2}
     [data-testid="stDialog"] [role="dialog"]::-webkit-scrollbar{width:18px;height:18px}
     [data-testid="stDialog"] [role="dialog"]::-webkit-scrollbar-track{background:#e8edf2;border-radius:9px}
     [data-testid="stDialog"] [role="dialog"]::-webkit-scrollbar-thumb{background:#8b949e;border:3px solid #e8edf2;border-radius:9px;min-height:42px}
-    .st-key-close_record_editor{position:sticky;right:auto;top:0;margin-left:auto;width:38px!important;z-index:10;flex-shrink:0}
-    .st-key-close_record_editor button{width:38px;min-width:38px;min-height:38px;padding:0;border:0;background:#fff}
     </style>''', unsafe_allow_html=True)
-    if st.button('', icon=':material/close:', key='close_record_editor', help='Close record editor'):
-        if not close_active_dialog():
-            st.rerun()
-        return
+    components.html(explicit_close_script(), height=0, scrolling=False)
     if not can_view_record(current_user, row):
         st.error("You are not authorized to view this record.")
         return
