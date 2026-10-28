@@ -1358,9 +1358,12 @@ def complete_rtgs_download(request_numbers, start, end):
 @st.dialog("Edit record and view invoice", width="large", dismissible=False)
 def view_record(row):
     st.markdown('''<style>
-    [data-testid="stDialog"] [role="dialog"]{width:min(1400px,96vw);max-width:96vw}
-    .st-key-close_record_editor{position:absolute;right:0;top:-3.5rem;width:38px;z-index:10}
-    .st-key-close_record_editor button{min-width:38px;min-height:38px;padding:0;border:0;background:transparent}
+    [data-testid="stDialog"] [role="dialog"]{position:relative;width:min(1400px,96vw);max-width:96vw;max-height:calc(100dvh - 80px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable;scrollbar-width:auto;scrollbar-color:#8b949e #e8edf2}
+    [data-testid="stDialog"] [role="dialog"]::-webkit-scrollbar{width:18px;height:18px}
+    [data-testid="stDialog"] [role="dialog"]::-webkit-scrollbar-track{background:#e8edf2;border-radius:9px}
+    [data-testid="stDialog"] [role="dialog"]::-webkit-scrollbar-thumb{background:#8b949e;border:3px solid #e8edf2;border-radius:9px;min-height:42px}
+    .st-key-close_record_editor{position:sticky;right:auto;top:0;margin-left:auto;width:38px!important;z-index:10;flex-shrink:0}
+    .st-key-close_record_editor button{width:38px;min-width:38px;min-height:38px;padding:0;border:0;background:#fff}
     </style>''', unsafe_allow_html=True)
     if st.button('', icon=':material/close:', key='close_record_editor', help='Close record editor'):
         st.rerun()
