@@ -1,4 +1,4 @@
-"""Shyam's side-by-side evidence and record form."""
+"""Shared side-by-side evidence and record form for authorized record editors."""
 import datetime as dt
 import math
 
