@@ -51,6 +51,7 @@ from src.branch_names import canonical_branch as normalized_branch_name
 from src.batched_records_v6 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
 from src.vijay_finance import project_vijay_records, vijay_finance_summary
+from src.shyam_record_form import record_form as shyam_record_form
 
 load_dotenv(ROOT / ".env")
 APP_LOGO = ROOT / 'assets' / 'logo-icon.png'
@@ -1263,6 +1264,15 @@ except Exception as exc:
     st.stop()
 
 current_user = st.session_state.get("authenticated_user", "Unknown member")
+if current_user == 'Shyam':
+    st.markdown('''<style>
+    .stApp *, [data-testid="stDialog"] *{scrollbar-width:auto;scrollbar-color:#8b949e #e8edf2}
+    .stApp ::-webkit-scrollbar,[data-testid="stDialog"] ::-webkit-scrollbar{width:18px;height:18px}
+    .stApp ::-webkit-scrollbar-track,[data-testid="stDialog"] ::-webkit-scrollbar-track{background:#e8edf2;border-radius:9px}
+    .stApp ::-webkit-scrollbar-thumb,[data-testid="stDialog"] ::-webkit-scrollbar-thumb{background:#8b949e;border:3px solid #e8edf2;border-radius:9px;min-height:42px}
+    .stApp ::-webkit-scrollbar-thumb:hover,[data-testid="stDialog"] ::-webkit-scrollbar-thumb:hover{background:#596673}
+    [data-testid="stDialog"] [role="dialog"]{width:min(1400px,96vw);max-width:96vw}
+    </style>''', unsafe_allow_html=True)
 if current_user == 'Sid' and store.legacy_year_repair.get('skipped'):
     st.warning('These older dates need manual review and were not changed: ' + ', '.join(store.legacy_year_repair['skipped']))
 normalization_rows, balance_requests, upi_requests, dashboard_logs = store.dashboard_snapshot(
@@ -1417,16 +1427,24 @@ def view_record(row):
     locked_columns = ["Type", "Branch"] if record_branch_scope else ["Type"]
     if is_own_record:
         locked_columns.append("Profit / Loss")
-    edited = st.data_editor(
-        pd.DataFrame([display]), hide_index=True, width="stretch", disabled=locked_columns,
-        key=f"record_editor_{row['request_number']}",
-    )
+    shyam_submitted = False
+    shyam_replacement = None
+    if current_user == 'Shyam':
+        form_values, shyam_replacement, shyam_submitted = shyam_record_form(
+            display, evidence, request_number, locked_columns, BRANCHES)
+        edited = pd.DataFrame([form_values])
+    else:
+        edited = st.data_editor(
+            pd.DataFrame([display]), hide_index=True, width="stretch", disabled=locked_columns,
+            key=f"record_editor_{row['request_number']}",
+        )
     has_evidence = bool(evidence.get("source_image"))
     replace_evidence_key = f"replace_record_evidence_{request_number}"
     replace_evidence = bool(st.session_state.get(replace_evidence_key))
-    st.markdown("#### Invoice evidence")
-    replacement_evidence = None
-    if has_evidence and not replace_evidence:
+    if current_user != 'Shyam':
+        st.markdown("#### Invoice evidence")
+    replacement_evidence = shyam_replacement
+    if current_user != 'Shyam' and has_evidence and not replace_evidence:
         with st.container(key=f"evidence_image_frame_{request_number}"):
             if st.button(
                 "Remove evidence", icon=":material/close:",
@@ -1445,7 +1463,7 @@ def view_record(row):
                         "Open invoice evidence", evidence["source_image"], evidence.get("source_filename", "invoice.pdf"),
                         evidence.get("source_mime_type"),
                     )
-    if not has_evidence or replace_evidence:
+    if current_user != 'Shyam' and (not has_evidence or replace_evidence):
         if replace_evidence:
             st.warning("Choose a replacement invoice. The existing evidence will remain unchanged until you save.")
         else:
@@ -1468,10 +1486,11 @@ def view_record(row):
     invalid_ashok_date = edited_trip_date is None or edited_trip_date < OPERATIONS_START
     if invalid_ashok_date:
         st.error("Enter a date in 2026 or later. Ashok's historical edits must also stay in the original month.")
-    if st.button(
+    save_clicked = shyam_submitted if current_user == 'Shyam' else st.button(
         "Save record changes", type="primary", key=f"save_record_{row['request_number']}",
         disabled=repair_reason_missing or replacement_missing or invalid_ashok_date,
-    ):
+    )
+    if save_clicked and not (repair_reason_missing or replacement_missing or invalid_ashok_date):
         item = edited_item
         ownership_type = clean_text(item["Own / Outside"])
         transporter_freight = float(applicable_transporter_freight(ownership_type, item["Transporter Freight"]))
