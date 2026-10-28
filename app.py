@@ -52,6 +52,7 @@ from src.batched_records_v6 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
 from src.vijay_finance import project_vijay_records, vijay_finance_summary
 from src.shyam_record_form import record_form
+from src.dialog_close import close_active_dialog
 
 load_dotenv(ROOT / ".env")
 APP_LOGO = ROOT / 'assets' / 'logo-icon.png'
@@ -1366,7 +1367,9 @@ def view_record(row):
     .st-key-close_record_editor button{width:38px;min-width:38px;min-height:38px;padding:0;border:0;background:#fff}
     </style>''', unsafe_allow_html=True)
     if st.button('', icon=':material/close:', key='close_record_editor', help='Close record editor'):
-        st.rerun()
+        if not close_active_dialog():
+            st.rerun()
+        return
     if not can_view_record(current_user, row):
         st.error("You are not authorized to view this record.")
         return
