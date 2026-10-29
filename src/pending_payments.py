@@ -82,6 +82,12 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
     .st-key-pending_toolbar button{white-space:nowrap;font-size:12px!important;border:1px solid #dbe5ee;border-radius:24px;background:#fff;box-shadow:none;min-height:42px;padding:7px 14px}
     .st-key-pending_toolbar button[kind="primary"]{background:#e1f7ec!important;color:#105d46!important;border:1px solid #a4ddc9!important;box-shadow:none!important}
     .st-key-pending_toolbar [data-baseweb="input"],.st-key-pending_toolbar [data-baseweb="select"]{font-size:12px}
+    .st-key-pending_toolbar [data-testid="stSelectbox"],.st-key-pending_toolbar [data-testid="stTextInput"]{padding:0!important;margin:0!important;border:0!important;background:transparent!important;box-shadow:none!important}
+    .st-key-pending_toolbar [data-baseweb="input"],.st-key-pending_toolbar [data-baseweb="select"]>div{height:44px!important;min-height:44px!important;border-radius:12px!important}
+    .st-key-pending_toolbar button{height:44px!important;max-width:100%;overflow:hidden}
+    .st-key-pending_toolbar button p{font-size:13px!important;white-space:nowrap!important}
+    .st-key-pending_pagination button{min-width:36px!important;height:36px!important;min-height:36px!important;padding:0 9px!important;border:0!important;box-shadow:none!important;background:transparent;color:#617080}
+    .st-key-pending_pagination button[kind="primary"]{border-radius:50%!important;background:#1599ed!important;color:white!important}
     [class*="st-key-pending_card_"]{background:linear-gradient(125deg,#fff,#fbfdff)!important;border:1px solid #e2eaf2!important;border-radius:16px!important;padding:12px!important;box-shadow:0 6px 20px rgba(30,60,90,.035)!important;margin-bottom:10px}
     [class*="st-key-pending_card_"] [data-testid="stHorizontalBlock"]{align-items:center}
     .pp-identity{display:flex;gap:13px;align-items:center;min-height:50px}.pp-avatar{display:grid;place-items:center;flex-shrink:0;width:45px;height:45px;border-radius:50%;background:#d4f4e7;border:1px solid #b8e6d4;color:#0d7153;font-size:21px;font-weight:700}.pp-name{color:#0d1731;font-weight:750;font-size:17px;overflow-wrap:anywhere}.pp-meta{color:#7b86a1;font-size:12px;margin-top:3px}.pp-total span{display:block;color:#7b86a1;font-size:12px}.pp-total strong{color:#101a32;font-size:20px}
@@ -93,17 +99,16 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
     </style><div class="pp-intro"><div class="pp-icon">₹</div><div><h2>Pending Payments</h2><p>Review and send pending Balance Payments or UPI payments.</p></div></div>''', unsafe_allow_html=True)
     kind = st.session_state.get('pending_kind_card', 'balance')
     with st.container(key='pending_toolbar'):
-        balance_col, upi_col, search_col, branch_col, status_col, sort_col = st.columns([2.1,2.2,1.7,1.1,1.1,1.6], gap='small')
-        if balance_col.button('Balance Payments (Transporters)', icon=':material/local_shipping:',
+        balance_col, upi_col, search_col, branch_col, sort_col = st.columns([1.5,.85,2.4,1.5,2.2], gap='small')
+        if balance_col.button('Balance Payment', icon=':material/local_shipping:',
                               type='primary' if kind == 'balance' else 'secondary', use_container_width=True):
             st.session_state['pending_kind_card'] = 'balance'; st.rerun()
-        if upi_col.button('UPI Payments (Vehicles / Placed by)', icon=':material/directions_car:',
+        if upi_col.button('UPI', icon=':material/directions_car:',
                           type='primary' if kind == 'upi' else 'secondary', use_container_width=True):
             st.session_state['pending_kind_card'] = 'upi'; st.rerun()
         search = search_col.text_input('Search transporter / payer', placeholder='Search transporter…' if kind == 'balance' else 'Search payer…',
                                        label_visibility='collapsed', key='pending_search')
         branch = branch_col.selectbox('Branch', ['All Branches','Andheri','Pune','Vadodara','Wada'], label_visibility='collapsed', key='pending_branch')
-        status = status_col.selectbox('Status', ['All Status','Pending','Sent to RTGS','RTGS Done'], label_visibility='collapsed', key='pending_card_status')
         sort = sort_col.selectbox('Sort by', ['Total Amount (High to Low)','Name'], label_visibility='collapsed', key='pending_sort')
     profiles = store.pending_upi_profiles(user) if kind == 'upi' else {}
     groups = payment_groups(trips, kind, balance_requests if kind == 'balance' else upi_requests, profiles)
@@ -111,7 +116,7 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
     for group in groups:
         matching = [item for item in group
                     if (branch == 'All Branches' or canonical_branch(item['trip'].get('branch')) == branch)
-                    and (status == 'All Status' or item['status'] == status)]
+                    and item['status'] == 'Pending']
         if matching and (not search or search.casefold() in (matching[0]['name'] + ' ' + str(matching[0]['profile'].get('BNF_NAME',''))).casefold()):
             filtered.append(matching)
     filtered.sort(key=lambda group: -sum(item['amount'] for item in group) if sort.startswith('Total') else group[0]['name'].casefold())
@@ -120,9 +125,13 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
         st.info('No payments match these filters.')
     page_size = 20
     pages = max(1, (len(filtered) + page_size - 1) // page_size)
-    page = 1
-    if pages > 1:
-        page = st.selectbox('Payment groups page', range(1, pages + 1), format_func=lambda value:f'Page {value} of {pages}', key=f'pending_page_{kind}_{pages}')
+    page_key = f'pending_current_page_{kind}'
+    filter_signature = (kind, search, branch, sort)
+    if st.session_state.get('pending_page_filter_signature') != filter_signature:
+        st.session_state[page_key] = 1
+        st.session_state['pending_page_filter_signature'] = filter_signature
+    page = max(1, min(pages, st.session_state.get(page_key, 1)))
+    st.session_state[page_key] = page
     for index, group in enumerate(filtered[(page-1)*page_size:page*page_size]):
         first = group[0]
         total = sum(item['amount'] for item in group)
@@ -134,7 +143,7 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
         expanded = st.session_state.get(open_key, index == 0)
         selected_all = {item['trip']['request_number']:item['trip'].get('updated_at') for item in group if item['status'] == 'Pending'}
         with st.container(key=f'pending_card_{key}'):
-            arrow, identity, figure, action, more = st.columns([.35,4.1,2.5,1.65,.45], gap='small', vertical_alignment='center')
+            arrow, identity, figure, action = st.columns([.35,4.1,2.5,1.65], gap='small', vertical_alignment='center')
             if arrow.button('', icon=':material/keyboard_arrow_down:' if expanded else ':material/chevron_right:',
                             key=f'pending_expand_{key}', help='Collapse trips' if expanded else 'View trips'):
                 st.session_state[open_key] = not expanded; st.rerun()
@@ -148,13 +157,9 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
             if action.button('Send for RTGS', icon=':material/send:', key=f'pending_send_{key}', type='primary',
                              disabled=not configured or not selected_all, help='Send all pending trips in this group to RTGS', use_container_width=True):
                 send_reviewed_group(selected_all, kind, user, store)
-            with more.popover('⋯', help='Beneficiary details'):
-                st.write(f"Beneficiary: {profile.get('BNF_NAME') or 'Not configured'}")
-                st.write(f"Account: {profile.get('BENE_ACC_NO') or 'Not configured'}")
-                st.write(f"IFSC: {profile.get('BENE_IFSC') or 'Not configured'}")
-                st.caption('Accounts are grouped separately when beneficiary details differ.')
             if not expanded:
                 continue
+            st.caption(f"Beneficiary: {profile.get('BNF_NAME') or 'Not configured'} · Account: {profile.get('BENE_ACC_NO') or 'Not configured'} · IFSC: {profile.get('BENE_IFSC') or 'Not configured'}")
             if not configured:
                 st.warning('Beneficiary bank details must be configured before sending this group.')
             rows = []
@@ -175,3 +180,25 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
                 selected = {row['Record']:by_number[row['Record']].get('updated_at')
                             for row in edited.to_dict('records') if row['Select'] and row['Status'] == 'Pending'}
                 send_reviewed_group(selected, kind, user, store)
+    if pages > 1:
+        numbers = sorted({1, pages, *range(max(1,page-2), min(pages,page+2)+1)})
+        slots = []
+        previous = None
+        for number in numbers:
+            if previous is not None and number - previous > 1:
+                slots.append(None)
+            slots.append(number)
+            previous = number
+        with st.container(key='pending_pagination'):
+            columns = st.columns([1.4, *([.55] * len(slots)), 1.4], vertical_alignment='center')
+            columns[0].button('← Prev', disabled=page == 1, key=f'pending_prev_{kind}',
+                              on_click=st.session_state.update, args=({page_key:page-1},))
+            for column, number in zip(columns[1:-1], slots):
+                if number is None:
+                    column.markdown('…')
+                else:
+                    column.button(str(number), type='primary' if number == page else 'secondary',
+                                  key=f'pending_page_number_{kind}_{number}',
+                                  on_click=st.session_state.update, args=({page_key:number},))
+            columns[-1].button('Next →', disabled=page == pages, key=f'pending_next_{kind}',
+                               on_click=st.session_state.update, args=({page_key:page+1},))

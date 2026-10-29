@@ -86,3 +86,27 @@ render_pending_payments('Sid',trips,{}, {},Store())
     selected,kind,user = app.session_state['sent_test']
     assert selected == {'REQ-0':'version'}
     assert kind == 'balance' and user == 'Sid'
+
+
+def test_pending_cards_hide_queued_payments_and_paginate_at_bottom():
+    from streamlit.testing.v1 import AppTest
+    app = AppTest.from_string('''
+import streamlit as st
+from src.pending_payments import render_pending_payments
+class Store:
+    def pending_upi_profiles(self,user): return {}
+trips = [{'request_number':f'REQ-{i}', 'updated_at':'version', 'trip_date':'2026-10-29',
+          'transporter_name':f'Transporter {i:02}', 'balance_amount':100, 'ownership_type':'Outside',
+          'rtgs_data':{'BNF_NAME':'Example','BENE_ACC_NO':'000123','BENE_IFSC':'TEST0000001'}}
+         for i in range(24)]
+render_pending_payments('Sid',trips,{'REQ-0':{'rtgs_done':False},'REQ-1':{'rtgs_done':True}}, {},Store())
+''').run()
+    assert not app.exception
+    assert {'Balance Payment','UPI'} <= {button.label for button in app.button}
+    assert not any(widget.label in ('Status','Payment groups page') for widget in app.selectbox)
+    assert len([button for button in app.button if button.label == 'Send for RTGS']) == 20
+    assert any('22 trips' in caption.value for caption in app.caption)
+    next(button for button in app.button if button.label == 'Next →').click().run()
+    assert not app.exception
+    assert len([button for button in app.button if button.label == 'Send for RTGS']) == 2
+    assert app.session_state['pending_current_page_balance'] == 2

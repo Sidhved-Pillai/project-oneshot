@@ -37,7 +37,7 @@ from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report_v4 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.records_store_v20 import RequestStore
-from src.pending_payments_v2 import render_pending_payments
+from src.pending_payments_v3 import render_pending_payments
 from src.invoice_viewer import invoice_viewer_html
 from src.duplicate_review import duplicate_review_frame, selected_duplicate_numbers
 from src.expense_autofill import expense_identity_inputs
@@ -2079,7 +2079,7 @@ with records_tab:
         with st.container(height=420, border=True):
             has_delete_column = current_user in {"Sid", "Ajit"} or current_user in SELF_DELETE_USERS
             action_names = ['edit']
-            if current_user in BALANCE_PAYMENT_USERS and current_user != 'Sid':
+            if current_user in BALANCE_PAYMENT_USERS:
                 action_names.append('balance')
             if current_user == 'Nitish':
                 action_names.append('upi')
@@ -2120,7 +2120,7 @@ with records_tab:
                 columns[6 + detail_offset].write(format_inr(number(displayed_value), 0))
                 with actions['edit']:
                     record_edit_control(record)
-                if current_user != 'Sid' and can_send_balance(current_user, record):
+                if can_send_balance(current_user, record):
                     already_sent = record["request_number"] in balance_requests
                     if actions['balance'].button(
                         "BP",
