@@ -72,6 +72,7 @@ def send_reviewed_group(selected, kind, user, store):
         st.rerun()
 
 
+@st.fragment
 def render_pending_payments(user, trips, balance_requests, upi_requests, store):
     if user != 'Sid':
         return
@@ -88,6 +89,11 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
     .st-key-pending_toolbar button p{font-size:13px!important;white-space:nowrap!important}
     .st-key-pending_pagination button{min-width:36px!important;height:36px!important;min-height:36px!important;padding:0 9px!important;border:0!important;box-shadow:none!important;background:transparent;color:#617080}
     .st-key-pending_pagination button[kind="primary"]{border-radius:50%!important;background:#1599ed!important;color:white!important}
+    .st-key-pending_pagination{width:fit-content!important;max-width:100%!important;margin:16px auto 4px!important}
+    .st-key-pending_pagination>[data-testid="stVerticalBlock"]{width:fit-content!important}
+    .st-key-pending_pagination [data-testid="stHorizontalBlock"]{width:fit-content!important;gap:6px!important;flex-wrap:nowrap!important}
+    .st-key-pending_pagination [data-testid="stColumn"]{flex:0 0 auto!important;width:auto!important;min-width:36px!important}
+    .pp-missing{font-size:11px;color:#a15b19;margin-top:4px;line-height:1.4}
     [class*="st-key-pending_card_"]{background:linear-gradient(125deg,#fff,#fbfdff)!important;border:1px solid #e2eaf2!important;border-radius:16px!important;padding:12px!important;box-shadow:0 6px 20px rgba(30,60,90,.035)!important;margin-bottom:10px}
     [class*="st-key-pending_card_"] [data-testid="stHorizontalBlock"]{align-items:center}
     .pp-identity{display:flex;gap:13px;align-items:center;min-height:50px}.pp-avatar{display:grid;place-items:center;flex-shrink:0;width:45px;height:45px;border-radius:50%;background:#d4f4e7;border:1px solid #b8e6d4;color:#0d7153;font-size:21px;font-weight:700}.pp-name{color:#0d1731;font-weight:750;font-size:17px;overflow-wrap:anywhere}.pp-meta{color:#7b86a1;font-size:12px;margin-top:3px}.pp-total span{display:block;color:#7b86a1;font-size:12px}.pp-total strong{color:#101a32;font-size:20px}
@@ -100,12 +106,12 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
     kind = st.session_state.get('pending_kind_card', 'balance')
     with st.container(key='pending_toolbar'):
         balance_col, upi_col, search_col, branch_col, sort_col = st.columns([1.5,.85,2.4,1.5,2.2], gap='small')
-        if balance_col.button('Balance Payment', icon=':material/local_shipping:',
-                              type='primary' if kind == 'balance' else 'secondary', use_container_width=True):
-            st.session_state['pending_kind_card'] = 'balance'; st.rerun()
-        if upi_col.button('UPI', icon=':material/directions_car:',
-                          type='primary' if kind == 'upi' else 'secondary', use_container_width=True):
-            st.session_state['pending_kind_card'] = 'upi'; st.rerun()
+        balance_col.button('Balance Payment', icon=':material/local_shipping:',
+                           type='primary' if kind == 'balance' else 'secondary', use_container_width=True,
+                           on_click=st.session_state.update, args=({'pending_kind_card':'balance'},))
+        upi_col.button('UPI', icon=':material/directions_car:',
+                       type='primary' if kind == 'upi' else 'secondary', use_container_width=True,
+                       on_click=st.session_state.update, args=({'pending_kind_card':'upi'},))
         search = search_col.text_input('Search transporter / payer', placeholder='Search transporter…' if kind == 'balance' else 'Search payer…',
                                        label_visibility='collapsed', key='pending_search')
         branch = branch_col.selectbox('Branch', ['All Branches','Andheri','Pune','Vadodara','Wada'], label_visibility='collapsed', key='pending_branch')
@@ -136,17 +142,19 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
         first = group[0]
         total = sum(item['amount'] for item in group)
         profile = first['profile']
-        configured = all(str(profile.get(field) or '').strip() for field in ('BNF_NAME','BENE_ACC_NO','BENE_IFSC'))
+        missing = [label for field,label in [('BNF_NAME','beneficiary name'),('BENE_ACC_NO','account number'),('BENE_IFSC','IFSC')]
+                   if not str(profile.get(field) or '').strip()]
+        configured = not missing
         signature = '|'.join(f"{item['trip']['request_number']}:{item['trip'].get('updated_at')}:{item['status']}" for item in group)
         key = hashlib.sha256((kind + signature).encode()).hexdigest()[:16]
         open_key = f'pending_open_{key}'
-        expanded = st.session_state.get(open_key, index == 0)
+        expanded = st.session_state.get(open_key, False)
         selected_all = {item['trip']['request_number']:item['trip'].get('updated_at') for item in group if item['status'] == 'Pending'}
         with st.container(key=f'pending_card_{key}'):
             arrow, identity, figure, action = st.columns([.35,4.1,2.5,1.65], gap='small', vertical_alignment='center')
-            if arrow.button('', icon=':material/keyboard_arrow_down:' if expanded else ':material/chevron_right:',
-                            key=f'pending_expand_{key}', help='Collapse trips' if expanded else 'View trips'):
-                st.session_state[open_key] = not expanded; st.rerun()
+            arrow.button('', icon=':material/keyboard_arrow_down:' if expanded else ':material/chevron_right:',
+                         key=f'pending_expand_{key}', help='Collapse trips' if expanded else 'View trips',
+                         on_click=st.session_state.update, args=({open_key:not expanded},))
             last_trip = max(str(item['trip'].get('trip_date') or '')[:10] for item in group)
             try:
                 last_trip = pd.Timestamp(last_trip).strftime('%d %b %Y')
@@ -154,8 +162,11 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
                 last_trip = 'Not specified'
             identity.markdown(f'<div class="pp-identity"><div class="pp-avatar">{html.escape(first["name"][:1].upper())}</div><div><div class="pp-name">{html.escape(first["name"])}</div><div class="pp-meta">{len(group)} trips · Last trip: {html.escape(last_trip)}</div></div></div>', unsafe_allow_html=True)
             figure.markdown(f'<div class="pp-total"><span>Total {"Balance" if kind == "balance" else "UPI"} Amount</span><strong>{format_inr(total)}</strong></div>', unsafe_allow_html=True)
+            if missing:
+                figure.markdown(f'<div class="pp-missing">Missing {html.escape(", ".join(missing))}</div>', unsafe_allow_html=True)
             if action.button('Send for RTGS', icon=':material/send:', key=f'pending_send_{key}', type='primary',
-                             disabled=not configured or not selected_all, help='Send all pending trips in this group to RTGS', use_container_width=True):
+                             disabled=not configured or not selected_all,
+                             help='Complete missing ' + ', '.join(missing) + ' in the trip record before sending.' if missing else 'Send all pending trips in this group to RTGS', use_container_width=True):
                 send_reviewed_group(selected_all, kind, user, store)
             if not expanded:
                 continue

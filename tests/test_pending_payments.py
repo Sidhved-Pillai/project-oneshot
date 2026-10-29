@@ -79,9 +79,12 @@ render_pending_payments('Sid',trips,{}, {},Store())
     assert not app.exception
     buttons = [button for button in app.button if button.label == 'Send for RTGS']
     assert len(buttons) == 2
+    assert len(app.dataframe) == 0
+    next(button for button in app.button if str(button.key).startswith('pending_expand_')).click().run()
+    assert not app.exception
     assert len(app.dataframe) == 1
     assert len(app.get('expander')) == 0
-    buttons[0].click().run()
+    next(button for button in app.button if button.label == 'Send for RTGS').click().run()
     assert not app.exception
     selected,kind,user = app.session_state['sent_test']
     assert selected == {'REQ-0':'version'}
