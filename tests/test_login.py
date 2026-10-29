@@ -10,7 +10,7 @@ from streamlit.testing.v1 import AppTest
 def login_app():
     tree = ast.parse(Path("app.py").read_text())
     constants = {"SPECIAL_CODE_SALT", "SPECIAL_CODE_HASH", "MEMBER_CODE_HASHES", "SPECIAL_MEMBERS"}
-    functions = {"clean_text", "verify_special_access_code", "identify_member", "require_authentication"}
+    functions = {"clean_text", "verify_special_access_code", "identify_member", "require_authentication", "logout"}
     selected = [node for node in tree.body if
         (isinstance(node, ast.FunctionDef) and node.name in functions) or
         (isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id in constants for t in node.targets))]
@@ -27,6 +27,7 @@ issue_ashok_session_token = lambda: 'test-token'
 MEMBER_CODE_HASHES['Nitish'] = hashlib.pbkdf2_hmac('sha256', b'54321', SPECIAL_CODE_SALT, 600_000).hex()
 require_authentication()
 st.success('Authenticated: ' + st.session_state['authenticated_user'])
+st.button('Logout', on_click=logout)
 """
     return AppTest.from_string(source).run()
 
@@ -55,3 +56,18 @@ def test_login_rejects_unknown_or_invalid_codes(code):
     app.button[0].click().run()
     assert not app.exception
     assert app.error[0].value == "Incorrect access code. Please try again."
+
+
+def test_logout_clears_authentication_drafts_and_reconnect_tokens():
+    app = login_app()
+    app.text_input[0].set_value('1011')
+    app.button[0].click().run()
+    app.session_state['shyam_pending_receipts'] = {'REQ-TEST': True}
+    app.query_params['ashok_session'] = 'legacy-token'
+    next(button for button in app.button if button.label == 'Logout').click().run()
+    assert not app.exception
+    assert 'authenticated_user' not in app.session_state
+    assert 'shyam_pending_receipts' not in app.session_state
+    assert 'member_session' not in app.query_params
+    assert 'ashok_session' not in app.query_params
+    assert app.text_input[0].label == '4, 5 or 6-digit access code'

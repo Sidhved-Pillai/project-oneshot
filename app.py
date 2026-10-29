@@ -497,6 +497,13 @@ def valid_ashok_session_token(token, now=None):
         return False
 
 
+def logout():
+    """End this browser session and remove its reconnect credentials."""
+    st.query_params.pop('member_session', None)
+    st.query_params.pop('ashok_session', None)
+    st.session_state.clear()
+
+
 def require_authentication():
     if st.session_state.get("authenticated"):
         return
@@ -1628,6 +1635,8 @@ div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);b
 </style>
 <div class="app-hero"><div class="brand-row"><img class="brand-mark" src="APP_LOGO_DATA" alt="Project Oneshot logo" style="object-fit:contain"/><div><div class="brand">Project <span>Oneshot</span></div><div class="subtitle">One record. Every operations report.</div></div></div><div class="status-pill"><span class="status-dot"></span>WORKSPACE READY</div></div>
 """.replace('APP_LOGO_DATA', 'data:image/png;base64,' + base64.b64encode(APP_LOGO.read_bytes()).decode('ascii')), unsafe_allow_html=True)
+_, logout_column = st.columns([8, 1])
+logout_column.button('Logout', icon=':material/logout:', key='logout', on_click=logout)
 hidden_tabs = []
 if not can_use_direct_expenses:
     hidden_tabs.append(2)
