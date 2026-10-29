@@ -57,3 +57,32 @@ def test_stale_trip_rejected_and_own_profit_excluded(tmp_path):
     assert not payment_groups([{**row, 'ownership_type':'Own'}], 'balance', {}, {})
     other_bank = {**row, 'rtgs_data':{'BNF_NAME':'Other','BENE_ACC_NO':'other','BENE_IFSC':'TEST0000001'}}
     assert len(payment_groups([row,other_bank], 'balance', {}, {})) == 2
+
+
+def test_reference_cards_have_header_actions_and_expandable_trip_table():
+    from streamlit.testing.v1 import AppTest
+    app = AppTest.from_string('''
+import datetime as dt
+import streamlit as st
+from src.pending_payments import render_pending_payments
+class Store:
+    def pending_upi_profiles(self,user): return {}
+    def send_pending_payments(self, selected, kind, user):
+        st.session_state['sent_test'] = (selected,kind,user)
+        return len(selected)
+trips = [{'request_number':f'REQ-{i}', 'updated_at':'version', 'trip_date':dt.date(2026,10,29),
+          'transporter_name':name, 'balance_amount':100, 'ownership_type':'Outside',
+          'rtgs_data':{'BNF_NAME':'Example','BENE_ACC_NO':'000123','BENE_IFSC':'TEST0000001'}}
+         for i,name in enumerate(['Sai Transporter','RK Transport'])]
+render_pending_payments('Sid',trips,{}, {},Store())
+''').run()
+    assert not app.exception
+    buttons = [button for button in app.button if button.label == 'Send for RTGS']
+    assert len(buttons) == 2
+    assert len(app.dataframe) == 1
+    assert len(app.get('expander')) == 0
+    buttons[0].click().run()
+    assert not app.exception
+    selected,kind,user = app.session_state['sent_test']
+    assert selected == {'REQ-0':'version'}
+    assert kind == 'balance' and user == 'Sid'
