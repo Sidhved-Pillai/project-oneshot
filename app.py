@@ -37,7 +37,7 @@ from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report_v4 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.records_store_v20 import RequestStore
-from src.pending_payments_v4 import render_pending_payments
+from src.pending_payments_v5 import render_pending_payments
 from src.invoice_viewer import invoice_viewer_html
 from src.duplicate_review import duplicate_review_frame, selected_duplicate_numbers
 from src.expense_autofill import expense_identity_inputs

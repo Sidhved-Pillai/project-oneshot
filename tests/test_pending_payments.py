@@ -3,7 +3,7 @@ import json
 
 import pytest
 from sqlalchemy import insert
-from src.pending_payments import payment_groups
+from src.pending_payments import payment_groups, pending_summary
 from src.records_store_v20 import RequestStore
 from src.request_store import upi_reimbursement_profiles
 
@@ -13,6 +13,19 @@ def trip(store, **extra):
         'vehicle_number':'TEST1234', 'transporter_name':'Sai Transporter', 'branch':'Pune',
         'ownership_type':'Outside', 'balance_amount':2000, 'upi':500, 'beneficiary_name':'Test Transporter',
         'rtgs_data':{'BNF_NAME':'Test Transporter','BENE_ACC_NO':'001234','BENE_IFSC':'TEST0000001'}, **extra})
+
+
+def test_summary_counts_unsent_trips_not_groups_and_includes_missing_bank_details():
+    from decimal import Decimal
+    trips = [{'request_number':str(i), 'report_scope':'Both', 'ownership_type':'Outside',
+              'transporter_name':'Same transporter', 'created_by':'Nitish',
+              'balance_amount':100.10, 'upi':25.25, 'rtgs_data':{}} for i in range(4)]
+    trips += [{'request_number':'own', 'ownership_type':'Own', 'balance_amount':9999, 'upi':10},
+              {'request_number':'expense', 'report_scope':'Expense', 'balance_amount':9999, 'upi':9999},
+              {'request_number':'deleted', 'is_archived':True, 'balance_amount':9999, 'upi':9999}]
+    totals = pending_summary(trips, {'0':{'rtgs_done':False}, '1':{'rtgs_done':True}}, {'2':{'rtgs_done':False}})
+    assert totals['balance'] == {'count':2, 'amount':Decimal('200.20')}
+    assert totals['upi'] == {'count':4, 'amount':Decimal('85.75')}
 
 
 def test_grouped_balance_sends_selected_once_and_preserves_trips(tmp_path):

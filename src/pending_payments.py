@@ -3,6 +3,7 @@ import json
 import math
 import hashlib
 import html
+from decimal import Decimal
 from collections import defaultdict
 
 import pandas as pd
@@ -59,6 +60,36 @@ def payment_groups(trips, kind, requests, profiles):
     return list(groups.values())
 
 
+def pending_summary(trips, balance_requests, upi_requests):
+    """Overall unsent trip totals, independent of filters and bank readiness."""
+    totals = {}
+    for kind, queued in [('balance', balance_requests), ('upi', upi_requests)]:
+        entries = [item for group in payment_groups(trips, kind, queued, {})
+                   for item in group if item['status'] == 'Pending']
+        totals[kind] = {'count':len(entries),
+                        'amount':sum((Decimal(str(item['amount'])) for item in entries), Decimal('0'))}
+    return totals
+
+
+def summary_cards(totals):
+    truck = '<path d="M2 5h12v10H2zM14 9h4l4 4v2h-8z"/><circle cx="6" cy="17" r="2"/><circle cx="18" cy="17" r="2"/>'
+    wallet = '<path d="M3 6h17v14H3zM3 6V4l13-2v4M15 11h6v5h-6z"/><circle cx="17.5" cy="13.5" r=".7"/>'
+    car = '<path d="M4 10l2-6h12l2 6M3 10h18v9H3zM5 19v2M19 19v2M6 14h2M16 14h2"/>'
+    cards = [
+        ('green', truck, 'Pending Balance Payment Trips', str(totals['balance']['count']), 'Trips not yet sent to RTGS report'),
+        ('green', wallet, 'Pending Balance Payment Amount To Clear', format_inr(totals['balance']['amount']), 'Total balance payment pending'),
+        ('red', car, 'Pending UPI Requests', str(totals['upi']['count']), 'Trip reimbursements not yet sent to RTGS'),
+        ('red', wallet, 'Pending UPI Amount To Clear', format_inr(totals['upi']['amount']), 'Total UPI amount pending'),
+    ]
+    content = ''.join(
+        f'<article class="pp-summary-card {color}" aria-label="{html.escape(title)}">'
+        f'<div class="pp-summary-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">{icon}</svg></div>'
+        f'<div class="pp-summary-copy"><div class="pp-summary-label">{title}</div>'
+        f'<strong>{value}</strong><small>{description}</small></div></article>'
+        for color,icon,title,value,description in cards)
+    st.markdown('<div class="pp-summary-grid">' + content + '</div>', unsafe_allow_html=True)
+
+
 def send_reviewed_group(selected, kind, user, store):
     if not selected:
         st.warning('Select at least one Pending trip to send.')
@@ -78,6 +109,20 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
         return
     st.markdown('''<style>
     .st-key-pending_payments_surface{color:#101a32}
+    .pp-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:0 0 26px}
+    .pp-summary-card{position:relative;overflow:hidden;display:flex;align-items:flex-start;gap:14px;padding:22px 18px;min-height:160px;border:1px solid #e2eaf2;border-radius:17px;background:linear-gradient(130deg,#fff,#f8fcfa);box-shadow:0 5px 20px rgba(35,65,95,.035)}
+    .pp-summary-card.red{background:linear-gradient(130deg,#fff,#fff8f8)}
+    .pp-summary-card:after{content:"";position:absolute;right:-22px;bottom:-35px;width:65%;height:95px;border-radius:75% 25% 0 0;background:linear-gradient(130deg,transparent,#dff3eb);transform:rotate(-13deg);pointer-events:none}
+    .pp-summary-card.red:after{background:linear-gradient(130deg,transparent,#fce0e4)}
+    .pp-summary-icon{position:relative;z-index:1;display:grid;place-items:center;flex:0 0 43px;width:43px;height:43px;border-radius:13px;background:#e0f5ec;color:#11714f}
+    .pp-summary-card.red .pp-summary-icon{background:#fde3e7;color:#c52235}
+    .pp-summary-icon svg{width:25px;height:25px}
+    .pp-summary-copy{position:relative;z-index:1;min-width:0}
+    .pp-summary-label{font-size:12px;line-height:1.45;color:#26334d;min-height:36px;font-weight:600}
+    .pp-summary-copy strong{display:block;margin:7px 0 6px;font-size:clamp(19px,2vw,28px);line-height:1.2;letter-spacing:-.6px;color:#0c162e;overflow-wrap:anywhere}
+    .pp-summary-copy small{display:block;color:#78859e;font-size:11px;line-height:1.45}
+    @media(max-width:1000px){.pp-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:520px){.pp-summary-grid{grid-template-columns:1fr}.pp-summary-card{min-height:130px}}
     .pp-intro{display:flex;align-items:center;gap:18px;margin:22px 0 24px}.pp-icon{display:grid;place-items:center;width:56px;height:56px;border-radius:15px;background:#ddf7ed;color:#147453;font-size:34px;font-weight:800}.pp-intro h2{margin:0;padding:0;color:#0b1530;font-size:26px}.pp-intro p{margin:5px 0 0;color:#72809c;font-size:14px}
     .st-key-pending_toolbar [data-testid="stHorizontalBlock"]{align-items:center}
     .st-key-pending_toolbar button{white-space:nowrap;font-size:12px!important;border:1px solid #dbe5ee;border-radius:24px;background:#fff;box-shadow:none;min-height:42px;padding:7px 14px}
@@ -103,6 +148,7 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
     [class*="st-key-pending_card_"] [data-testid="stForm"]{border:0;padding:0}
     [class*="st-key-pending_card_"] [data-testid="stDataFrame"]{box-shadow:none!important;border-radius:10px!important}
     </style><div class="pp-intro"><div class="pp-icon">₹</div><div><h2>Pending Payments</h2><p>Review and send pending Balance Payments or UPI payments.</p></div></div>''', unsafe_allow_html=True)
+    summary_cards(pending_summary(trips, balance_requests, upi_requests))
     kind = st.session_state.get('pending_kind_card', 'balance')
     with st.container(key='pending_toolbar'):
         balance_col, upi_col, search_col, branch_col, sort_col = st.columns([1.5,.85,2.4,1.5,2.2], gap='small')
