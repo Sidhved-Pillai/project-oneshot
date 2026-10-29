@@ -1064,7 +1064,18 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     v["vehicle_number"] = c1.text_input(
         "Vehicle number *", key=f"{prefix}_vehicle_number", placeholder="e.g., MH14JL9818",
     )
-    v["vehicle_capacity"] = c2.text_input("Vehicle capacity", key=f"{prefix}_vehicle_capacity", placeholder="e.g., 20MT")
+    if current_user == 'Vijay':
+        capacity_key = f'{prefix}_vehicle_capacity'
+        capacity_options = ['', '9 MT', '10 MT']
+        capacity = canonical_vehicle_capacity(st.session_state.get(capacity_key))
+        st.session_state[capacity_key] = capacity if capacity in capacity_options else ''
+        v['vehicle_capacity'] = c2.selectbox(
+            'Vehicle capacity', capacity_options, key=capacity_key,
+            index=capacity_options.index(st.session_state[capacity_key]),
+            placeholder='Type or select 9 MT / 10 MT',
+        )
+    else:
+        v["vehicle_capacity"] = c2.text_input("Vehicle capacity", key=f"{prefix}_vehicle_capacity", placeholder="e.g., 20MT")
     choices = ["", "Own", "Outside"]
     current = st.session_state.get(f"{prefix}_ownership_type", "")
     v["ownership_type"] = c3.selectbox(
@@ -1090,12 +1101,12 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
             transporter_key = f"{prefix}_transporter_name"
             if st.session_state.get(transporter_key) not in ("", *VIJAY_TRANSPORTER_PROFILES):
                 st.session_state[transporter_key] = ""
-            v["transporter_name"] = c2.selectbox(
+            v["transporter_name"] = c1.selectbox(
                 "Transporter name", ["", *VIJAY_TRANSPORTER_PROFILES],
                 key=transporter_key, placeholder="Select a transporter",
                 on_change=apply_vijay_transporter_profile, args=(prefix,),
             )
-            v["beneficiary_name"] = beneficiary_selector(prefix, c1, memory, v["transporter_name"])
+            v["beneficiary_name"] = beneficiary_selector(prefix, c2, memory, v["transporter_name"])
         else:
             option_memory = historical_business_memory if current_user == "Ashok" else memory
             v["transporter_name"] = transporter_selector(prefix, c1, option_memory, current_user)
