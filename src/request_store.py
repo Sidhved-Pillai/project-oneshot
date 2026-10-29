@@ -384,9 +384,10 @@ class RequestStore:
             conn.execute(delete(record_revisions).where(record_revisions.c.request_number == request_number))
             return conn.execute(delete(requests).where(requests.c.request_number == request_number)).rowcount
 
-    def send_balance_payment(self, request_number, user):
+    def send_balance_payment(self, request_number, user, _conn=None):
         """Queue one balance payment per trip, atomically, without copying the trip."""
-        with self.engine.begin() as conn:
+        from contextlib import nullcontext
+        with (nullcontext(_conn) if _conn is not None else self.engine.begin()) as conn:
             row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
                 requests.c.request_number == request_number,
             ).with_for_update()).mappings().first()
@@ -421,12 +422,14 @@ class RequestStore:
             payments = conn.execute(select(balance_payments)).mappings().all()
         return {row["request_number"]: dict(row) for row in payments}
 
-    def send_upi_payment(self, request_number, user):
-        with self.engine.begin() as conn:
+    def send_upi_payment(self, request_number, user, _conn=None):
+        from contextlib import nullcontext
+        with (nullcontext(_conn) if _conn is not None else self.engine.begin()) as conn:
             row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
                 requests.c.request_number == request_number,
             ).with_for_update()).mappings().first()
-            if not row or not can_send_upi(user, row):
+            sid_eligible = row and user == 'Sid' and row.get('report_scope') != 'Expense' and not row.get('is_archived') and row.get('status') != 'Cancelled' and float(row.get('upi') or 0) > 0
+            if not row or not (can_send_upi(user, row) or sid_eligible):
                 raise ValueError("Only Nitish can request UPI payments for his eligible trips.")
             if conn.execute(select(upi_payments.c.request_number).where(
                 upi_payments.c.request_number == request_number)).first():
@@ -434,7 +437,7 @@ class RequestStore:
             amount = row['upi']
             data = json.loads(row.get('rtgs_data') or '{}')
             profile = conn.execute(select(upi_reimbursement_profiles.c.beneficiary_data).where(
-                upi_reimbursement_profiles.c.user_name == user)).scalar_one_or_none()
+                upi_reimbursement_profiles.c.user_name == (row.get('created_by') if user == 'Sid' else user))).scalar_one_or_none()
             beneficiary = json.loads(profile or '{}')
             required = ('BNF_NAME', 'BENE_ACC_NO', 'BENE_IFSC')
             if not all(str(beneficiary.get(key) or '').strip() for key in required):
@@ -449,6 +452,35 @@ class RequestStore:
             conn.execute(insert(activity_logs).values(user_name=user, action='Sent for UPI',
                 request_number=request_number, details=f'UPI RTGS requested: {amount}'))
         return True
+
+    def pending_upi_profiles(self, user):
+        if user != 'Sid':
+            raise ValueError('Pending Payments is currently available to Sid only.')
+        with self.engine.connect() as conn:
+            return {row['user_name']: json.loads(row['beneficiary_data'] or '{}')
+                    for row in conn.execute(select(upi_reimbursement_profiles)).mappings()}
+
+    def send_pending_payments(self, selected, kind, user):
+        if user != 'Sid' or kind not in ('balance', 'upi'):
+            raise ValueError('Pending Payments is currently available to Sid only.')
+        with self.engine.begin() as conn:
+            sent = 0
+            for number, version in sorted(selected.items()):
+                row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
+                    requests.c.request_number == number).with_for_update()).mappings().first()
+                if not row or str(row.get('updated_at')) != str(version):
+                    raise ValueError('A selected trip changed. Refresh and review before sending. No payments were sent.')
+                if kind == 'balance':
+                    if str(row.get('ownership_type') or '').lower().startswith('own'):
+                        raise ValueError('Own-vehicle profit is not a transporter balance payment.')
+                    data = json.loads(row.get('rtgs_data') or '{}')
+                    if not all(str(data.get(key) or (row.get('beneficiary_name') if key == 'BNF_NAME' else '') or '').strip()
+                               for key in ('BNF_NAME','BENE_ACC_NO','BENE_IFSC')):
+                        raise ValueError('Complete the transporter beneficiary bank details before sending.')
+                    sent += self.send_balance_payment(number, user, _conn=conn)
+                else:
+                    sent += self.send_upi_payment(number, user, _conn=conn)
+            return sent
 
     def mark_invoice_receipts(self, changes, user):
         """Save a receipt batch in one transaction, including its audit history."""
