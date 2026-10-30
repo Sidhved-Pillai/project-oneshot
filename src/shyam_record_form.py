@@ -32,7 +32,7 @@ def record_form(display, evidence, request_number, locked, branches, load_eviden
     with st.form(f'shyam_record_form_{request_number}'):
         sections = [
             ('1. Basic information', ['Date','Type','Branch','Company','From','To','LR No.','Invoice No.']),
-            ('2. Vehicle information', ['Vehicle','Vehicle Capacity','Own / Outside','Vehicle Placed By']),
+            ('2. Vehicle information', ['Driver Name','Vehicle','Vehicle Capacity','Own / Outside','Vehicle Placed By']),
             ('3. Beneficiary details', ['Transporter Name','Beneficiary','Account Number','IFSC']),
             ('4. Payment details', ['Revenue','Transporter Freight','UPI','Diesel','Cash','RTGS','Billtee',
                                     'Diesel Qty','Diesel Rate','Add Pumps','Card Name','Toll Expense',

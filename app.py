@@ -14,8 +14,8 @@ import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
 from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record, can_view_trip_leaderboard
-from src.ai_intake_v2 import extract_intake, merge_same_trip_intake_rows, should_autofill_field
-from src.invoice_recovery_v2 import PRIORITY_FIELDS, scan_context, recover_entry_fields
+from src.ai_intake_v3 import extract_intake, merge_same_trip_intake_rows, should_autofill_field
+from src.invoice_recovery_v3 import PRIORITY_FIELDS, scan_context, recover_entry_fields
 from src.business_memory_v3 import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
@@ -28,7 +28,7 @@ from src.current_leaderboard import branch_trip_leaderboard, current_month_leade
 from src import current_pnl_report_v4 as pnl_reporting
 from src.record_filters_v2 import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, direct_expense_headings, filter_direct_expenses, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
 from src.records_export import export_records_excel
-from src.trip_dtr_report import DTR_REVIEW_COLUMNS, edited_dtr_frame, export_operational_dtr
+from src.trip_dtr_report_v2 import DTR_REVIEW_COLUMNS, edited_dtr_frame, export_operational_dtr
 from src.rtgs_report_v2 import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization import canonical_company, canonical_location, canonical_ownership, canonical_vehicle_capacity, plain_remark
 from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, canonical_transporter_name, resolve_vijay_vehicle_number, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
@@ -52,7 +52,7 @@ from src.branch_names import canonical_branch as normalized_branch_name
 from src.batched_records_v6 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
 from src.vijay_finance import project_vijay_records, vijay_finance_summary
-from src.record_form_v2 import record_form
+from src.record_form_v3 import record_form
 from src.dialog_browser import explicit_close_script
 
 load_dotenv(ROOT / ".env")
@@ -135,6 +135,7 @@ def cached_expenses_excel(rows):
 
 @st.cache_data(show_spinner=False, max_entries=12)
 def cached_dtr_excel(frame):
+    # Layout revision 2: driver and diesel rate, with legacy columns removed.
     return export_operational_dtr(frame)
 
 
@@ -869,7 +870,7 @@ def trip_payload(v, files, invoice_filename=None):
         total, balance = float(summary["total_advance"]), float(summary["balance_payable"])
         total_advance = total
     dtr = {
-        "Branch": v["branch"], "Compnay Name": company, "Date": v["date"], "Vehicle No.": vehicle_number,
+        "Branch": v["branch"], "Compnay Name": company, "Date": v["date"], "Driver Name": clean_text(v.get('driver_name')), "Vehicle No.": vehicle_number,
         "Vehicle Type": capacity, "Own/Outside Veh.": v["ownership_type"], "From": origin,
         "To": destination, "LR No.": v["lr_number"], "Invoice No.": v["invoice_number"],
         "Revenue": v["revenue"], "Transporter Freight": transporter_freight, "RTGS ADVANCE": v["rtgs_advance"],
@@ -1019,9 +1020,10 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     if current_user != 'Vijay':
         v["lr_number"] = c1.text_input("LR number", key=lr_key, placeholder="e.g., LR-12234")
     invoice_keys = []
-    if current_user == "Vijay":
+    saint_gobain = 'saintgobain' in re.sub(r'[^a-z]', '', clean_text(v.get('company_name')).lower())
+    if current_user == "Vijay" or saint_gobain:
         extracted_invoices = normalized_invoice_numbers(st.session_state.get(f"{prefix}_invoice_numbers", []))
-        invoice_slots = max(1, int(st.session_state.get(f"{prefix}_invoice_slots", 1)), len(extracted_invoices))
+        invoice_slots = max(2 if saint_gobain else 1, int(st.session_state.get(f"{prefix}_invoice_slots", 1)), len(extracted_invoices))
         invoice_values = []
         for index in range(invoice_slots):
             key = f"{prefix}_invoice_number" if index == 0 else f"{prefix}_invoice_number_{index + 1}"
@@ -1029,8 +1031,8 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
             if index < len(extracted_invoices) and not clean_text(st.session_state.get(key)):
                 st.session_state[key] = extracted_invoices[index]
             invoice_values.append(c2.text_input(
-                "Invoice number *" if index == 0 else f"Invoice number {index + 1}",
-                key=key, placeholder="e.g., MUMCIN270034867",
+                ("Invoice No. 1 *" if index == 0 else f"Invoice No. {index + 1}") if saint_gobain else ("Invoice number *" if index == 0 else f"Invoice number {index + 1}"),
+                key=key, placeholder="e.g., 9102085603" if saint_gobain else "e.g., MUMCIN270034867",
             ))
         v["invoice_number"] = combined_invoice_number(invoice_values)
     else:
@@ -1092,6 +1094,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     )
     own_workflow = simplified or is_own_vehicle(v["ownership_type"])
     v["simplified"] = own_workflow
+    v['driver_name'] = st.text_input('Driver name', key=f'{prefix}_driver_name', placeholder='Driver name as printed on the LR')
     placer_key = f"{prefix}_vehicle_placed_by"
     v["vehicle_placed_by"] = st.text_input(
         "Vehicle placed by", key=placer_key, placeholder="e.g., Ajit Thakur",
@@ -1270,6 +1273,8 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     if any(clean_text(v[field]) for field in ("vehicle_number", "from_location", "to_location", "vehicle_capacity")):
         sync_auto_remark(remark_key, generated_remark)
     v["remarks"] = st.text_area("Remarks", key=remark_key, placeholder="Auto-filled from the trip details")
+    v.setdefault('diesel_quantity', number(st.session_state.get(f'{prefix}_diesel_quantity')))
+    v.setdefault('diesel_rate', number(st.session_state.get(f'{prefix}_diesel_rate')))
     return v
 
 
@@ -1405,6 +1410,7 @@ def view_record(row):
         "Date": row.get("trip_date"), "Type": "Direct expense" if is_expense else "Trip",
         "Branch": row.get("branch", ""), "Company": row.get("company_name", ""),
         "Vehicle": row.get("vehicle_number", ""), "Vehicle Capacity": row.get("vehicle_type", ""),
+        "Driver Name": raw.get('Driver Name', ''),
         "Own / Outside": row.get("ownership_type", ""), "From": row.get("from_location", ""),
         "To": row.get("to_location", ""), "LR No.": raw.get("LR No.", ""),
         "Invoice No.": raw.get("Invoice No.") or row.get("invoice_number", ""),
@@ -1543,6 +1549,7 @@ def view_record(row):
             update_values["notes"] = normalized_remark
             updated_dtr = {
                 **raw, "Branch": item["Branch"], "Compnay Name": normalized_company, "Date": update_values["trip_date"],
+                'Driver Name':clean_text(item.get('Driver Name')),
                 "Vehicle No.": normalized_vehicle, "Vehicle Type": normalized_capacity,
                 "Own/Outside Veh.": item["Own / Outside"], "From": normalized_from, "To": normalized_to,
                 "LR No.": item["LR No."], "Invoice No.": item["Invoice No."], "Revenue": item["Revenue"],

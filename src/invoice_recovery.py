@@ -1,5 +1,6 @@
 """Bounded invoice rereading and conservative matching against the saved fleet."""
 import json
+import re
 from .branch_names import canonical_branch
 from .vehicle_normalization import canonical_vehicle_number
 from .dtr_dates import parse_dtr_date
@@ -43,6 +44,8 @@ def recover_entry_fields(result, extractor, api_key, context, files, model, bran
         if not row.invoice_number and row.invoice_numbers:
             row.invoice_number = row.invoice_numbers[0]
     missing = [field for field in PRIORITY_FIELDS if row is None or not str(getattr(row,field,'') or '').strip()]
+    if row is not None and 'saintgobain' in re.sub(r'[^a-z]', '', row.company_name.lower()) and len(row.invoice_numbers) < 2:
+        missing.append('invoice_numbers')
     parsed_date = parse_dtr_date(row.date) if row is not None else None
     if parsed_date is None or parsed_date.year < 2026:
         missing.append('date')
@@ -57,6 +60,9 @@ def recover_entry_fields(result, extractor, api_key, context, files, model, bran
                    'Prefer this over product batch/manufacturing dates, delivery stamps and fiscal-year codes. '
                    'Return ISO YYYY-MM-DD. Recheck a missing, invalid or pre-2026 date from the image; '
                    'never replace its year merely to fit the current year. For example 22-10-2026 is 2026-10-22.')
+        prompt += ('\nFor Saint-Gobain/Gyproc, recheck every row of the Invoice No column in the materials table. '
+                   'One photo may contain multiple invoices for the same LR; return every distinct printed invoice '
+                   'in invoice_numbers. Do not use Shipment No or invent a second number if only one is printed.')
         # Only relevant plate candidates are hints, never evidence for a route or document identifier.
         raw_vehicle = str(current.get('vehicle_number') or '')
         candidates = sorted({canonical_vehicle_number(v) for v in known_vehicles
@@ -76,6 +82,8 @@ def recover_entry_fields(result, extractor, api_key, context, files, model, bran
                         value = getattr(second.rows[0],field,'')
                         if value:
                             setattr(row,field,value)
+                    if 'invoice_number' in missing and second.rows[0].invoice_numbers:
+                        row.invoice_numbers = second.rows[0].invoice_numbers
                     if not row.invoice_numbers and row.invoice_number:
                         row.invoice_numbers = [row.invoice_number]
         except Exception:

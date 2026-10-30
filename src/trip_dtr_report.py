@@ -6,14 +6,14 @@ from openpyxl.utils import get_column_letter
 
 
 DTR_REVIEW_COLUMNS = [
-    "Sr No.", "Branch", "Compnay Name", "Date", "Vehicle No.", "Vehicle Type",
+    "Sr No.", "Branch", "Compnay Name", "Date", "Driver Name", "Vehicle No.", "Vehicle Type",
     "Own/Outside Veh.", "From", "LR No.", "Invoice No.", "Customer Name", "To",
-    "Company Freight", "Bill No.", "Revenue", "Transporter Freight",
-    "Loading & Unloading", "RTGS ADVANCE", "Cash Adv.", "UPI", "Diesel Qty",
+    "Revenue", "Transporter Freight",
+    "RTGS ADVANCE", "Cash Adv.", "UPI", "Diesel Pump Name", "Diesel Qty", "Diesel Rate",
     "Diesel Adv.", "Billtee", "Total Adv.", "Balance Amt.", "Payment",
-    "Toll Expense", "Repairs & Maintenance", "Diesel Pump Name",
+    "Toll Expense", "Repairs & Maintenance",
     "Benificiary Name", "Transporter Name", "Veh Placed by", "LR Status",
-    "Received Date", "SG & Bisleri Damages", "Remark", "Debit Amt.", "Review Notes",
+    "Received Date", "Remark",
 ]
 OPERATIONAL_DTR_COLUMNS = [column for column in DTR_REVIEW_COLUMNS if column != "Review Notes"]
 EXPORT_NAMES = {"Compnay Name": "Company Name", "UPI": "UPI "}

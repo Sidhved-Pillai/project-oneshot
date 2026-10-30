@@ -1483,15 +1483,16 @@ def test_operational_dtr_export_uses_full_reference_shape():
     frame.loc[0, "Repairs & Maintenance"] = 1250
     ws = load_workbook(BytesIO(export_operational_dtr(frame)))["DTR"]
     headers = [cell.value for cell in ws[1]]
-    assert len(headers) == 37 and "Company Name" in headers and "Compnay Name" not in headers
+    assert len(headers) == 34 and "Company Name" in headers and "Compnay Name" not in headers
     assert "LR No." in headers and "UPI " in headers
     payment_index = headers.index("Payment")
-    assert headers[payment_index + 1:payment_index + 4] == [
-        "Toll Expense", "Repairs & Maintenance", "Diesel Pump Name",
+    assert headers[payment_index + 1:payment_index + 3] == [
+        "Toll Expense", "Repairs & Maintenance",
     ]
     assert ws.cell(2, payment_index + 2).value == 750
     assert ws.cell(2, payment_index + 3).value == 1250
-    assert ws["I2"].value == "00127" and ws["I2"].number_format == "@"
+    lr_cell = ws.cell(2, headers.index('LR No.') + 1)
+    assert lr_cell.value == "00127" and lr_cell.number_format == "@"
 
 
 def test_edited_dtr_preview_values_feed_the_download():

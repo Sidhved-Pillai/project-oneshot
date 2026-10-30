@@ -35,7 +35,7 @@ def test_ashok_dtr_save_updates_same_live_trip_and_preserves_evidence(tmp_path):
         'vehicle_number': 'RJ09GF1234', 'transporter_name': 'Old transporter',
         'rtgs_done': True, 'source_image': b'invoice', 'source_filename': 'invoice.pdf',
         'rtgs_data': {'BENE_ACC_NO': '001234', 'BENE_IFSC': 'BANK0001234'},
-        'dtr_data': {'_retained_metadata': 'keep'}})
+        'dtr_data': {'_retained_metadata': 'keep', 'Review Notes':'Historical'}})
     before = store.get(request)
     edited = {'Date': '09/02/2026', 'Branch': 'Vadodara', 'Vehicle No.': 'RJ09GF1234',
         'Transporter Name': 'New transporter', 'Benificiary Name': 'Beneficiary',
@@ -54,7 +54,7 @@ def test_ashok_dtr_save_updates_same_live_trip_and_preserves_evidence(tmp_path):
     assert after['total_advance'] == dtr['Total Adv.'] == 4050
     assert after['balance_amount'] == dtr['Balance Amt.'] == 5950
     assert after['invoice_number'] == 'INV123'
-    assert dtr['LR No.'] == 'LR123' and dtr['Review Notes'] == 'Reviewed'
+    assert dtr['LR No.'] == 'LR123' and dtr['Review Notes'] == 'Historical'
     assert dtr['_retained_metadata'] == 'keep'
     assert rtgs['BENE_ACC_NO'] == '001234' and rtgs['AMOUNT'] == 3000
     assert after['rtgs_done'] is True

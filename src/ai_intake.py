@@ -12,6 +12,7 @@ class DTRIntakeRow(BaseModel):
     branch: str = ""
     company_name: str = ""
     date: str = ""
+    driver_name: str = ""
     vehicle_number: str = ""
     vehicle_type: str = ""
     ownership_type: str = ""
@@ -29,6 +30,7 @@ class DTRIntakeRow(BaseModel):
     cash_advance: Optional[float] = None
     upi: Optional[float] = None
     diesel_quantity: Optional[float] = None
+    diesel_rate: Optional[float] = None
     diesel_advance: Optional[float] = None
     billtee: Optional[float] = None
     total_advance: Optional[float] = None
@@ -96,6 +98,9 @@ class UnifiedIntakeRow(BaseModel):
     """One editable trip form populated from image, PDF, text, or voice evidence."""
     branch: str = ""
     date: str = ""
+    driver_name: str = ""
+    diesel_quantity: Optional[float] = None
+    diesel_rate: Optional[float] = None
     company_name: str = ""
     vehicle_number: str = ""
     vehicle_capacity: str = ""
@@ -188,7 +193,15 @@ def should_autofill_field(mode, field):
     return not (mode == "ENTRY" and field == "revenue")
 
 
-DTR_FIELD_MAP = dict(zip(DTR_REVIEW_COLUMNS[1:], [
+DTR_FIELD_MAP = dict(zip([
+    'Branch','Compnay Name','Date','Vehicle No.','Vehicle Type','Own/Outside Veh.',
+    'From','LR No.','Invoice No.','Customer Name','To','Company Freight','Bill No.',
+    'Revenue','Transporter Freight','Loading & Unloading','RTGS ADVANCE','Cash Adv.',
+    'UPI','Diesel Qty','Diesel Adv.','Billtee','Total Adv.','Balance Amt.','Payment',
+    'Toll Expense','Repairs & Maintenance','Diesel Pump Name','Benificiary Name',
+    'Transporter Name','Veh Placed by','LR Status','Received Date','SG & Bisleri Damages',
+    'Remark','Debit Amt.','Review Notes',
+], [
     "branch", "company_name", "date", "vehicle_number", "vehicle_type", "ownership_type",
     "from_location", "lr_number", "invoice_number", "customer_name", "to_location",
     "company_freight", "bill_number", "revenue", "transporter_freight", "loading_unloading",
@@ -198,6 +211,7 @@ DTR_FIELD_MAP = dict(zip(DTR_REVIEW_COLUMNS[1:], [
     "transporter_name", "vehicle_placed_by", "lr_status", "received_date", "damages", "remark",
     "debit_amount", "review_notes",
 ]))
+DTR_FIELD_MAP.update({'Driver Name':'driver_name', 'Diesel Rate':'diesel_rate'})
 
 RTGS_FIELD_MAP = {
     "PYMT_PROD_TYPE_CODE": "payment_product_type_code", "PYMT_MODE": "payment_mode",
@@ -267,6 +281,12 @@ missing values and explain unclear readings in review_notes.
 - When multiple invoices describe the same trip (same date, vehicle and route), return one combined row and
   put every separately labelled invoice identifier in invoice_numbers, in upload order. Also put the first
   identifier in invoice_number for compatibility. Never merge invoice identifiers into one invented number.
+- Saint-Gobain/Gyproc lorry receipts can list multiple distinct invoice numbers in the Invoice No column
+  of the materials table on ONE photo, under ONE LR number. Inspect every table row, return all distinct
+  invoice identifiers in invoice_numbers in printed order, and the single LR header value in lr_number.
+  Repeated table rows for one invoice are not extra invoices. Do not use Shipment No as an invoice.
+  For example invoice numbers 9102085603 and 9102085604 belong to one trip and one shared LR.
+- Extract the explicitly printed Driver Name into driver_name. Do not substitute a transporter or buyer.
 - Read each printed Invoice No character-by-character from the label at the top of its own invoice. Recheck
   every digit, especially visually similar 5/6, 3/8 and 0/8 digits. Do not derive an invoice number from IRN,
   Ack No, customer code, dates, amounts, QR content, or an adjacent uploaded invoice.
