@@ -2100,32 +2100,45 @@ with records_tab:
             has_expense_rows = any(clean_text(row.get("report_scope")).casefold() == "expense" for row in visible_rows)
             value_title = "Revenue / Amount" if has_trip_rows and has_expense_rows else ("Amount" if has_expense_rows else "Revenue")
             record_titles = ("Record", "LR No.", "Date", "Branch", "Vehicle", "Placed by", value_title, *([''] * len(action_names)))
-            show_invoice_column = current_user == 'Shyam'
-            if show_invoice_column:
-                record_widths.insert(2, 1.1)
-                record_titles = (*record_titles[:2], "Invoice No.", *record_titles[2:])
-            detail_offset = int(show_invoice_column)
+            shyam_layout = current_user == 'Shyam'
+            if shyam_layout:
+                record_widths = [.85, .85, 1.15, .75, 1.05, 1.3, 1, 1, 1, *([.43] * len(action_names))]
+                record_titles = ('Branch', 'Date', 'Vehicle No.', 'Vehicle Type', 'LR No.', 'Invoice No.', 'From', 'To', value_title, *([''] * len(action_names)))
+            value_column = 8 if shyam_layout else 6
+            detail_count = 9 if shyam_layout else 7
             header = st.columns(record_widths)
             for column, title in zip(header, record_titles):
                 column.markdown(f"**{title}**")
             if record_type == DIRECT_EXPENSES and current_user in EXPENSE_RECORD_SUMMARY_USERS:
-                header[6 + detail_offset].caption(f"Total Figure = {format_inr(sum(number(row.get('amount')) for row in rows))}")
+                header[value_column].caption(f"Total Figure = {format_inr(sum(number(row.get('amount')) for row in rows))}")
             for record in visible_rows:
                 raw = unpack(record.get("dtr_data"))
                 columns = st.columns(record_widths, vertical_alignment="center")
-                actions = dict(zip(action_names, columns[7 + detail_offset:]))
-                record_suffix = clean_text(record.get('request_number')).split('-')[-1].lstrip('0') or '1'
-                columns[0].write(f"Req- {record_suffix}")
-                columns[1].write(clean_text(raw.get('LR No.')) or "—")
-                if show_invoice_column:
-                    columns[2].write(clean_text(record.get('invoice_number')) or clean_text(raw.get('Invoice No.')) or "—")
-                columns[2 + detail_offset].write(f"{as_date(record.get('trip_date')):%d/%m/%y}")
-                columns[3 + detail_offset].write(canonical_branch(record.get("branch")) or "—")
-                columns[4 + detail_offset].write(canonical_vehicle_number(record.get("vehicle_number")) or "—")
-                columns[5 + detail_offset].write(canonical_vehicle_placer(raw.get("Veh Placed by")) or "—")
+                actions = dict(zip(action_names, columns[detail_count:]))
+                if shyam_layout:
+                    row_values = (
+                        canonical_branch(record.get('branch')) or '—',
+                        f"{as_date(record.get('trip_date')):%d/%m/%y}",
+                        canonical_vehicle_number(record.get('vehicle_number')) or '—',
+                        canonical_vehicle_capacity(record.get('vehicle_type') or raw.get('Vehicle Type')) or '—',
+                        clean_text(raw.get('LR No.')) or '—',
+                        dtr_invoice_text(record.get('invoice_number') or raw.get('Invoice No.')) or '—',
+                        clean_text(record.get('from_location') or raw.get('From')) or '—',
+                        clean_text(record.get('to_location') or raw.get('To')) or '—',
+                    )
+                    for column, value in zip(columns, row_values):
+                        column.write(value)
+                else:
+                    record_suffix = clean_text(record.get('request_number')).split('-')[-1].lstrip('0') or '1'
+                    columns[0].write(f"Req- {record_suffix}")
+                    columns[1].write(clean_text(raw.get('LR No.')) or "—")
+                    columns[2].write(f"{as_date(record.get('trip_date')):%d/%m/%y}")
+                    columns[3].write(canonical_branch(record.get("branch")) or "—")
+                    columns[4].write(canonical_vehicle_number(record.get("vehicle_number")) or "—")
+                    columns[5].write(canonical_vehicle_placer(raw.get("Veh Placed by")) or "—")
                 is_expense_record = clean_text(record.get("report_scope")).casefold() == "expense"
                 displayed_value = record.get("amount") if is_expense_record else record.get("revenue")
-                columns[6 + detail_offset].write(format_inr(number(displayed_value), 0))
+                columns[value_column].write(format_inr(number(displayed_value), 0))
                 with actions['edit']:
                     record_edit_control(record)
                 if can_send_balance(current_user, record):
