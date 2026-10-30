@@ -2087,10 +2087,6 @@ with records_tab:
         with st.container(height=420, border=True):
             has_delete_column = current_user in {"Sid", "Ajit"} or current_user in SELF_DELETE_USERS
             action_names = ['edit']
-            if current_user in BALANCE_PAYMENT_USERS:
-                action_names.append('balance')
-            if current_user == 'Nitish':
-                action_names.append('upi')
             if current_user == 'Shyam':
                 action_names.append('received')
             if has_delete_column:
@@ -2141,31 +2137,6 @@ with records_tab:
                 columns[value_column].write(format_inr(number(displayed_value), 0))
                 with actions['edit']:
                     record_edit_control(record)
-                if can_send_balance(current_user, record):
-                    already_sent = record["request_number"] in balance_requests
-                    if actions['balance'].button(
-                        "BP",
-                        key=f"balance_{record['request_number']}", use_container_width=True,
-                        disabled=already_sent or number(record.get("balance_amount")) <= 0,
-                        help=f"{'Balance Payment Sent' if already_sent else 'Send for Balance Payment'} · {format_inr(number(record.get('balance_amount')))}",
-                    ):
-                        try:
-                            store.send_balance_payment(record["request_number"], current_user)
-                        except ValueError as exc:
-                            st.error(str(exc))
-                        else:
-                            st.rerun()
-                if can_send_upi(current_user, record):
-                    upi_sent = record['request_number'] in upi_requests
-                    if actions['upi'].button('₹',
-                        key=f"upi_{record['request_number']}", use_container_width=True,
-                        disabled=upi_sent, help=f"{'UPI Payment Sent' if upi_sent else 'Send for UPI'} · {format_inr(number(record.get('upi')))}"):
-                        try:
-                            store.send_upi_payment(record['request_number'], current_user)
-                        except ValueError as exc:
-                            st.error(str(exc))
-                        else:
-                            st.rerun()
                 can_delete_visible_record = current_user == "Ajit" or can_delete_record(current_user, record)
                 if current_user == 'Shyam' and not is_expense_record:
                     received = raw.get('_hard_copy_received_by') == 'Shyam'

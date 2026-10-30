@@ -76,8 +76,8 @@ def test_record_action_order_and_shyam_only_tick():
     start = source.index("action_names = ['edit']")
     end = source.index('record_widths =', start)
     actions = source[start:end]
-    assert actions.index("append('balance')") < actions.index("append('upi')")
-    assert actions.index("append('upi')") < actions.index("append('received')") < actions.index("append('delete')")
+    assert "append('balance')" not in actions and "append('upi')" not in actions
+    assert actions.index("append('received')") < actions.index("append('delete')")
     assert "if current_user == 'Shyam':\n                action_names.append('received')" in actions
     assert "if current_user == 'Shyam' and not is_expense_record:" in source
 
