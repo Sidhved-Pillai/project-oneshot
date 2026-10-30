@@ -3,6 +3,7 @@ from io import BytesIO
 import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
+from .invoice_display import dtr_invoice_text
 
 
 DTR_REVIEW_COLUMNS = [
@@ -27,6 +28,7 @@ def edited_dtr_frame(display_frame):
 def export_operational_dtr(df):
     output = BytesIO()
     safe = df.reindex(columns=OPERATIONAL_DTR_COLUMNS).copy()
+    safe['Invoice No.'] = safe['Invoice No.'].map(dtr_invoice_text)
     safe = safe.rename(columns=EXPORT_NAMES)
     date_columns = ["Date", "Received Date"]
     for column in date_columns:

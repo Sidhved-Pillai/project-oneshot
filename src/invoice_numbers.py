@@ -25,7 +25,7 @@ def _identifier_parts(value):
     text = re.sub(r"GST\s*/\s*GST\s*/\s*\d+\s*/\s*\d{2}\s*-\s*\d{2}", "", text, flags=re.I)
     return {re.sub(r"[^a-z0-9]", "", part.casefold()) for part in structured} | {
         re.sub(r"[^a-z0-9]", "", part.casefold())
-        for part in re.split(r"\s*/\s*", text)
+        for part in re.split(r"\s*/\s*|[,;\n]+", text)
         if re.sub(r"[^a-z0-9]", "", part.casefold())
     }
 

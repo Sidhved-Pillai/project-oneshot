@@ -21,14 +21,15 @@ from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
 from src.entry_state import clear_entry_state, clear_expense_state, entry_state_prefix, expense_state_prefix
 from src.expense_linking import link_expenses_to_trips
-from src.invoice_numbers_v3 import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series, user_invoice_duplicates, verified_bisleri_invoice_numbers, invoice_identifier_tokens
+from src.invoice_numbers_v4 import combined_invoice_number, normalized_invoice_numbers, reconcile_sequential_invoice_series, user_invoice_duplicates, verified_bisleri_invoice_numbers, invoice_identifier_tokens
+from src.invoice_display import dtr_invoice_text
 from src.number_format import format_inr, indian_number
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
 from src.current_leaderboard import branch_trip_leaderboard, current_month_leaderboard
 from src import current_pnl_report_v4 as pnl_reporting
 from src.record_filters_v2 import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, direct_expense_headings, filter_direct_expenses, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
 from src.records_export import export_records_excel
-from src.trip_dtr_report_v2 import DTR_REVIEW_COLUMNS, edited_dtr_frame, export_operational_dtr
+from src.trip_dtr_report_v3 import DTR_REVIEW_COLUMNS, edited_dtr_frame, export_operational_dtr
 from src.rtgs_report_v2 import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization import canonical_company, canonical_location, canonical_ownership, canonical_vehicle_capacity, plain_remark
 from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, canonical_transporter_name, resolve_vijay_vehicle_number, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
@@ -135,7 +136,7 @@ def cached_expenses_excel(rows):
 
 @st.cache_data(show_spinner=False, max_entries=12)
 def cached_dtr_excel(frame):
-    # Layout revision 2: driver and diesel rate, with legacy columns removed.
+    # Layout revision 3: comma-separated invoices in one trip cell.
     return export_operational_dtr(frame)
 
 
@@ -2297,6 +2298,7 @@ with reports_tab:
             )
             records.append({column: data.get(column, "") for column in DTR_REVIEW_COLUMNS} | {"Sr No.": i})
         frame = pd.DataFrame(records, columns=DTR_REVIEW_COLUMNS)
+        frame['Invoice No.'] = frame['Invoice No.'].map(dtr_invoice_text)
         display_frame = frame.rename(columns={"Compnay Name": "Company Name"})
         editor_key = dtr_editor_key(ordered_trips, start.isoformat(), end.isoformat())
         with st.container(key="report_dtr_grid"):
