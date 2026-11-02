@@ -896,8 +896,6 @@ def trip_payload(v, files, invoice_filename=None):
                     'Cardholders Name':clean_text(v.get('cardholders_name'))})
     if 'cardholders_name' in v:
         dtr['Cardholders Name'] = clean_text(v.get('cardholders_name'))
-    if current_user == 'Ajit':
-        dtr.update({'Halting Charges':number(v.get('halting_charges')), 'Loading Charges':number(v.get('loading_charges'))})
     rtgs = {"BNF_NAME": v["beneficiary_name"], "BENE_ACC_NO": v["beneficiary_account_number"], "BENE_IFSC": v["beneficiary_ifsc_code"], "AMOUNT": v["rtgs_advance"], "REMARK": remarks, "Origin Area": v["branch"]}
     return {
         "report_scope": "Both", "trip_date": v["date"], "vehicle_number": vehicle_number, "vehicle_type": capacity,
@@ -985,21 +983,13 @@ def memory_prompt(prefix, title, source, suggestion, field_names):
     st.button("Apply suggestion", key=f"memory_{prefix}_{source}", on_click=apply_memory, args=(prefix, missing), icon="✨")
 
 
-def update_vijay_diesel(prefix, changed):
-    update_diesel(st.session_state, prefix, changed)
-
-
-def diesel_trip_inputs(prefix):
-    fields = ('diesel_quantity', 'diesel_rate', 'diesel_advance')
-    populated = [field for field in fields if st.session_state.get(f'{prefix}_{field}') is not None]
-    if len(populated) == 2:
-        update_diesel(st.session_state, prefix, populated[-1])
-    columns = st.columns(3)
-    labels = ('Diesel Qty (L)', 'Diesel Rate (₹/L)', 'Diesel (₹)')
-    return {field:column.number_input(label, min_value=0.0, value=None,
-            key=f'{prefix}_{field}', placeholder='', on_change=update_vijay_diesel, args=(prefix,field),
-            help='Edit any two values to calculate the third.')
-            for column,field,label in zip(columns,fields,labels)}
+def update_diesel_details(prefix, changed):
+    # The payment amount stays authoritative; derive the other fuel detail.
+    amount = number(st.session_state.get(f'{prefix}_diesel_advance'))
+    value = number(st.session_state.get(f'{prefix}_{changed}'))
+    target = 'diesel_quantity' if changed == 'diesel_rate' else 'diesel_rate'
+    if amount > 0 and value > 0:
+        st.session_state[f'{prefix}_{target}'] = round(amount / value, 2)
 
 
 def trip_form(prefix, memory, allowed_branches=None, simplified=False):
@@ -1202,109 +1192,62 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         v["transporter_freight"] = c2.number_input("Transporter freight (₹)", min_value=0.0, value=None, placeholder="Not applicable for own vehicles" if own_vehicle else "e.g., 38,000", disabled=own_vehicle or current_user == "Vijay", key=transporter_freight_key)
         if own_vehicle:
             c2.caption("Not applicable for an own vehicle.")
-    if current_user == 'Ajit':
-        halting_col, loading_col = st.columns(2)
-        v['halting_charges'] = halting_col.number_input('Halting Charges (₹)', min_value=0.0, value=None, key=f'{prefix}_halting_charges')
-        v['loading_charges'] = loading_col.number_input('Loading Charges (₹)', min_value=0.0, value=None, key=f'{prefix}_loading_charges')
-    if current_user in ('Vijay','Ajit'):
-        v.update(diesel_trip_inputs(prefix))
-    st.caption("Enter amounts in every payment mode used. Each amount is included in the Profit / Loss calculation." if current_user == "Vijay" else "Enter amounts in every payment mode used. Repairs and maintenance are deducted from Profit / Loss." if own_workflow else "Enter amounts in every payment mode used. Billtee is also deducted before calculating the balance payable.")
+    st.caption("Enter amounts in every payment mode used.")
     if current_user == "Vijay":
-        payment_columns = st.columns(5)
-        vijay_fields = [
-            ("UPI", "upi"), ("Cash", "cash_advance"),
-            ("RTGS", "rtgs_advance"), ("Toll Expense", "toll_expense"), ("Billtee", "billtee"),
-        ]
-        for col, (label, field) in zip(payment_columns, vijay_fields):
-            v[field] = col.number_input(
-                f"{label} (₹)", min_value=0.0, value=None,
-                placeholder="e.g., 2,000", key=f"{prefix}_{field}",
-            )
+        fields = [("Diesel", "diesel_advance"), ("UPI", "upi"), ("Cash", "cash_advance"),
+                  ("RTGS", "rtgs_advance"), ("Toll Expense", "toll_expense"), ("Billtee", "billtee")]
         v["repairs_maintenance"], v["repair_reason"] = 0.0, ""
     elif simplified:
-        deduction_columns = st.columns(6)
-        v["upi"] = deduction_columns[0].number_input(
-            "Route Expense (UPI) (₹)", min_value=0.0, value=None,
-            placeholder="e.g., 2,000", key=f"{prefix}_upi",
-        )
-        v["diesel_quantity"] = deduction_columns[1].number_input(
-            "Diesel Qty", min_value=0.0, value=None, placeholder="e.g., 100",
-            key=f"{prefix}_diesel_quantity",
-        )
-        v["diesel_rate"] = deduction_columns[2].number_input(
-            "Diesel Rate (₹)", min_value=0.0, value=None, placeholder="e.g., 90",
-            key=f"{prefix}_diesel_rate",
-        )
-        diesel_total = float(diesel_expense(v["diesel_quantity"], v["diesel_rate"]))
-        calculated_key = f"{prefix}_diesel_calculated"
-        st.session_state[calculated_key] = diesel_total
-        v["diesel_advance"] = deduction_columns[3].number_input(
-            "Diesel (₹)", min_value=0.0, disabled=True, key=calculated_key,
-            help="Automatically calculated from Diesel Qty × Diesel Rate.",
-        )
-        v["toll_expense"] = deduction_columns[4].number_input(
-            "Toll Expense (₹)", min_value=0.0, value=None,
-            placeholder="e.g., 2,000", key=f"{prefix}_toll_expense",
-        )
-        v["repairs_maintenance"] = deduction_columns[5].number_input(
-            "Repairs & Maintenance (₹)", min_value=0.0, value=None,
-            placeholder="e.g., 1,000", key=f"{prefix}_repairs_maintenance",
-        )
+        fields = [("Diesel", "diesel_advance"), ("Route Expense (UPI)", "upi"),
+                  ("Toll Expense", "toll_expense"), ("Repairs & Maintenance", "repairs_maintenance")]
         v["cash_advance"], v["rtgs_advance"], v["billtee"] = 0.0, 0.0, 0.0
-        v["repair_reason"] = st.text_input("Reason", key=f"{prefix}_repair_reason", placeholder="e.g., Tyre puncture repair") if number(v["repairs_maintenance"]) > 0 else ""
-        if number(v["repairs_maintenance"]) > 0 and not clean_text(v["repair_reason"]):
-            st.caption("Reason is required when Repairs & Maintenance has an amount.")
     elif own_workflow:
-        deduction_columns = st.columns(6)
-        simplified_fields = [
-            ("Route Expense (UPI)", "upi"), ("Diesel", "diesel_advance"), ("Cash", "cash_advance"),
-            ("Toll Expense", "toll_expense"), ("RTGS", "rtgs_advance"),
-        ]
-        if current_user == 'Ajit':
-            simplified_fields = [(label,field) for label,field in simplified_fields if field != 'diesel_advance']
-        for col, (label, field) in zip(deduction_columns, simplified_fields):
-            v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 2,000", key=f"{prefix}_{field}")
+        fields = [("Diesel", "diesel_advance"), ("Route Expense (UPI)", "upi"),
+                  ("Cash", "cash_advance"), ("Toll Expense", "toll_expense"),
+                  ("RTGS", "rtgs_advance"), ("Repairs & Maintenance", "repairs_maintenance")]
         v["billtee"] = 0.0
-        v["repairs_maintenance"] = deduction_columns[-1].number_input("Repairs & Maintenance (₹)", min_value=0.0, value=None, placeholder="e.g., 1,000", key=f"{prefix}_repairs_maintenance")
-        v["repair_reason"] = st.text_input("Reason", key=f"{prefix}_repair_reason", placeholder="e.g., Tyre puncture repair") if number(v["repairs_maintenance"]) > 0 else ""
+    else:
+        fields = [("Diesel", "diesel_advance"), ("UPI", "upi"), ("Cash", "cash_advance"),
+                  ("RTGS", "rtgs_advance"), ("Billtee", "billtee")]
+        v["toll_expense"], v["repairs_maintenance"], v["repair_reason"] = 0.0, 0.0, ""
+    diesel_active = number(st.session_state.get(f"{prefix}_diesel_advance")) > 0
+    pump_key = f"{prefix}_diesel_pump_name"
+    card_active = diesel_active and clean_text(st.session_state.get(pump_key)).casefold() in ("reliance", "iocl")
+    columns = iter(st.columns(len(fields) + (3 if diesel_active else 0) + int(card_active)))
+    v["diesel_quantity"], v["diesel_rate"] = None, None
+    v["diesel_pump_name"], v["card_name"], v["cardholders_name"] = "", "", ""
+    for label, field in fields:
+        v[field] = next(columns).number_input(
+            f"{label} (₹)", min_value=0.0, value=None, placeholder="",
+            key=f"{prefix}_{field}",
+        )
+        if field == "diesel_advance" and diesel_active:
+            v["diesel_rate"] = next(columns).number_input("Diesel Rate (₹/L)", min_value=0.0,
+                value=None, key=f"{prefix}_diesel_rate", placeholder="",
+                on_change=update_diesel_details, args=(prefix, 'diesel_rate'))
+            v["diesel_quantity"] = next(columns).number_input("Diesel Qty (L)", min_value=0.0,
+                value=None, key=f"{prefix}_diesel_quantity", placeholder="",
+                on_change=update_diesel_details, args=(prefix, 'diesel_quantity'))
+            pumps = ["", "Reliance", "IOCL", "Gaurav", "Shree Balaji Petroleum", "Om Vinayak"]
+            selected_pump = clean_text(st.session_state.get(pump_key))
+            if selected_pump and selected_pump not in pumps:
+                pumps.append(selected_pump)
+            v["diesel_pump_name"] = next(columns).selectbox("Pump Name", pumps,
+                key=pump_key, accept_new_options=True, placeholder="Choose a pump")
+            if card_active:
+                holders = ["", "Nikhil", "Vinod", "Ajit", "Altaf", "Nitish", "Nisar"]
+                holder_key = f"{prefix}_cardholders_name"
+                selected_holder = clean_text(st.session_state.get(holder_key))
+                if selected_holder and selected_holder not in holders:
+                    holders.append(selected_holder)
+                v["cardholders_name"] = next(columns).selectbox("Choose Cardholder Name", holders,
+                    key=holder_key, accept_new_options=True, placeholder="Choose a cardholder")
+                v["card_name"] = v["cardholders_name"]
+    if own_workflow and current_user != "Vijay":
+        v["repair_reason"] = st.text_input("Reason", key=f"{prefix}_repair_reason",
+            placeholder="e.g., Tyre puncture repair") if number(v["repairs_maintenance"]) > 0 else ""
         if number(v["repairs_maintenance"]) > 0 and not clean_text(v["repair_reason"]):
             st.caption("Reason is required when Repairs & Maintenance has an amount.")
-    else:
-        payment_fields = {label:field for label,field in PAYMENT_FIELDS.items() if current_user != 'Ajit' or field != 'diesel_advance'}
-        deduction_columns = st.columns(len(payment_fields) + 1)
-        for col, (label, field) in zip(deduction_columns, payment_fields.items()):
-            v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 2,000", key=f"{prefix}_{field}")
-        v["billtee"] = deduction_columns[-1].number_input("Billtee (₹)", min_value=0.0, value=None, placeholder="e.g., 1,000", key=f"{prefix}_billtee")
-        v["toll_expense"], v["repairs_maintenance"], v["repair_reason"] = 0.0, 0.0, ""
-    if current_user != 'Ashok':
-        pump_col, card_col = st.columns(2)
-        pump_key = f'{prefix}_diesel_pump_name'
-        pumps = ['', 'Reliance', 'IOCL', 'Gaurav', 'Shree Balaji Petroleum', 'Om Vinayak']
-        selected_pump = clean_text(st.session_state.get(pump_key))
-        if selected_pump and selected_pump not in pumps:
-            pumps.append(selected_pump)
-        v['diesel_pump_name'] = pump_col.selectbox('Pump Name', pumps, key=pump_key,
-            index=pumps.index(selected_pump) if selected_pump in pumps else 0,
-            accept_new_options=True, placeholder='Choose a pump')
-        if v['diesel_pump_name'].strip().casefold() in ('reliance', 'iocl'):
-            holder_key = f'{prefix}_cardholders_name'
-            holders = ['', 'Nikhil', 'Vinod', 'Ajit', 'Altaf', 'Nitish', 'Nisar']
-            selected_holder = clean_text(st.session_state.get(holder_key))
-            if selected_holder and selected_holder not in holders:
-                holders.append(selected_holder)
-            v['cardholders_name'] = card_col.selectbox('Choose Cardholder Name', holders,
-                key=holder_key, index=holders.index(selected_holder) if selected_holder in holders else 0,
-                accept_new_options=True, placeholder='Choose a cardholder')
-            v['card_name'] = v['cardholders_name']
-        else:
-            st.session_state.pop(f'{prefix}_cardholders_name', None)
-            v['cardholders_name'], v['card_name'] = '', ''
-    elif number(v["diesel_advance"]) > 0:
-        pump_col, card_col = st.columns(2)
-        v["diesel_pump_name"] = pump_col.text_input("Add Pumps", key=f"{prefix}_diesel_pump_name", placeholder="e.g., HP Petrol Pump")
-        v["card_name"] = card_col.text_input("Card Name", key=f"{prefix}_card_name", placeholder="e.g., HPCL DriveTrack")
-    else:
-        v["diesel_pump_name"], v["card_name"] = "", ""
     if current_user == "Vijay":
         finance = vijay_finance_summary(
             v["revenue"], v["upi"], v["diesel_advance"], v["cash_advance"],
@@ -1534,8 +1477,6 @@ def view_record(row):
             })
     if is_vijay_record:
         display.update({'Case':number(raw.get('Case')), 'Jar':number(raw.get('Jar'))})
-    if row.get('created_by') == 'Ajit' and not is_expense:
-        display.update({'Halting Charges':number(raw.get('Halting Charges')), 'Loading Charges':number(raw.get('Loading Charges'))})
     locked_columns = ["Type", "Branch"] if record_branch_scope else ["Type"]
     if is_own_record:
         locked_columns.append("Profit / Loss")
@@ -1619,7 +1560,7 @@ def view_record(row):
                 total = sum(number(item[name]) for name in ("RTGS", "Cash", "UPI", "Diesel")) + toll_expense + repairs_maintenance
                 total_advance = total
                 if row.get('created_by') == 'Ajit':
-                    total += number(item.get('Halting Charges')) + number(item.get('Loading Charges'))
+                    total += number(raw.get('Halting Charges')) + number(raw.get('Loading Charges'))
                 balance = number(item["Revenue"]) - total
             else:
                 payment = advance_summary(transporter_freight, *(item[name] for name in ("RTGS", "Cash", "UPI", "Diesel")), billtee)
@@ -1651,8 +1592,6 @@ def view_record(row):
                 updated_dtr["_beneficiary_profile_version"] = 2
             if is_vijay_record:
                 updated_dtr.update({'Case':number(item.get('Case')), 'Jar':number(item.get('Jar'))})
-            if row.get('created_by') == 'Ajit':
-                updated_dtr.update({'Halting Charges':number(item.get('Halting Charges')), 'Loading Charges':number(item.get('Loading Charges'))})
             updated_rtgs = {
                 **rtgs_raw, "BNF_NAME": item["Beneficiary"], "BENE_ACC_NO": item["Account Number"],
                 "BENE_IFSC": item["IFSC"], "AMOUNT": item["RTGS"], "REMARK": normalized_remark,

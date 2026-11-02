@@ -4,18 +4,36 @@ from tests.test_batched_interactions import trip_app
 from src.pnl_report import branch_pnl_summary, vehicle_number_pnl_summary, vehicle_pnl_summary
 
 
+@pytest.mark.parametrize('user', ['Ajit', 'Vijay', 'Ashok', 'Manish', 'Nitish', 'Shyam', 'Sid'])
+def test_inline_diesel_details_expand_and_hide_for_every_user(user):
+    app = trip_app(user)
+    assert not app.exception
+    assert not any(w.label in ('Diesel Rate (₹/L)', 'Diesel Qty (L)', 'Halting Charges (₹)', 'Loading Charges (₹)') for w in app.number_input)
+    next(w for w in app.number_input if w.label == 'Diesel (₹)').set_value(1800).run()
+    next(w for w in app.number_input if w.label == 'Diesel Rate (₹/L)').set_value(90).run()
+    assert app.session_state['test_returned_values']['diesel_quantity'] == 20
+    next(w for w in app.selectbox if w.label == 'Pump Name').select('Reliance').run()
+    next(w for w in app.selectbox if w.label == 'Choose Cardholder Name').select('Ajit').run()
+    assert app.session_state['test_returned_values']['card_name'] == 'Ajit'
+    next(w for w in app.number_input if w.label == 'Diesel (₹)').set_value(0).run()
+    assert not app.exception
+    assert not any(w.label in ('Pump Name', 'Choose Cardholder Name') for w in app.selectbox)
+    values = app.session_state['test_returned_values']
+    assert values['diesel_pump_name'] == values['card_name'] == ''
+    assert values['diesel_rate'] is None and values['diesel_quantity'] is None
+
+
 def test_ajit_editable_diesel_and_charges_update_expense_profit():
     app = trip_app('Ajit')
     next(w for w in app.number_input if w.label == 'Revenue freight (₹)').set_value(10000).run()
     next(w for w in app.number_input if w.label == 'Transporter freight (₹)').set_value(7000).run()
-    next(w for w in app.number_input if w.label == 'Halting Charges (₹)').set_value(200).run()
-    next(w for w in app.number_input if w.label == 'Loading Charges (₹)').set_value(300).run()
-    next(w for w in app.number_input if w.label == 'Diesel Qty (L)').set_value(20).run()
+    assert not any(w.label in ('Halting Charges (₹)', 'Loading Charges (₹)', 'Diesel Qty (L)') for w in app.number_input)
     next(w for w in app.number_input if w.label == 'Diesel (₹)').set_value(1800).run()
+    next(w for w in app.number_input if w.label == 'Diesel Qty (L)').set_value(20).run()
     assert not app.exception
     assert app.session_state['test_returned_values']['diesel_rate'] == 90
-    assert next(m for m in app.metric if m.label == 'Total Expense').value == '₹7,500.00'
-    assert next(m for m in app.metric if m.label == 'Profit / Loss').value == '₹2,500.00'
+    assert next(m for m in app.metric if m.label == 'Total Expense').value == '₹7,000.00'
+    assert next(m for m in app.metric if m.label == 'Profit / Loss').value == '₹3,000.00'
     assert any(w.label == 'Pump Name' for w in app.selectbox)
 
 
@@ -37,8 +55,8 @@ def test_ashok_keeps_existing_diesel_and_pump_controls():
     assert not any(w.label in ('Diesel Qty (L)','Diesel Rate (₹/L)','Halting Charges (₹)','Loading Charges (₹)') for w in app.number_input)
     next(w for w in app.number_input if w.label == 'Diesel (₹)').set_value(500).run()
     assert not app.exception
-    assert any(w.label == 'Add Pumps' for w in app.text_input)
-    assert not any(w.label == 'Pump Name' for w in app.selectbox)
+    assert any(w.label == 'Pump Name' for w in app.selectbox)
+    assert any(w.label == 'Diesel Qty (L)' for w in app.number_input)
 
 
 def test_pending_suggestions_and_date_range_filter_trips_chronologically():

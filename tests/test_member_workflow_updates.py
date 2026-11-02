@@ -27,8 +27,8 @@ def test_any_two_diesel_inputs_solve_third(pair, expected):
 
 def test_diesel_amount_is_editable_and_can_derive_rate_in_ui():
     app = trip_app('Vijay')
-    next(w for w in app.number_input if w.label == 'Diesel Qty (L)').set_value(20).run()
     next(w for w in app.number_input if w.label == 'Diesel (₹)').set_value(1800).run()
+    next(w for w in app.number_input if w.label == 'Diesel Qty (L)').set_value(20).run()
     assert not app.exception
     assert app.session_state['test_returned_values']['diesel_rate'] == 90
     next(w for w in app.number_input if w.label == 'Diesel Rate (₹/L)').set_value(100).run()

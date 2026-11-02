@@ -92,6 +92,7 @@ def test_vijay_uses_fixed_own_vehicle_expense_workflow():
 def test_vijay_diesel_qty_and_rate_update_expense_and_profit():
     app = trip_app('Vijay')
     next(widget for widget in app.selectbox if widget.label == 'Revenue freight (₹)').select(3844).run()
+    next(widget for widget in app.number_input if widget.label == 'Diesel (₹)').set_value(2295).run()
     next(widget for widget in app.number_input if widget.label == 'Diesel Qty (L)').set_value(25.5).run()
     next(widget for widget in app.number_input if widget.label == 'Diesel Rate (₹/L)').set_value(90).run()
     next(widget for widget in app.number_input if widget.label == 'UPI (₹)').set_value(100).run()
@@ -102,7 +103,7 @@ def test_vijay_diesel_qty_and_rate_update_expense_and_profit():
     assert not next(widget for widget in app.number_input if widget.label == 'Diesel (₹)').disabled
     assert next(metric for metric in app.metric if metric.label == 'Total Expense').value == '₹2,395.00'
     assert any('₹1,449.00' in markdown.value for markdown in app.markdown)
-    next(widget for widget in app.number_input if widget.label == 'Diesel Qty (L)').set_value(0).run()
+    next(widget for widget in app.number_input if widget.label == 'Diesel (₹)').set_value(0).run()
     assert not app.exception
     assert app.session_state['test_returned_values']['diesel_advance'] == 0
     assert next(metric for metric in app.metric if metric.label == 'Total Expense').value == '₹100.00'
@@ -121,6 +122,8 @@ def test_entry_pages_do_not_render_voice_controls():
 
 def test_vijay_pump_and_conditional_cardholder_selection():
     app = trip_app('Vijay')
+    assert not any(widget.label == 'Pump Name' for widget in app.selectbox)
+    next(widget for widget in app.number_input if widget.label == 'Diesel (₹)').set_value(500).run()
     assert not app.exception
     assert not any(widget.label == 'Driver name' for widget in app.text_input)
     pump = next(widget for widget in app.selectbox if widget.label == 'Pump Name')
@@ -140,6 +143,7 @@ def test_vijay_pump_and_conditional_cardholder_selection():
     assert not app.exception
     assert next(widget for widget in app.selectbox if widget.label == 'Choose Cardholder Name').value == ''
     other = trip_app('Nitish')
+    next(widget for widget in other.number_input if widget.label == 'Diesel (₹)').set_value(500).run()
     assert not any(widget.label == 'Driver name' for widget in other.text_input)
     assert any(widget.label == 'Driver name' for widget in trip_app('Manish').text_input)
     assert any(widget.label == 'Pump Name' for widget in other.selectbox)
