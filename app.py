@@ -887,7 +887,8 @@ def trip_payload(v, files, invoice_filename=None):
     if current_user == "Ashok":
         dtr["_beneficiary_profile_version"] = 2
     if current_user == 'Vijay':
-        dtr.update({'Case':v.get('cases'), 'Jar':v.get('jars')})
+        dtr.update({'Case':v.get('cases'), 'Jar':v.get('jars'),
+                    'Cardholders Name':clean_text(v.get('cardholders_name'))})
     rtgs = {"BNF_NAME": v["beneficiary_name"], "BENE_ACC_NO": v["beneficiary_account_number"], "BENE_IFSC": v["beneficiary_ifsc_code"], "AMOUNT": v["rtgs_advance"], "REMARK": remarks, "Origin Area": v["branch"]}
     return {
         "report_scope": "Both", "trip_date": v["date"], "vehicle_number": vehicle_number, "vehicle_type": capacity,
@@ -1100,8 +1101,8 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     own_workflow = simplified or is_own_vehicle(v["ownership_type"])
     v["simplified"] = own_workflow
     if current_user == 'Vijay':
-        driver_col, case_col, jar_col = st.columns([2,1,1])
-        v['driver_name'] = driver_col.text_input('Driver name', key=f'{prefix}_driver_name', placeholder='Driver name as printed on the LR')
+        case_col, jar_col = st.columns(2)
+        v['driver_name'] = clean_text(st.session_state.get(f'{prefix}_driver_name'))
         v['cases'] = case_col.number_input('Case', min_value=0.0, value=None, key=f'{prefix}_cases', placeholder='')
         v['jars'] = jar_col.number_input('Jar', min_value=0.0, value=None, key=f'{prefix}_jars', placeholder='')
     else:
@@ -1247,7 +1248,30 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
             v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 2,000", key=f"{prefix}_{field}")
         v["billtee"] = deduction_columns[-1].number_input("Billtee (₹)", min_value=0.0, value=None, placeholder="e.g., 1,000", key=f"{prefix}_billtee")
         v["toll_expense"], v["repairs_maintenance"], v["repair_reason"] = 0.0, 0.0, ""
-    if number(v["diesel_advance"]) > 0:
+    if current_user == 'Vijay':
+        pump_col, card_col = st.columns(2)
+        pump_key = f'{prefix}_diesel_pump_name'
+        pumps = ['', 'Reliance', 'IOCL', 'Gaurav', 'Shree Balaji Petroleum', 'Om Vinayak']
+        selected_pump = clean_text(st.session_state.get(pump_key))
+        if selected_pump and selected_pump not in pumps:
+            pumps.append(selected_pump)
+        v['diesel_pump_name'] = pump_col.selectbox('Pump Name', pumps, key=pump_key,
+            index=pumps.index(selected_pump) if selected_pump in pumps else 0,
+            accept_new_options=True, placeholder='Choose a pump')
+        if v['diesel_pump_name'].strip().casefold() in ('reliance', 'iocl'):
+            holder_key = f'{prefix}_cardholders_name'
+            holders = ['', 'Nikhil', 'Vinod', 'Ajit', 'Altaf', 'Nitish', 'Nisar']
+            selected_holder = clean_text(st.session_state.get(holder_key))
+            if selected_holder and selected_holder not in holders:
+                holders.append(selected_holder)
+            v['cardholders_name'] = card_col.selectbox('Choose Cardholder Name', holders,
+                key=holder_key, index=holders.index(selected_holder) if selected_holder in holders else 0,
+                accept_new_options=True, placeholder='Choose a cardholder')
+            v['card_name'] = v['cardholders_name']
+        else:
+            st.session_state.pop(f'{prefix}_cardholders_name', None)
+            v['cardholders_name'], v['card_name'] = '', ''
+    elif number(v["diesel_advance"]) > 0:
         pump_col, card_col = st.columns(2)
         v["diesel_pump_name"] = pump_col.text_input("Add Pumps", key=f"{prefix}_diesel_pump_name", placeholder="e.g., HP Petrol Pump")
         v["card_name"] = card_col.text_input("Card Name", key=f"{prefix}_card_name", placeholder="e.g., HPCL DriveTrack")

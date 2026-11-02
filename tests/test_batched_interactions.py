@@ -119,6 +119,31 @@ def test_entry_pages_do_not_render_voice_controls():
                             and 'Voice' in str(node.args[0].value))
 
 
+def test_vijay_pump_and_conditional_cardholder_selection():
+    app = trip_app('Vijay')
+    assert not app.exception
+    assert not any(widget.label == 'Driver name' for widget in app.text_input)
+    pump = next(widget for widget in app.selectbox if widget.label == 'Pump Name')
+    assert pump.options == ['', 'Reliance', 'IOCL', 'Gaurav', 'Shree Balaji Petroleum', 'Om Vinayak']
+    assert not any(widget.label == 'Choose Cardholder Name' for widget in app.selectbox)
+    pump.select('Reliance').run()
+    assert not app.exception
+    holder = next(widget for widget in app.selectbox if widget.label == 'Choose Cardholder Name')
+    assert holder.options == ['', 'Nikhil', 'Vinod', 'Ajit', 'Altaf', 'Nitish', 'Nisar']
+    holder.select('Nitish').run()
+    assert app.session_state['test_returned_values']['cardholders_name'] == 'Nitish'
+    next(widget for widget in app.selectbox if widget.label == 'Pump Name').select('Gaurav').run()
+    assert not app.exception
+    assert not any(widget.label == 'Choose Cardholder Name' for widget in app.selectbox)
+    assert app.session_state['test_returned_values']['cardholders_name'] == ''
+    next(widget for widget in app.selectbox if widget.label == 'Pump Name').select('IOCL').run()
+    assert not app.exception
+    assert next(widget for widget in app.selectbox if widget.label == 'Choose Cardholder Name').value == ''
+    other = trip_app('Nitish')
+    assert any(widget.label == 'Driver name' for widget in other.text_input)
+    assert not any(widget.label == 'Pump Name' for widget in other.selectbox)
+
+
 def test_order_controls_remain_beside_live_records_not_in_filter_form():
     form_source = Path('src/batched_records.py').read_text()
     assert "selectbox('Record order'" not in form_source
