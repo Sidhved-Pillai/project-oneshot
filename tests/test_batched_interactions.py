@@ -89,6 +89,36 @@ def test_vijay_uses_fixed_own_vehicle_expense_workflow():
     assert values['transporter_freight'] == 0
 
 
+def test_vijay_diesel_qty_and_rate_update_expense_and_profit():
+    app = trip_app('Vijay')
+    next(widget for widget in app.selectbox if widget.label == 'Revenue freight (₹)').select(3844).run()
+    next(widget for widget in app.number_input if widget.label == 'Diesel Qty (L)').set_value(25.5).run()
+    next(widget for widget in app.number_input if widget.label == 'Diesel Rate (₹/L)').set_value(90).run()
+    next(widget for widget in app.number_input if widget.label == 'UPI (₹)').set_value(100).run()
+    assert not app.exception
+    values = app.session_state['test_returned_values']
+    assert values['diesel_advance'] == 2295
+    assert values['diesel_quantity'] == 25.5 and values['diesel_rate'] == 90
+    assert next(widget for widget in app.number_input if widget.label == 'Diesel (₹)').disabled
+    assert next(metric for metric in app.metric if metric.label == 'Total Expense').value == '₹2,395.00'
+    assert any('₹1,449.00' in markdown.value for markdown in app.markdown)
+    next(widget for widget in app.number_input if widget.label == 'Diesel Qty (L)').set_value(0).run()
+    assert not app.exception
+    assert app.session_state['test_returned_values']['diesel_advance'] == 0
+    assert next(metric for metric in app.metric if metric.label == 'Total Expense').value == '₹100.00'
+
+
+def test_entry_pages_do_not_render_voice_controls():
+    tree = ast.parse(Path('app.py').read_text())
+    for function in [node for node in tree.body if isinstance(node, ast.FunctionDef)
+                     and node.name in ('render_new_entry','render_direct_expenses')]:
+        for node in ast.walk(function):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                assert node.func.attr != 'audio_input'
+                assert not (node.func.attr == 'button' and node.args and isinstance(node.args[0],ast.Constant)
+                            and 'Voice' in str(node.args[0].value))
+
+
 def test_order_controls_remain_beside_live_records_not_in_filter_form():
     form_source = Path('src/batched_records.py').read_text()
     assert "selectbox('Record order'" not in form_source

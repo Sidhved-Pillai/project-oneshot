@@ -1175,9 +1175,18 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
             c2.caption("Not applicable for an own vehicle.")
     st.caption("Enter amounts in every payment mode used. Each amount is included in the Profit / Loss calculation." if current_user == "Vijay" else "Enter amounts in every payment mode used. Repairs and maintenance are deducted from Profit / Loss." if own_workflow else "Enter amounts in every payment mode used. Billtee is also deducted before calculating the balance payable.")
     if current_user == "Vijay":
-        payment_columns = st.columns(6)
+        fuel_columns = st.columns(3)
+        v['diesel_quantity'] = fuel_columns[0].number_input('Diesel Qty (L)', min_value=0.0, value=None,
+            key=f'{prefix}_diesel_quantity', placeholder='')
+        v['diesel_rate'] = fuel_columns[1].number_input('Diesel Rate (₹/L)', min_value=0.0, value=None,
+            key=f'{prefix}_diesel_rate', placeholder='')
+        calculated_key = f'{prefix}_diesel_calculated'
+        st.session_state[calculated_key] = float(diesel_expense(v['diesel_quantity'], v['diesel_rate']))
+        v['diesel_advance'] = fuel_columns[2].number_input('Diesel (₹)', min_value=0.0,
+            key=calculated_key, disabled=True, help='Calculated as Diesel Qty × Diesel Rate.')
+        payment_columns = st.columns(5)
         vijay_fields = [
-            ("UPI", "upi"), ("Diesel", "diesel_advance"), ("Cash", "cash_advance"),
+            ("UPI", "upi"), ("Cash", "cash_advance"),
             ("RTGS", "rtgs_advance"), ("Toll Expense", "toll_expense"), ("Billtee", "billtee"),
         ]
         for col, (label, field) in zip(payment_columns, vijay_fields):
@@ -1720,9 +1729,9 @@ def render_new_entry():
         entry_generation = st.session_state.setdefault("new_entry_generation", 0)
         entry_prefix = entry_state_prefix(entry_generation)
         st.session_state.setdefault(f"{entry_prefix}_vehicle_placed_by", LOGIN_VEHICLE_PLACERS.get(current_user, current_user))
-        c1, c2 = st.columns(2)
+        c1, c2 = st.columns([4, 1.5])
         upload = c1.file_uploader("Upload photos or PDFs", type=["jpg", "jpeg", "png", "webp", "pdf"], accept_multiple_files=True, key=f"{entry_prefix}_upload", help="Upload the cheque, invoice, and any supporting evidence together.")
-        photo = capture_photo(c1, entry_prefix)
+        photo = capture_photo(c2, entry_prefix)
         upload = [*(upload or []), *([photo] if photo is not None else [])]
         if upload:
             c1.button('Retry photo/file autofill', key=f'{entry_prefix}_retry_autofill',
@@ -1735,13 +1744,9 @@ def render_new_entry():
             )
         if current_user == "Vijay":
             st.session_state[f"{entry_prefix}_invoice_slots"] = max(1, len(upload or []))
-        audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key=f"{entry_prefix}_audio")
-        voice_autofill = c2.button("Autofill with Voice Prompt", type="primary", use_container_width=True, disabled=audio is None, key=f"{entry_prefix}_voice_autofill", icon="🎙️")
-        files = evidence(upload, audio)
+        files = evidence(upload, None)
         if upload:
             autofill(evidence(upload, None), "", entry_prefix)
-        if voice_autofill:
-            autofill(evidence(None, audio), "", entry_prefix)
         with st.container(border=True):
             values = trip_form(entry_prefix, business_memory, allowed_entry_branches, simplified=current_user == "Manish")
             repair_reason_missing = values["simplified"] and number(values["repairs_maintenance"]) > 0 and not clean_text(values["repair_reason"])
@@ -1770,26 +1775,22 @@ with new_tab:
 def render_direct_expenses():
     if not can_use_direct_expenses:
         st.warning("Direct Expenses is not available for your account.")
-    page_intro("Expense capture", "Direct expense", "Turn bills and spoken notes into clean, categorised expense records.", "₹")
+    page_intro("Expense capture", "Direct expense", "Turn bills and receipts into clean, categorised expense records.", "₹")
     workflow_steps(["Add receipt", "Categorise", "Save and add another"], 0)
     if saved_expense_notice:
         st.success(saved_expense_notice, icon="✅")
     expense_generation = st.session_state.setdefault("direct_expense_generation", 0)
     expense_prefix = expense_state_prefix(expense_generation)
-    c1, c2 = st.columns(2)
+    c1, c2 = st.columns([4, 1.5])
     expense_upload = c1.file_uploader("Attach bills or receipts", type=["jpg", "jpeg", "png", "webp", "pdf"], accept_multiple_files=True, key=f"{expense_prefix}_upload", disabled=not can_use_direct_expenses)
-    expense_photo = capture_photo(c1, expense_prefix, disabled=not can_use_direct_expenses)
+    expense_photo = capture_photo(c2, expense_prefix, disabled=not can_use_direct_expenses)
     expense_upload = [*(expense_upload or []), *([expense_photo] if expense_photo is not None else [])]
     if expense_upload:
         c1.button('Retry photo/file autofill', key=f'{expense_prefix}_retry_autofill',
                   on_click=retry_evidence, args=(expense_prefix,))
-    expense_audio = c2.audio_input("Voice instruction · English / हिन्दी / मराठी", key=f"{expense_prefix}_audio", disabled=not can_use_direct_expenses)
-    expense_voice_autofill = c2.button("Autofill with Voice Prompt", type="primary", use_container_width=True, disabled=expense_audio is None or not can_use_direct_expenses, key=f"{expense_prefix}_voice_autofill", icon="🎙️")
-    expense_files = evidence(expense_upload, expense_audio)
+    expense_files = evidence(expense_upload, None)
     if expense_upload:
         autofill(evidence(expense_upload, None), "", expense_prefix, "EXPENSE")
-    if expense_voice_autofill:
-        autofill(evidence(None, expense_audio), "", expense_prefix, "EXPENSE")
     with st.container(border=True):
         is_manish = current_user == "Manish"
         if clean_text(st.session_state.get(f"{expense_prefix}_vehicle")):
