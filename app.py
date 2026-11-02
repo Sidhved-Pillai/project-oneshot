@@ -27,7 +27,7 @@ from src.invoice_display import dtr_invoice_text
 from src.number_format import format_inr, indian_number
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
 from src.current_leaderboard import branch_trip_leaderboard, current_month_leaderboard
-from src import current_pnl_report_v4 as pnl_reporting
+from src import current_pnl_report_v5 as pnl_reporting
 from src.record_filters_v2 import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, direct_expense_headings, filter_direct_expenses, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
 from src.records_export import export_records_excel
 from src.trip_dtr_report_v3 import DTR_REVIEW_COLUMNS, edited_dtr_frame, export_operational_dtr
@@ -37,12 +37,12 @@ from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROF
 from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
-from src.current_pnl_report_v4 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
+from src.current_pnl_report_v5 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.records_store_v21 import RequestStore
 from src.payment_access import PENDING_PAYMENT_USERS
 from src.diesel_inputs import update_diesel
 from src.expense_date import seed_expense_date, remember_expense_date
-from src.pending_payments_v6 import render_pending_payments
+from src.pending_payments_v7 import render_pending_payments
 from src.invoice_viewer import invoice_viewer_html
 from src.duplicate_review import duplicate_review_frame, selected_duplicate_numbers
 from src.expense_autofill import expense_identity_inputs
@@ -151,7 +151,7 @@ def cached_rtgs_excel(frame, report_date):
 
 @st.cache_data(show_spinner=False, max_entries=12)
 def cached_pnl_excel(trips, expenses, start, end, ownership_filter):
-    # Finance revision 4: invalidate exports cached before finite-value handling.
+    # Finance revision 5: include halting and loading charges in trip expenses.
     return bytes(export_pnl(trips, expenses, start, end, ownership_filter))
 
 
@@ -870,6 +870,8 @@ def trip_payload(v, files, invoice_filename=None):
     elif v.get("simplified"):
         total = sum(payments.values()) + toll_expense + repairs_maintenance
         total_advance = total
+        if current_user == 'Ajit':
+            total += number(v.get('halting_charges')) + number(v.get('loading_charges'))
         balance = number(v["revenue"]) - total
     else:
         summary = advance_summary(transporter_freight, *payments.values(), billtee)
@@ -892,6 +894,10 @@ def trip_payload(v, files, invoice_filename=None):
     if current_user == 'Vijay':
         dtr.update({'Case':v.get('cases'), 'Jar':v.get('jars'),
                     'Cardholders Name':clean_text(v.get('cardholders_name'))})
+    if 'cardholders_name' in v:
+        dtr['Cardholders Name'] = clean_text(v.get('cardholders_name'))
+    if current_user == 'Ajit':
+        dtr.update({'Halting Charges':number(v.get('halting_charges')), 'Loading Charges':number(v.get('loading_charges'))})
     rtgs = {"BNF_NAME": v["beneficiary_name"], "BENE_ACC_NO": v["beneficiary_account_number"], "BENE_IFSC": v["beneficiary_ifsc_code"], "AMOUNT": v["rtgs_advance"], "REMARK": remarks, "Origin Area": v["branch"]}
     return {
         "report_scope": "Both", "trip_date": v["date"], "vehicle_number": vehicle_number, "vehicle_type": capacity,
@@ -981,6 +987,19 @@ def memory_prompt(prefix, title, source, suggestion, field_names):
 
 def update_vijay_diesel(prefix, changed):
     update_diesel(st.session_state, prefix, changed)
+
+
+def diesel_trip_inputs(prefix):
+    fields = ('diesel_quantity', 'diesel_rate', 'diesel_advance')
+    populated = [field for field in fields if st.session_state.get(f'{prefix}_{field}') is not None]
+    if len(populated) == 2:
+        update_diesel(st.session_state, prefix, populated[-1])
+    columns = st.columns(3)
+    labels = ('Diesel Qty (L)', 'Diesel Rate (₹/L)', 'Diesel (₹)')
+    return {field:column.number_input(label, min_value=0.0, value=None,
+            key=f'{prefix}_{field}', placeholder='', on_change=update_vijay_diesel, args=(prefix,field),
+            help='Edit any two values to calculate the third.')
+            for column,field,label in zip(columns,fields,labels)}
 
 
 def trip_form(prefix, memory, allowed_branches=None, simplified=False):
@@ -1183,20 +1202,14 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         v["transporter_freight"] = c2.number_input("Transporter freight (₹)", min_value=0.0, value=None, placeholder="Not applicable for own vehicles" if own_vehicle else "e.g., 38,000", disabled=own_vehicle or current_user == "Vijay", key=transporter_freight_key)
         if own_vehicle:
             c2.caption("Not applicable for an own vehicle.")
+    if current_user == 'Ajit':
+        halting_col, loading_col = st.columns(2)
+        v['halting_charges'] = halting_col.number_input('Halting Charges (₹)', min_value=0.0, value=None, key=f'{prefix}_halting_charges')
+        v['loading_charges'] = loading_col.number_input('Loading Charges (₹)', min_value=0.0, value=None, key=f'{prefix}_loading_charges')
+    if current_user in ('Vijay','Ajit'):
+        v.update(diesel_trip_inputs(prefix))
     st.caption("Enter amounts in every payment mode used. Each amount is included in the Profit / Loss calculation." if current_user == "Vijay" else "Enter amounts in every payment mode used. Repairs and maintenance are deducted from Profit / Loss." if own_workflow else "Enter amounts in every payment mode used. Billtee is also deducted before calculating the balance payable.")
     if current_user == "Vijay":
-        fuel_fields = ('diesel_quantity', 'diesel_rate', 'diesel_advance')
-        populated_fuel_fields = [field for field in fuel_fields if st.session_state.get(f'{prefix}_{field}') is not None]
-        if len(populated_fuel_fields) == 2:
-            update_diesel(st.session_state, prefix, populated_fuel_fields[-1])
-        fuel_columns = st.columns(3)
-        v['diesel_quantity'] = fuel_columns[0].number_input('Diesel Qty (L)', min_value=0.0, value=None,
-            key=f'{prefix}_diesel_quantity', placeholder='', on_change=update_vijay_diesel, args=(prefix,'diesel_quantity'))
-        v['diesel_rate'] = fuel_columns[1].number_input('Diesel Rate (₹/L)', min_value=0.0, value=None,
-            key=f'{prefix}_diesel_rate', placeholder='', on_change=update_vijay_diesel, args=(prefix,'diesel_rate'))
-        v['diesel_advance'] = fuel_columns[2].number_input('Diesel (₹)', min_value=0.0,
-            value=None, key=f'{prefix}_diesel_advance', on_change=update_vijay_diesel, args=(prefix,'diesel_advance'),
-            help='Edit any two values to calculate the third. Your two most recently edited values are used.')
         payment_columns = st.columns(5)
         vijay_fields = [
             ("UPI", "upi"), ("Cash", "cash_advance"),
@@ -1247,6 +1260,8 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
             ("Route Expense (UPI)", "upi"), ("Diesel", "diesel_advance"), ("Cash", "cash_advance"),
             ("Toll Expense", "toll_expense"), ("RTGS", "rtgs_advance"),
         ]
+        if current_user == 'Ajit':
+            simplified_fields = [(label,field) for label,field in simplified_fields if field != 'diesel_advance']
         for col, (label, field) in zip(deduction_columns, simplified_fields):
             v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 2,000", key=f"{prefix}_{field}")
         v["billtee"] = 0.0
@@ -1255,12 +1270,13 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         if number(v["repairs_maintenance"]) > 0 and not clean_text(v["repair_reason"]):
             st.caption("Reason is required when Repairs & Maintenance has an amount.")
     else:
-        deduction_columns = st.columns(5)
-        for col, (label, field) in zip(deduction_columns, PAYMENT_FIELDS.items()):
+        payment_fields = {label:field for label,field in PAYMENT_FIELDS.items() if current_user != 'Ajit' or field != 'diesel_advance'}
+        deduction_columns = st.columns(len(payment_fields) + 1)
+        for col, (label, field) in zip(deduction_columns, payment_fields.items()):
             v[field] = col.number_input(f"{label} (₹)", min_value=0.0, value=None, placeholder="e.g., 2,000", key=f"{prefix}_{field}")
         v["billtee"] = deduction_columns[-1].number_input("Billtee (₹)", min_value=0.0, value=None, placeholder="e.g., 1,000", key=f"{prefix}_billtee")
         v["toll_expense"], v["repairs_maintenance"], v["repair_reason"] = 0.0, 0.0, ""
-    if current_user == 'Vijay':
+    if current_user != 'Ashok':
         pump_col, card_col = st.columns(2)
         pump_key = f'{prefix}_diesel_pump_name'
         pumps = ['', 'Reliance', 'IOCL', 'Gaurav', 'Shree Balaji Petroleum', 'Om Vinayak']
@@ -1300,6 +1316,8 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     elif own_workflow:
         total = sum(number(v[field]) for field in PAYMENT_FIELDS.values()) + number(v["toll_expense"]) + number(v["repairs_maintenance"])
         total_advance = total
+        if current_user == 'Ajit':
+            total += number(v.get('halting_charges')) + number(v.get('loading_charges'))
         balance = number(v["revenue"]) - total
     else:
         payment = advance_summary(v["transporter_freight"], *(v[f] for f in PAYMENT_FIELDS.values()), v["billtee"])
@@ -1324,6 +1342,11 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         summary[metric_offset + 1].metric("Balance payable", format_inr(balance), help="Transporter freight minus RTGS, Cash, UPI, Diesel and Billtee deductions. A negative amount indicates an overpayment.")
     if balance < 0 and not own_workflow:
         st.warning(f"Advance exceeds transporter freight by {format_inr(abs(balance))}. Please review the payment amounts.")
+    if current_user == 'Ajit' and not own_workflow:
+        trip_expense = number(v['transporter_freight']) + number(v.get('halting_charges')) + number(v.get('loading_charges'))
+        expense_col, profit_col = st.columns(2)
+        expense_col.metric('Total Expense', format_inr(trip_expense))
+        profit_col.metric('Profit / Loss', format_inr(number(v['revenue']) - trip_expense))
     remark_key = f"{prefix}_remarks"
     generated_remark = trip_auto_remark(v["vehicle_number"], v["from_location"], v["to_location"], v["vehicle_capacity"], v["date"])
     if any(clean_text(v[field]) for field in ("vehicle_number", "from_location", "to_location", "vehicle_capacity")):
@@ -1511,6 +1534,8 @@ def view_record(row):
             })
     if is_vijay_record:
         display.update({'Case':number(raw.get('Case')), 'Jar':number(raw.get('Jar'))})
+    if row.get('created_by') == 'Ajit' and not is_expense:
+        display.update({'Halting Charges':number(raw.get('Halting Charges')), 'Loading Charges':number(raw.get('Loading Charges'))})
     locked_columns = ["Type", "Branch"] if record_branch_scope else ["Type"]
     if is_own_record:
         locked_columns.append("Profit / Loss")
@@ -1593,6 +1618,8 @@ def view_record(row):
             elif is_own_record:
                 total = sum(number(item[name]) for name in ("RTGS", "Cash", "UPI", "Diesel")) + toll_expense + repairs_maintenance
                 total_advance = total
+                if row.get('created_by') == 'Ajit':
+                    total += number(item.get('Halting Charges')) + number(item.get('Loading Charges'))
                 balance = number(item["Revenue"]) - total
             else:
                 payment = advance_summary(transporter_freight, *(item[name] for name in ("RTGS", "Cash", "UPI", "Diesel")), billtee)
@@ -1624,6 +1651,8 @@ def view_record(row):
                 updated_dtr["_beneficiary_profile_version"] = 2
             if is_vijay_record:
                 updated_dtr.update({'Case':number(item.get('Case')), 'Jar':number(item.get('Jar'))})
+            if row.get('created_by') == 'Ajit':
+                updated_dtr.update({'Halting Charges':number(item.get('Halting Charges')), 'Loading Charges':number(item.get('Loading Charges'))})
             updated_rtgs = {
                 **rtgs_raw, "BNF_NAME": item["Beneficiary"], "BENE_ACC_NO": item["Account Number"],
                 "BENE_IFSC": item["IFSC"], "AMOUNT": item["RTGS"], "REMARK": normalized_remark,

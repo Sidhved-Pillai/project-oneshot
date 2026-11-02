@@ -4,6 +4,7 @@ import math
 import hashlib
 import html
 import re
+import datetime as dt
 from difflib import SequenceMatcher
 from decimal import Decimal
 from collections import defaultdict
@@ -15,6 +16,8 @@ from .branch_names import canonical_branch
 from .number_format import format_inr
 from .vehicle_placer import canonical_vehicle_placer
 from .payment_access import PENDING_PAYMENT_USERS
+from .dtr_dates import parse_dtr_date
+from .operational_dates import OPERATIONS_START
 
 
 def transporter_key(name):
@@ -175,6 +178,8 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
     </style><div class="pp-intro"><div class="pp-icon">₹</div><div><h2>Pending Payments</h2><p>Review and send pending Balance Payments or UPI payments.</p></div></div>''', unsafe_allow_html=True)
     summary_cards(pending_summary(trips, balance_requests, upi_requests))
     kind = st.session_state.get('pending_kind_card', 'balance')
+    profiles = store.pending_upi_profiles(user) if kind == 'upi' else {}
+    groups = payment_groups(trips, kind, balance_requests if kind == 'balance' else upi_requests, profiles)
     with st.container(key='pending_toolbar'):
         balance_col, upi_col, search_col, branch_col, sort_col = st.columns([1.5,.85,2.4,1.5,2.2], gap='small')
         balance_col.button('Balance Payment', icon=':material/local_shipping:',
@@ -183,17 +188,31 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
         upi_col.button('UPI', icon=':material/directions_car:',
                        type='primary' if kind == 'upi' else 'secondary', use_container_width=True,
                        on_click=st.session_state.update, args=({'pending_kind_card':'upi'},))
-        search = search_col.text_input('Search transporter / payer', placeholder='Search transporter…' if kind == 'balance' else 'Search payer…',
-                                       label_visibility='collapsed', key='pending_search')
+        suggestions = ['', *sorted({group[0]['name'] for group in groups
+                                    if any(item['status'] == 'Pending' for item in group)}, key=str.casefold)]
+        search_key = f'pending_search_suggestion_{kind}'
+        entered = st.session_state.get(search_key, '')
+        if entered and entered not in suggestions:
+            suggestions.append(entered)
+        search = search_col.selectbox('Search transporter / payer', suggestions, accept_new_options=True,
+            placeholder='Search transporter…' if kind == 'balance' else 'Search payer…',
+            label_visibility='collapsed', key=search_key)
         branch = branch_col.selectbox('Branch', ['All Branches','Andheri','Pune','Vadodara','Wada'], label_visibility='collapsed', key='pending_branch')
         sort = sort_col.selectbox('Sort by', ['Total Amount (High to Low)','Name'], label_visibility='collapsed', key='pending_sort')
-    profiles = store.pending_upi_profiles(user) if kind == 'upi' else {}
-    groups = payment_groups(trips, kind, balance_requests if kind == 'balance' else upi_requests, profiles)
+    from_col, to_col = st.columns(2)
+    start = from_col.date_input('Trips from', value=OPERATIONS_START, min_value=OPERATIONS_START, format='DD/MM/YYYY', key='pending_date_from')
+    end = to_col.date_input('Trips to', value=max(dt.date.today(), OPERATIONS_START), min_value=OPERATIONS_START, format='DD/MM/YYYY', key='pending_date_to')
+    if start > end:
+        st.error('Choose an end date on or after the start date.')
+        return
     filtered = []
     for group in groups:
         matching = [item for item in group
                     if (branch == 'All Branches' or canonical_branch(item['trip'].get('branch')) == branch)
-                    and item['status'] == 'Pending']
+                    and item['status'] == 'Pending'
+                    and parse_dtr_date(item['trip'].get('trip_date')) is not None
+                    and start <= parse_dtr_date(item['trip'].get('trip_date')) <= end]
+        matching.sort(key=lambda item:(str(item['trip'].get('trip_date')), item['trip']['request_number']))
         if matching and (not search or transporter_key(search) in transporter_key(matching[0]['name'] + ' ' + str(matching[0]['profile'].get('BNF_NAME','')))):
             filtered.append(matching)
     filtered.sort(key=lambda group: -sum(item['amount'] for item in group) if sort.startswith('Total') else group[0]['name'].casefold())
@@ -203,7 +222,7 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
     page_size = 20
     pages = max(1, (len(filtered) + page_size - 1) // page_size)
     page_key = f'pending_current_page_{kind}'
-    filter_signature = (kind, search, branch, sort)
+    filter_signature = (kind, search, branch, sort, start, end)
     if st.session_state.get('pending_page_filter_signature') != filter_signature:
         st.session_state[page_key] = 1
         st.session_state['pending_page_filter_signature'] = filter_signature
