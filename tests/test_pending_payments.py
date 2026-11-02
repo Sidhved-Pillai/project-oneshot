@@ -36,7 +36,7 @@ def test_grouped_balance_sends_selected_once_and_preserves_trips(tmp_path):
     assert len(groups) == 1 and len(groups[0]) == 2
     selected = {number:row['updated_at'] for number,row in before.items()}
     with pytest.raises(ValueError):
-        store.send_pending_payments(selected, 'balance', 'Shyam')
+        store.send_pending_payments(selected, 'balance', 'Nikhat')
     assert store.send_pending_payments(selected, 'balance', 'Sid') == 2
     assert store.send_pending_payments(selected, 'balance', 'Sid') == 0
     assert store.list_balance_payments().keys() == before.keys()
@@ -69,7 +69,9 @@ def test_stale_trip_rejected_and_own_profit_excluded(tmp_path):
     row = store.get(number)
     assert not payment_groups([{**row, 'ownership_type':'Own'}], 'balance', {}, {})
     other_bank = {**row, 'rtgs_data':{'BNF_NAME':'Other','BENE_ACC_NO':'other','BENE_IFSC':'TEST0000001'}}
-    assert len(payment_groups([row,other_bank], 'balance', {}, {})) == 2
+    grouped = payment_groups([row,other_bank], 'balance', {}, {})
+    assert len(grouped) == 1
+    assert {item['profile']['BENE_ACC_NO'] for item in grouped[0]} == {'001234','other'}
 
 
 def test_reference_cards_have_header_actions_and_expandable_trip_table():

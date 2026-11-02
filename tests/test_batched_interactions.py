@@ -99,7 +99,7 @@ def test_vijay_diesel_qty_and_rate_update_expense_and_profit():
     values = app.session_state['test_returned_values']
     assert values['diesel_advance'] == 2295
     assert values['diesel_quantity'] == 25.5 and values['diesel_rate'] == 90
-    assert next(widget for widget in app.number_input if widget.label == 'Diesel (₹)').disabled
+    assert not next(widget for widget in app.number_input if widget.label == 'Diesel (₹)').disabled
     assert next(metric for metric in app.metric if metric.label == 'Total Expense').value == '₹2,395.00'
     assert any('₹1,449.00' in markdown.value for markdown in app.markdown)
     next(widget for widget in app.number_input if widget.label == 'Diesel Qty (L)').set_value(0).run()
@@ -140,7 +140,8 @@ def test_vijay_pump_and_conditional_cardholder_selection():
     assert not app.exception
     assert next(widget for widget in app.selectbox if widget.label == 'Choose Cardholder Name').value == ''
     other = trip_app('Nitish')
-    assert any(widget.label == 'Driver name' for widget in other.text_input)
+    assert not any(widget.label == 'Driver name' for widget in other.text_input)
+    assert any(widget.label == 'Driver name' for widget in trip_app('Manish').text_input)
     assert not any(widget.label == 'Pump Name' for widget in other.selectbox)
 
 

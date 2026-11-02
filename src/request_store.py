@@ -14,6 +14,7 @@ from .config import DATA
 from .dtr_generator import DTR_COLUMNS
 from .balance_payments import BALANCE_PREFIX, can_send_balance
 from .upi_payments import UPI_PREFIX, can_send_upi
+from .payment_access import PENDING_PAYMENT_USERS
 
 
 metadata = MetaData()
@@ -391,7 +392,7 @@ class RequestStore:
             row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
                 requests.c.request_number == request_number,
             ).with_for_update()).mappings().first()
-            if not row or not can_send_balance(user, row):
+            if not row or not (can_send_balance(user, row) or (user in PENDING_PAYMENT_USERS and row.get('report_scope') != 'Expense' and not row.get('is_archived') and row.get('status') != 'Cancelled')):
                 raise ValueError("You cannot request a balance payment for this record.")
             existing = conn.execute(select(balance_payments.c.request_number).where(
                 balance_payments.c.request_number == request_number,
@@ -428,7 +429,7 @@ class RequestStore:
             row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
                 requests.c.request_number == request_number,
             ).with_for_update()).mappings().first()
-            sid_eligible = row and user == 'Sid' and row.get('report_scope') != 'Expense' and not row.get('is_archived') and row.get('status') != 'Cancelled' and float(row.get('upi') or 0) > 0
+            sid_eligible = row and user in PENDING_PAYMENT_USERS and row.get('report_scope') != 'Expense' and not row.get('is_archived') and row.get('status') != 'Cancelled' and float(row.get('upi') or 0) > 0
             if not row or not (can_send_upi(user, row) or sid_eligible):
                 raise ValueError("Only Nitish can request UPI payments for his eligible trips.")
             if conn.execute(select(upi_payments.c.request_number).where(
@@ -437,7 +438,7 @@ class RequestStore:
             amount = row['upi']
             data = json.loads(row.get('rtgs_data') or '{}')
             profile = conn.execute(select(upi_reimbursement_profiles.c.beneficiary_data).where(
-                upi_reimbursement_profiles.c.user_name == (row.get('created_by') if user == 'Sid' else user))).scalar_one_or_none()
+                upi_reimbursement_profiles.c.user_name == (row.get('created_by') if user in PENDING_PAYMENT_USERS else user))).scalar_one_or_none()
             beneficiary = json.loads(profile or '{}')
             required = ('BNF_NAME', 'BENE_ACC_NO', 'BENE_IFSC')
             if not all(str(beneficiary.get(key) or '').strip() for key in required):
@@ -454,15 +455,15 @@ class RequestStore:
         return True
 
     def pending_upi_profiles(self, user):
-        if user != 'Sid':
-            raise ValueError('Pending Payments is currently available to Sid only.')
+        if user not in PENDING_PAYMENT_USERS:
+            raise ValueError('You do not have access to Pending Payments.')
         with self.engine.connect() as conn:
             return {row['user_name']: json.loads(row['beneficiary_data'] or '{}')
                     for row in conn.execute(select(upi_reimbursement_profiles)).mappings()}
 
     def send_pending_payments(self, selected, kind, user):
-        if user != 'Sid' or kind not in ('balance', 'upi'):
-            raise ValueError('Pending Payments is currently available to Sid only.')
+        if user not in PENDING_PAYMENT_USERS or kind not in ('balance', 'upi'):
+            raise ValueError('You do not have access to Pending Payments.')
         with self.engine.begin() as conn:
             sent = 0
             for number, version in sorted(selected.items()):

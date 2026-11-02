@@ -38,8 +38,11 @@ from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report_v4 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
-from src.records_store_v20 import RequestStore
-from src.pending_payments_v5 import render_pending_payments
+from src.records_store_v21 import RequestStore
+from src.payment_access import PENDING_PAYMENT_USERS
+from src.diesel_inputs import update_diesel
+from src.expense_date import seed_expense_date, remember_expense_date
+from src.pending_payments_v6 import render_pending_payments
 from src.invoice_viewer import invoice_viewer_html
 from src.duplicate_review import duplicate_review_frame, selected_duplicate_numbers
 from src.expense_autofill import expense_identity_inputs
@@ -65,7 +68,7 @@ st.markdown(
     '[data-testid="stDecoration"], #MainMenu {display:none !important;}</style>',
     unsafe_allow_html=True,
 )
-STORE_INTERFACE_VERSION = 20
+STORE_INTERFACE_VERSION = 21
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Debit"]
@@ -976,6 +979,10 @@ def memory_prompt(prefix, title, source, suggestion, field_names):
     st.button("Apply suggestion", key=f"memory_{prefix}_{source}", on_click=apply_memory, args=(prefix, missing), icon="✨")
 
 
+def update_vijay_diesel(prefix, changed):
+    update_diesel(st.session_state, prefix, changed)
+
+
 def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     v = {}
     normalization = {
@@ -1105,8 +1112,10 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         v['driver_name'] = clean_text(st.session_state.get(f'{prefix}_driver_name'))
         v['cases'] = case_col.number_input('Case', min_value=0.0, value=None, key=f'{prefix}_cases', placeholder='')
         v['jars'] = jar_col.number_input('Jar', min_value=0.0, value=None, key=f'{prefix}_jars', placeholder='')
-    else:
+    elif current_user == 'Manish':
         v['driver_name'] = st.text_input('Driver name', key=f'{prefix}_driver_name', placeholder='Driver name as printed on the LR')
+    else:
+        v['driver_name'] = clean_text(st.session_state.get(f'{prefix}_driver_name'))
     placer_key = f"{prefix}_vehicle_placed_by"
     v["vehicle_placed_by"] = st.text_input(
         "Vehicle placed by", key=placer_key, placeholder="e.g., Ajit Thakur",
@@ -1176,15 +1185,18 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
             c2.caption("Not applicable for an own vehicle.")
     st.caption("Enter amounts in every payment mode used. Each amount is included in the Profit / Loss calculation." if current_user == "Vijay" else "Enter amounts in every payment mode used. Repairs and maintenance are deducted from Profit / Loss." if own_workflow else "Enter amounts in every payment mode used. Billtee is also deducted before calculating the balance payable.")
     if current_user == "Vijay":
+        fuel_fields = ('diesel_quantity', 'diesel_rate', 'diesel_advance')
+        populated_fuel_fields = [field for field in fuel_fields if st.session_state.get(f'{prefix}_{field}') is not None]
+        if len(populated_fuel_fields) == 2:
+            update_diesel(st.session_state, prefix, populated_fuel_fields[-1])
         fuel_columns = st.columns(3)
         v['diesel_quantity'] = fuel_columns[0].number_input('Diesel Qty (L)', min_value=0.0, value=None,
-            key=f'{prefix}_diesel_quantity', placeholder='')
+            key=f'{prefix}_diesel_quantity', placeholder='', on_change=update_vijay_diesel, args=(prefix,'diesel_quantity'))
         v['diesel_rate'] = fuel_columns[1].number_input('Diesel Rate (₹/L)', min_value=0.0, value=None,
-            key=f'{prefix}_diesel_rate', placeholder='')
-        calculated_key = f'{prefix}_diesel_calculated'
-        st.session_state[calculated_key] = float(diesel_expense(v['diesel_quantity'], v['diesel_rate']))
+            key=f'{prefix}_diesel_rate', placeholder='', on_change=update_vijay_diesel, args=(prefix,'diesel_rate'))
         v['diesel_advance'] = fuel_columns[2].number_input('Diesel (₹)', min_value=0.0,
-            key=calculated_key, disabled=True, help='Calculated as Diesel Qty × Diesel Rate.')
+            value=None, key=f'{prefix}_diesel_advance', on_change=update_vijay_diesel, args=(prefix,'diesel_advance'),
+            help='Edit any two values to calculate the third. Your two most recently edited values are used.')
         payment_columns = st.columns(5)
         vijay_fields = [
             ("UPI", "upi"), ("Cash", "cash_advance"),
@@ -1706,9 +1718,12 @@ if hidden_tabs:
         for index in hidden_tabs
     )
     st.markdown(f"<style>{hidden_tab_css}</style>", unsafe_allow_html=True)
-if current_user == 'Sid':
+if current_user in PENDING_PAYMENT_USERS:
     new_tab, expense_tab, records_tab, pending_tab, reports_tab, logs_tab = st.tabs(
         ["New Entry", "Direct Expenses", "Records", "Pending Payments", "Generate Reports", "Logs"])
+elif current_user == 'Nikhat':
+    expense_tab, records_tab, reports_tab, logs_tab = st.tabs(['Direct Expenses','Records','Generate Reports','Logs'])
+    new_tab = None
 else:
     new_tab, expense_tab, records_tab, reports_tab, logs_tab = st.tabs(["New Entry", "Direct Expenses", "Records", "Generate Reports", "Logs"])
 
@@ -1792,8 +1807,9 @@ def render_new_entry():
                 else:
                     finish_trip_save(payload, entry_generation)
 
-with new_tab:
-    render_new_entry()
+if new_tab is not None:
+    with new_tab:
+        render_new_entry()
 
 @st.fragment
 def render_direct_expenses():
@@ -1805,6 +1821,7 @@ def render_direct_expenses():
         st.success(saved_expense_notice, icon="✅")
     expense_generation = st.session_state.setdefault("direct_expense_generation", 0)
     expense_prefix = expense_state_prefix(expense_generation)
+    seed_expense_date(st.session_state, current_user, expense_prefix)
     c1, c2 = st.columns([4, 1.5])
     expense_upload = c1.file_uploader("Attach bills or receipts", type=["jpg", "jpeg", "png", "webp", "pdf"], accept_multiple_files=True, key=f"{expense_prefix}_upload", disabled=not can_use_direct_expenses)
     expense_photo = capture_photo(c2, expense_prefix, disabled=not can_use_direct_expenses)
@@ -1925,6 +1942,7 @@ def render_direct_expenses():
                 **expense_payload(v, expense_files), "created_by": current_user,
             })
             audit_action("Created direct expense", saved, request_label(saved, v["date"]))
+            remember_expense_date(st.session_state, current_user, v['date'])
             if save_another_expense:
                 st.session_state["saved_expense_notice"] = f"Saved {request_label(saved, v['date'])}. Ready for another expense."
                 st.session_state["reset_expense_form"] = True
@@ -2225,7 +2243,7 @@ with records_tab:
                     st.success(f"Deleted {len(chosen)} record(s).")
                     st.rerun()
 
-if current_user == 'Sid':
+if current_user in PENDING_PAYMENT_USERS:
     with pending_tab:
         if notice := st.session_state.pop('pending_payment_notice', None):
             st.success(notice)
