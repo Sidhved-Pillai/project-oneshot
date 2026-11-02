@@ -1102,8 +1102,8 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     if current_user == 'Vijay':
         driver_col, case_col, jar_col = st.columns([2,1,1])
         v['driver_name'] = driver_col.text_input('Driver name', key=f'{prefix}_driver_name', placeholder='Driver name as printed on the LR')
-        v['cases'] = case_col.number_input('Case', min_value=0.0, value=None, key=f'{prefix}_cases', placeholder='Optional')
-        v['jars'] = jar_col.number_input('Jar', min_value=0.0, value=None, key=f'{prefix}_jars', placeholder='Optional')
+        v['cases'] = case_col.number_input('Case', min_value=0.0, value=None, key=f'{prefix}_cases', placeholder='')
+        v['jars'] = jar_col.number_input('Jar', min_value=0.0, value=None, key=f'{prefix}_jars', placeholder='')
     else:
         v['driver_name'] = st.text_input('Driver name', key=f'{prefix}_driver_name', placeholder='Driver name as printed on the LR')
     placer_key = f"{prefix}_vehicle_placed_by"
