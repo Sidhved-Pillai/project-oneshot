@@ -46,6 +46,8 @@ def recover_entry_fields(result, extractor, api_key, context, files, model, bran
     missing = [field for field in PRIORITY_FIELDS if row is None or not str(getattr(row,field,'') or '').strip()]
     if row is not None and 'saintgobain' in re.sub(r'[^a-z]', '', row.company_name.lower()) and len(row.invoice_numbers) < 2:
         missing.append('invoice_numbers')
+    if row is not None and 'Operator login: Vijay.' in context and not getattr(row, 'items', []):
+        missing.append('items')
     parsed_date = parse_dtr_date(row.date) if row is not None else None
     if parsed_date is None or parsed_date.year < 2026:
         missing.append('date')
@@ -63,6 +65,9 @@ def recover_entry_fields(result, extractor, api_key, context, files, model, bran
         prompt += ('\nFor Saint-Gobain/Gyproc, recheck every row of the Invoice No column in the materials table. '
                    'One photo may contain multiple invoices for the same LR; return every distinct printed invoice '
                    'in invoice_numbers. Do not use Shipment No or invent a second number if only one is printed.')
+        if 'items' in missing:
+            prompt += ('\nRecheck all Bisleri product rows: return description and Qty for each row in items. '
+                       'Exclude TOTAL rows and do not substitute Free Qty, MRP, rate or pack size for Qty.')
         # Only relevant plate candidates are hints, never evidence for a route or document identifier.
         raw_vehicle = str(current.get('vehicle_number') or '')
         candidates = sorted({canonical_vehicle_number(v) for v in known_vehicles

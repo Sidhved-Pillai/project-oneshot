@@ -94,11 +94,20 @@ class RTGSIntakeResult(BaseModel):
     summary: str = ""
 
 
+class InvoiceProductRow(BaseModel):
+    description: str = ''
+    qty: str | float | None = None
+    quantity: str | float | None = None
+
+
 class UnifiedIntakeRow(BaseModel):
     """One editable trip form populated from image, PDF, text, or voice evidence."""
     branch: str = ""
     date: str = ""
     driver_name: str = ""
+    items: list[InvoiceProductRow] = Field(default_factory=list)
+    cases: Optional[float] = None
+    jars: Optional[float] = None
     diesel_quantity: Optional[float] = None
     diesel_rate: Optional[float] = None
     company_name: str = ""
@@ -169,15 +178,17 @@ def merge_same_trip_intake_rows(rows):
     if not rows:
         return None
     merged = rows[0].model_copy(deep=True)
+    merged.items = []
     identifiers = []
     for row in rows:
+        merged.items.extend(row.items)
         identifiers.extend(row.invoice_numbers)
         if row.invoice_number:
             identifiers.append(row.invoice_number)
         elif not row.invoice_numbers and row.lr_invoice_number:
             identifiers.append(row.lr_invoice_number)
         for field, value in row.model_dump().items():
-            if field in {"invoice_number", "invoice_numbers", "lr_invoice_number"}:
+            if field in {"invoice_number", "invoice_numbers", "lr_invoice_number", "items"}:
                 continue
             current = getattr(merged, field)
             if current in (None, "", [], 0, 0.0) and value not in (None, "", [], 0, 0.0):
@@ -287,6 +298,10 @@ missing values and explain unclear readings in review_notes.
   Repeated table rows for one invoice are not extra invoices. Do not use Shipment No as an invoice.
   For example invoice numbers 9102085603 and 9102085604 belong to one trip and one shared LR.
 - Extract the explicitly printed Driver Name into driver_name. Do not substitute a transporter or buyer.
+- For Vijay/Bisleri invoices, extract EVERY product line separately into items, with the full printed
+  description and printed Qty in qty. Never include a TOTAL row as an item. Use Qty, not Free Qty,
+  MRP, pack size, rate, weight or taxable amount. Do not total or classify products yourself:
+  cases and jars must be null; the application calculates them from the product rows.
 - Read each printed Invoice No character-by-character from the label at the top of its own invoice. Recheck
   every digit, especially visually similar 5/6, 3/8 and 0/8 digits. Do not derive an invoice number from IRN,
   Ack No, customer code, dates, amounts, QR content, or an adjacent uploaded invoice.

@@ -14,8 +14,9 @@ import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
 from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record, can_view_trip_leaderboard
-from src.ai_intake_v3 import extract_intake, merge_same_trip_intake_rows, should_autofill_field
-from src.invoice_recovery_v3 import PRIORITY_FIELDS, scan_context, recover_entry_fields
+from src.ai_intake_v4 import extract_intake, merge_same_trip_intake_rows, should_autofill_field
+from src.case_jar import case_jar_totals
+from src.invoice_recovery_v4 import PRIORITY_FIELDS, scan_context, recover_entry_fields
 from src.business_memory_v3 import build_business_memory, recall
 from src.config import ROOT
 from src.entry_finance import advance_summary, diesel_expense
@@ -732,6 +733,7 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
                     [row.get('vehicle_number') for row in normalization_rows])
             if mode == "ENTRY" and current_user == "Vijay" and result.rows:
                 row = result.rows[0]
+                row.cases, row.jars = case_jar_totals(row.items)
                 raw_invoice_candidates = [*row.invoice_numbers, row.invoice_number]
                 if not row.invoice_number and not row.invoice_numbers:
                     raw_invoice_candidates.append(row.lr_invoice_number)
@@ -760,7 +762,7 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
             "beneficiary_name": "beneficiary", "vehicle_number": "vehicle",
         }
         for field, value in result.rows[0].model_dump().items():
-            if field == "invoice_numbers":
+            if field in ("invoice_numbers", "items"):
                 continue
             if value not in (None, "") and should_autofill_field(mode, field):
                 state_field = expense_keys.get(field, field) if mode == "EXPENSE" else field
@@ -884,6 +886,8 @@ def trip_payload(v, files, invoice_filename=None):
     }
     if current_user == "Ashok":
         dtr["_beneficiary_profile_version"] = 2
+    if current_user == 'Vijay':
+        dtr.update({'Case':v.get('cases'), 'Jar':v.get('jars')})
     rtgs = {"BNF_NAME": v["beneficiary_name"], "BENE_ACC_NO": v["beneficiary_account_number"], "BENE_IFSC": v["beneficiary_ifsc_code"], "AMOUNT": v["rtgs_advance"], "REMARK": remarks, "Origin Area": v["branch"]}
     return {
         "report_scope": "Both", "trip_date": v["date"], "vehicle_number": vehicle_number, "vehicle_type": capacity,
@@ -1095,7 +1099,13 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     )
     own_workflow = simplified or is_own_vehicle(v["ownership_type"])
     v["simplified"] = own_workflow
-    v['driver_name'] = st.text_input('Driver name', key=f'{prefix}_driver_name', placeholder='Driver name as printed on the LR')
+    if current_user == 'Vijay':
+        driver_col, case_col, jar_col = st.columns([2,1,1])
+        v['driver_name'] = driver_col.text_input('Driver name', key=f'{prefix}_driver_name', placeholder='Driver name as printed on the LR')
+        v['cases'] = case_col.number_input('Case', min_value=0.0, value=None, key=f'{prefix}_cases', placeholder='Optional')
+        v['jars'] = jar_col.number_input('Jar', min_value=0.0, value=None, key=f'{prefix}_jars', placeholder='Optional')
+    else:
+        v['driver_name'] = st.text_input('Driver name', key=f'{prefix}_driver_name', placeholder='Driver name as printed on the LR')
     placer_key = f"{prefix}_vehicle_placed_by"
     v["vehicle_placed_by"] = st.text_input(
         "Vehicle placed by", key=placer_key, placeholder="e.g., Ajit Thakur",
@@ -1454,6 +1464,8 @@ def view_record(row):
                 "Repairs & Maintenance": number(raw.get("Repairs & Maintenance")),
                 "Reason": raw.get("Repair Reason", ""),
             })
+    if is_vijay_record:
+        display.update({'Case':number(raw.get('Case')), 'Jar':number(raw.get('Jar'))})
     locked_columns = ["Type", "Branch"] if record_branch_scope else ["Type"]
     if is_own_record:
         locked_columns.append("Profit / Loss")
@@ -1565,6 +1577,8 @@ def view_record(row):
             }
             if current_user == "Ashok" and clean_text(row.get("created_by")) == "Ashok":
                 updated_dtr["_beneficiary_profile_version"] = 2
+            if is_vijay_record:
+                updated_dtr.update({'Case':number(item.get('Case')), 'Jar':number(item.get('Jar'))})
             updated_rtgs = {
                 **rtgs_raw, "BNF_NAME": item["Beneficiary"], "BENE_ACC_NO": item["Account Number"],
                 "BENE_IFSC": item["IFSC"], "AMOUNT": item["RTGS"], "REMARK": normalized_remark,
