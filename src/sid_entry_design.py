@@ -63,7 +63,8 @@ def render_sid_styles():
     .st-key-sid_vehicle_panel{min-height:180px!important;justify-content:space-between!important}
     .st-key-sid_beneficiary_panel{min-height:162px!important;justify-content:space-between!important}
     .st-key-sid_payment_panel{min-height:205px!important;justify-content:space-between!important}
-    .sid-section-title{display:flex;align-items:center;gap:13px;height:34px;margin:-1px -3px 3px;border-radius:13px 13px 0 0;background:linear-gradient(90deg,#f4f7ff,#e8efff);color:#08113c}
+    .sid-section-title{display:flex;align-items:center;gap:13px;min-height:44px;box-sizing:border-box;margin:0 -3px;border-radius:13px 13px 0 0;background:linear-gradient(90deg,#f4f7ff,#e8efff);color:#08113c}
+    .st-key-sid_entry_preview [data-testid="stElementContainer"]:has(.sid-section-title){padding-bottom:8px!important;min-height:52px!important;height:auto!important;flex-shrink:0!important;box-sizing:border-box}
     .sid-section-title>span{display:grid;place-items:center;width:43px;height:38px;background:linear-gradient(130deg,#fff,#eff5ff);border-radius:12px;color:#06f;box-shadow:0 2px 6px #005bff16}.sid-section-title svg{width:27px;height:27px}.sid-section-title strong{font-size:19px;letter-spacing:-.5px}
     .st-key-sid_entry_preview [data-testid="stWidgetLabel"]{min-height:0!important;margin-bottom:3px!important}
     .st-key-sid_entry_preview [data-testid="stWidgetLabel"] p{font-size:14px!important;line-height:18px!important;font-weight:600!important;color:#101318!important}
@@ -110,7 +111,7 @@ def render_sid_styles():
       .st-key-sid_entry_preview input,.st-key-sid_entry_preview textarea,.st-key-sid_entry_preview [data-baseweb="select"]{font-size:16px!important}
       .st-key-sid_entry_preview [data-baseweb="input"],.st-key-sid_entry_preview [data-baseweb="input"]>div,.st-key-sid_entry_preview [data-baseweb="select"]>div,.st-key-sid_entry_preview [data-testid="stNumberInputContainer"]{height:42px!important;min-height:42px!important}
       .st-key-sid_entry_preview input{height:40px!important;padding:6px 9px!important}
-      .sid-section-title{height:33px;margin-bottom:7px;gap:9px}.sid-section-title strong{font-size:17px}.sid-section-title>span{width:34px;height:34px}.sid-section-title svg{width:24px;height:24px}
+      .sid-section-title{min-height:42px;margin-bottom:0;gap:9px}.sid-section-title strong{font-size:17px}.sid-section-title>span{width:34px;height:34px}.sid-section-title svg{width:24px;height:24px}
       /* Pair fields inside cards, while the main left/right cards stack naturally. */
       .st-key-sid_basic_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"],.st-key-sid_vehicle_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"],.st-key-sid_beneficiary_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;align-items:start!important}
       .st-key-sid_basic_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"],.st-key-sid_vehicle_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"],.st-key-sid_beneficiary_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"]{width:100%!important;min-width:0!important;max-width:100%!important}
@@ -128,11 +129,12 @@ def render_sid_styles():
       .st-key-sid_payment_panel button[kind="primary"]{width:100%!important;height:46px!important;min-height:46px!important}
       /* Two clear evidence actions below a single small heading. */
       .st-key-sid_evidence_panel{padding:12px!important;min-height:0!important;border-radius:18px!important}
-      .st-key-sid_evidence_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;align-items:center!important;gap:12px!important}
+      .st-key-sid_evidence_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;align-items:center!important;column-gap:12px!important;row-gap:20px!important}
       .st-key-sid_evidence_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"]{min-width:0!important;width:100%!important;max-width:100%!important}
       .st-key-sid_evidence_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:first-child{grid-column:1/-1}
       .st-key-sid_evidence_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(3){display:none!important}
-      .sid-upload-title{margin:0;gap:10px}.sid-upload-title>span{min-width:42px;width:42px;height:42px;border-radius:11px}.sid-upload-title svg{width:28px;height:28px}.sid-upload-title strong{font-size:16px}.sid-upload-title small{font-size:9px;line-height:13px;margin-top:2px}
+      .sid-upload-title{margin:0;gap:10px;min-height:54px;box-sizing:border-box;padding-bottom:6px}.sid-upload-title>span{min-width:42px;width:42px;height:42px;border-radius:11px}.sid-upload-title svg{width:28px;height:28px}.sid-upload-title strong{font-size:16px;line-height:21px}.sid-upload-title small{font-size:9px;line-height:13px;margin-top:5px}
+      .st-key-sid_evidence_panel [data-testid="stElementContainer"]:has(.sid-upload-title){min-height:54px!important;height:auto!important;flex-shrink:0!important}
       .st-key-sid_evidence_panel [data-testid="stFileUploaderDropzone"] button{width:100%!important;min-width:0!important;height:42px!important;padding:6px 10px!important}
       .st-key-sid_evidence_panel [data-testid="stFileUploaderDropzone"] button:after{font-size:13px!important}
       .st-key-sid_evidence_panel [data-testid="stToggle"] label p{font-size:12px!important;white-space:normal!important;line-height:16px!important}

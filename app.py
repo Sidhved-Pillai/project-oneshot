@@ -1,6 +1,6 @@
 import datetime as dt
 from contextlib import nullcontext
-from src.sid_entry_design_v3 import render_sid_styles, render_sid_header, section_heading, PATHS
+from src.sid_entry_design_v4 import render_sid_styles, render_sid_header, section_heading, PATHS
 from src.ajit_payment_design import render_ajit_payment_styles
 import base64
 import hashlib
