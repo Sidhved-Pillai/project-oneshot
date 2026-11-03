@@ -1,5 +1,6 @@
 import datetime as dt
 from contextlib import nullcontext
+from src.sid_entry_design import render_sid_styles, render_sid_header, section_heading, PATHS
 import base64
 import hashlib
 import hmac
@@ -994,7 +995,7 @@ def update_diesel_details(prefix, changed):
         st.session_state[f'{prefix}_{target}'] = round(amount / value, 2)
 
 
-def trip_form(prefix, memory, allowed_branches=None, simplified=False):
+def trip_form(prefix, memory, allowed_branches=None, simplified=False, layout_targets=None):
     v = {}
     normalization = {
         "company_name": lambda value: canonical_company(value, KNOWN_COMPANIES),
@@ -1027,7 +1028,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         beneficiary_panel = right.container(border=True, key="sid_beneficiary_panel")
         payment_panel = st.container(border=True, key="sid_payment_panel")
     with basic_panel if sid_preview else nullcontext():
-        st.markdown("#### 🗓 Basic Information" if sid_preview else "#### 1. Basic information")
+        st.markdown(section_heading("Basic Information", "calendar") if sid_preview else "#### 1. Basic information", unsafe_allow_html=sid_preview)
         c1, c2 = st.columns(2)
         branch_key = f"{prefix}_branch"
         available_branches = allowed_branches or BRANCHES
@@ -1105,7 +1106,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
             )
         v["has_duplicate_identifiers"] = bool(duplicate_lrs or duplicate_invoices)
     with vehicle_panel if sid_preview else nullcontext():
-        st.markdown("#### 🚚 Vehicle Information" if sid_preview else "#### 2. Vehicle information")
+        st.markdown(section_heading("Vehicle Information", "truck") if sid_preview else "#### 2. Vehicle information", unsafe_allow_html=sid_preview)
         c1, c2, c3 = st.columns(3)
         v["vehicle_number"] = c1.text_input(
             "Vehicle number *", key=f"{prefix}_vehicle_number", placeholder="e.g., MH14JL9818",
@@ -1151,7 +1152,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
         if not show_beneficiary:
             v.update({"beneficiary_name": "", "transporter_name": "", "beneficiary_account_number": "", "beneficiary_ifsc_code": ""})
         else:
-            st.markdown("#### ♙ Beneficiary Details" if sid_preview else "#### 3. Beneficiary details")
+            st.markdown(section_heading("Beneficiary Details", "person") if sid_preview else "#### 3. Beneficiary details", unsafe_allow_html=sid_preview)
             c1, c2 = st.columns(2)
             if current_user == "Vijay":
                 transporter_key = f"{prefix}_transporter_name"
@@ -1175,7 +1176,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
             beneficiary_memory = {"beneficiary_account_number" if key == "account_number" else "beneficiary_ifsc_code" if key == "ifsc" else key: value for key, value in beneficiary_memory.items()}
             memory_prompt(prefix, f"Known beneficiary details for {v['beneficiary_name']}", f"beneficiary_{v['beneficiary_name']}", beneficiary_memory, ["beneficiary_account_number", "beneficiary_ifsc_code"])
     with payment_panel if sid_preview else nullcontext():
-        st.markdown("#### ◉ Payment Details" if sid_preview else f"#### {'4' if show_beneficiary else '3'}. Payment details")
+        st.markdown(section_heading("Payment Details", "coins") if sid_preview else f"#### {'4' if show_beneficiary else '3'}. Payment details", unsafe_allow_html=sid_preview)
         if sid_preview:
             fuel_visible = number(st.session_state.get(f"{prefix}_diesel_advance")) > 0
             holder_visible = fuel_visible and clean_text(st.session_state.get(f"{prefix}_diesel_pump_name")).casefold() in ('reliance', 'iocl')
@@ -1289,7 +1290,9 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
             total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
             total_advance = total
         if sid_preview:
-            remark_panel, totals_panel = st.columns([1.2, 1.4])
+            remark_panel, totals_panel, save_panel = st.columns([3, 3, 1.8], vertical_alignment="center")
+            if layout_targets is not None:
+                layout_targets['save'] = save_panel
         summary = (totals_panel if sid_preview else st).columns(3 if current_user == "Vijay" or not own_workflow else 2)
         metric_offset = 0
         if not own_workflow:
@@ -1697,8 +1700,14 @@ div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);b
 </style>
 <div class="app-hero"><div class="brand-row"><img class="brand-mark" src="APP_LOGO_DATA" alt="Project Oneshot logo" style="object-fit:contain"/><div><div class="brand">Project <span>Oneshot</span></div><div class="subtitle">One record. Every operations report.</div></div></div><div class="status-pill"><span class="status-dot"></span>WORKSPACE READY</div></div>
 """.replace('APP_LOGO_DATA', 'data:image/png;base64,' + base64.b64encode(APP_LOGO.read_bytes()).decode('ascii')), unsafe_allow_html=True)
-_, logout_column = st.columns([8, 1])
-logout_column.button('Logout', icon=':material/logout:', key='logout', on_click=logout)
+if current_user == "Sid":
+    render_sid_styles()
+    render_sid_header(APP_LOGO)
+    with st.container(key="sid_logout"):
+        st.button('Logout', icon=':material/logout:', key='logout', on_click=logout)
+else:
+    _, logout_column = st.columns([8, 1])
+    logout_column.button('Logout', icon=':material/logout:', key='logout', on_click=logout)
 hidden_tabs = []
 if not can_use_direct_expenses:
     hidden_tabs.append(2)
@@ -1756,23 +1765,7 @@ def confirm_trip_month(payload, generation):
 def render_new_entry():
     with st.container(key="sid_entry_preview") if current_user == "Sid" else nullcontext():
         if current_user == "Sid":
-            st.markdown('''<style>
-            .st-key-sid_entry_preview{color:#10173c}
-            .st-key-sid_entry_preview h2{font-size:2rem;letter-spacing:-.04em;margin-bottom:0}
-            .st-key-sid_basic_panel,.st-key-sid_vehicle_panel,.st-key-sid_beneficiary_panel,.st-key-sid_payment_panel,.st-key-sid_evidence_panel{border-radius:22px;background:linear-gradient(135deg,#ffffffed,#f5f8ffed);box-shadow:0 4px 12px #124fd812;border-color:#dfe8ff}
-            .st-key-sid_entry_preview h4{background:linear-gradient(90deg,#edf3ff,#e8efff);border-radius:12px 12px 0 0;padding:8px 12px;font-size:1.05rem;margin:0 0 8px;color:#0c174b}
-            .st-key-sid_entry_preview [data-testid="stVerticalBlock"]{gap:.55rem}
-            .st-key-sid_entry_preview [data-testid="stWidgetLabel"] p{font-size:.86rem;font-weight:600}
-            .st-key-sid_entry_preview [data-baseweb="input"],.st-key-sid_entry_preview [data-baseweb="select"]>div{min-height:38px;border-radius:10px}
-            .st-key-sid_entry_preview input{font-size:.9rem;padding-top:6px;padding-bottom:6px}
-            .st-key-sid_entry_preview [data-testid="stMetric"]{background:linear-gradient(120deg,#f3f8ff,#e3efff);border:1px solid #dce8ff;border-radius:15px;padding:10px 15px}
-            .st-key-sid_entry_preview [data-testid="stMetricValue"]{font-size:1.35rem;color:#0068ff}
-            .st-key-sid_entry_preview button[kind="primary"]{background:linear-gradient(120deg,#258aff,#0054ff);border:0;border-radius:24px;box-shadow:0 4px 12px #0068ff26}
-            .st-key-sid_entry_preview [data-testid="stFileUploader"]{background:#f8fbff;border-radius:18px;padding:10px}
-            .st-key-sid_entry_preview [data-testid="stTextArea"] textarea{min-height:60px;height:60px}
-            </style>''', unsafe_allow_html=True)
-            st.markdown("## New Trip Entry")
-            st.caption("Add evidence once, review the details, and keep every report in sync.")
+            st.markdown('<div class="sid-page-title"><h1>New Trip Entry</h1><p>Add evidence once, review the details, and keep every report in sync.</p></div>', unsafe_allow_html=True)
         else:
             page_intro("Smart capture", "New trip entry", "Add evidence once, review the details, and keep every report in sync.", "✦")
             workflow_steps(["Add evidence", "Review details", "Save and add another"], 0)
@@ -1782,7 +1775,12 @@ def render_new_entry():
         entry_prefix = entry_state_prefix(entry_generation)
         st.session_state.setdefault(f"{entry_prefix}_vehicle_placed_by", LOGIN_VEHICLE_PLACERS.get(current_user, current_user))
         evidence_panel = st.container(border=True, key="sid_evidence_panel") if current_user == "Sid" else st
-        c1, c2 = evidence_panel.columns([4, 1.5])
+        if current_user == "Sid":
+            title_col, c1, or_col, c2 = evidence_panel.columns([4.7, 2.1, .35, 2.3], vertical_alignment="center")
+            title_col.markdown('<div class="sid-upload-title"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + PATHS['upload'] + '</svg></span><div><strong>Upload Photos or PDFs</strong><small>JPG, JPEG, PNG, WEBP, PDF (Max 200MB per file)</small></div></div>', unsafe_allow_html=True)
+            or_col.markdown('<div class="sid-upload-or">or</div>', unsafe_allow_html=True)
+        else:
+            c1, c2 = evidence_panel.columns([4, 1.5])
         upload = c1.file_uploader("Upload photos or PDFs", type=["jpg", "jpeg", "png", "webp", "pdf"], accept_multiple_files=True, key=f"{entry_prefix}_upload", help="Upload the cheque, invoice, and any supporting evidence together.")
         photo = capture_photo(c2, entry_prefix)
         upload = [*(upload or []), *([photo] if photo is not None else [])]
@@ -1801,7 +1799,8 @@ def render_new_entry():
         if upload:
             autofill(evidence(upload, None), "", entry_prefix)
         with st.container(border=current_user != "Sid"):
-            values = trip_form(entry_prefix, business_memory, allowed_entry_branches, simplified=current_user == "Manish")
+            layout_targets = {}
+            values = trip_form(entry_prefix, business_memory, allowed_entry_branches, simplified=current_user == "Manish", layout_targets=layout_targets)
             repair_reason_missing = values["simplified"] and number(values["repairs_maintenance"]) > 0 and not clean_text(values["repair_reason"])
             invalid_operational_date = values['date'] is None or values['date'] < OPERATIONS_START
             if invalid_operational_date:
@@ -1810,7 +1809,7 @@ def render_new_entry():
             if missing_invoice:
                 st.caption('Invoice number is required before saving a trip.')
             save_disabled = not values["branch"] or not values["vehicle_number"] or missing_invoice or repair_reason_missing or values["has_duplicate_identifiers"] or invalid_operational_date
-            save_target = st.columns([3, 1])[1] if current_user == "Sid" else st
+            save_target = layout_targets['save'] if current_user == "Sid" else st
             if save_target.button("Save and Add Another" if current_user == "Sid" else "Save and Another Entry", type="primary", disabled=save_disabled, key=f"{entry_prefix}_save", use_container_width=current_user == "Sid"):
                 latest = store.list(status="All active")
                 if user_invoice_duplicates(latest, current_user, values["invoice_number"]) or user_lr_duplicates(latest, current_user, values["lr_number"]):
