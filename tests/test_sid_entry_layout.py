@@ -21,8 +21,23 @@ def test_sid_preview_uses_cards_and_preserves_payment_and_fuel_rules():
 
 
 def test_other_members_keep_their_original_layout():
-    for user in ('Ajit', 'Vijay', 'Ashok', 'Manish', 'Nitish', 'Shyam'):
+    for user in ('Ajit', 'Ashok', 'Manish', 'Nitish', 'Shyam'):
         app = trip_app(user)
         assert not app.exception
         assert not any('sid_' in block.proto.id for block in app.get('flex_container'))
         assert any('1. Basic information' in m.value for m in app.markdown)
+
+
+def test_vijay_compact_layout_preserves_own_vehicle_fields_and_totals():
+    app = trip_app('Vijay')
+    assert not app.exception
+    assert any('sid_basic_panel' in b.proto.id for b in app.get('flex_container'))
+    assert next(w for w in app.selectbox if w.label == 'Own or outside').value == 'Own'
+    assert {'Case', 'Jar'} <= {w.label for w in app.number_input}
+    assert 'Transporter freight (₹)' not in {w.label for w in app.number_input}
+    next(w for w in app.selectbox if w.label == 'Revenue freight (₹)').select(3844).run()
+    next(w for w in app.number_input if w.label == 'Diesel (₹)').set_value(1800).run()
+    next(w for w in app.number_input if w.label == 'Toll Expense (₹)').set_value(100).run()
+    assert not app.exception
+    assert next(m for m in app.metric if m.label == 'Total Expense').value == '₹1,900.00'
+    assert any('₹1,944.00' in m.value for m in app.markdown)
