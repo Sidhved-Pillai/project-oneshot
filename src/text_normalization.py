@@ -1,5 +1,6 @@
 import re
 from difflib import SequenceMatcher
+from .company_brands import saint_gobain_brand
 
 
 COMMON_PLACES = (
@@ -31,11 +32,13 @@ def canonical_company(value, known=()):
     comparison = _comparison(original)
     if not comparison:
         return ""
+    brand = saint_gobain_brand(original)
+    if brand:
+        return brand
     if comparison == "sg":
         return "Saint-Gobain India Private Limited"
     if SequenceMatcher(None, " ".join(comparison.split()[:2]), "saint gobain").ratio() >= 0.78:
-        suffix = " - Gyproc" if "gyproc" in comparison else ""
-        return f"Saint-Gobain India Private Limited{suffix}"
+        return "Saint-Gobain India Private Limited"
     return _closest(original, known, 0.88) or original
 
 

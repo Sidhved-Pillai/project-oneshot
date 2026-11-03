@@ -757,6 +757,40 @@ class RequestStore:
                     activity_logs.c.id.desc()).limit(500)).mappings()]
         return rows, balances, upi, logs
 
+    def repair_company_brands(self):
+        """Normalize identifiable legacy business names, with reversible audit snapshots."""
+        from .company_brands import company_brand_update
+        repaired, unresolved = [], []
+        with self.engine.begin() as conn:
+            rows = conn.execute(select(requests.c.request_number, requests.c.company_name,
+                requests.c.dtr_data, requests.c.report_scope).where(
+                requests.c.is_archived.is_(False), requests.c.status != 'Cancelled',
+                requests.c.report_scope != 'Expense',
+            )).mappings().all()
+            for row in rows:
+                if not company_brand_update(row):
+                    name = str(row.get('company_name') or '').lower().replace('-', '').replace(' ', '')
+                    if 'saintgobain' in name and not any(b in name for b in ('gyproc', 'weber')):
+                        unresolved.append(row['request_number'])
+                    continue
+                current = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
+                    requests.c.request_number == row['request_number'],
+                ).with_for_update()).mappings().first()
+                if not current or current['is_archived'] or current['status'] == 'Cancelled':
+                    continue
+                values = company_brand_update(current)
+                if not values:
+                    continue
+                self._insert_revision(conn, row['request_number'], dict(current),
+                    'before_company_business_normalization', 'system')
+                saved_values = {**values, 'dtr_data': json.dumps(values['dtr_data'], default=str),
+                                'updated_at': dt.datetime.now()}
+                conn.execute(update(requests).where(requests.c.request_number == row['request_number']).values(**saved_values))
+                self._insert_revision(conn, row['request_number'], {**dict(current), **saved_values},
+                    'company_business_normalization', 'system')
+                repaired.append(row['request_number'])
+        return {'updated': repaired, 'needs_review': unresolved}
+
     def repair_legacy_years(self):
         """User-authorized year-only repair; revisions retain original values."""
         from .legacy_year_repair import year_correction

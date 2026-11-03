@@ -285,6 +285,11 @@ missing values and explain unclear readings in review_notes.
   invoice shipped to SHRADDHA ENTERPRISES means customer_name is Shraddha Enterprises while
   company_name is Bisleri International Private Limited. Leave customer_name blank if unreadable.
 - Populate company_name only when the consignor / supplying company is explicitly identifiable in the evidence.
+- Saint Gobain has separate Gyproc and Weber businesses. Inspect the supplier/dispatch block and
+  logo: when Gyproc is printed, return company_name exactly "Saint Gobain - Gyproc"; when Weber
+  is printed, return exactly "Saint Gobain - Weber". Correct clear OCR spelling errors in these
+  business names. Do not drop the business suffix or infer the business from the customer, route,
+  GSTIN alone, or an unrelated product name. If neither business is identifiable, do not guess.
   Never substitute a transporter, vehicle owner, beneficiary, bank-account holder, or a company inferred
   from the route. If multiple organisations are visible and the customer is ambiguous, leave company_name blank.
 - Read invoice_number from the document field explicitly labelled Invoice No/Invoice Number. Do not place it

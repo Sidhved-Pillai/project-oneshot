@@ -438,7 +438,7 @@ def test_vehicle_normalization_and_last_four():
 def test_operational_text_normalization_is_conservative():
     assert canonical_company("SG") == "Saint-Gobain India Private Limited"
     assert canonical_company("saint gobin") == "Saint-Gobain India Private Limited"
-    assert canonical_company("saint gobain gyproc") == "Saint-Gobain India Private Limited - Gyproc"
+    assert canonical_company("saint gobain gyproc") == "Saint Gobain - Gyproc"
     assert canonical_location("talegoan") == "Talegaon"
     assert canonical_location("PUNE") == "Pune"
     assert canonical_vehicle_capacity("03 tons") == "3 MT"

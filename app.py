@@ -17,7 +17,7 @@ import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
 from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record, can_view_trip_leaderboard
-from src.ai_intake_v5 import extract_intake, merge_same_trip_intake_rows, should_autofill_field
+from src.ai_intake_v6 import extract_intake, merge_same_trip_intake_rows, should_autofill_field
 from src.case_jar import case_jar_totals
 from src.invoice_recovery_v4 import PRIORITY_FIELDS, scan_context, recover_entry_fields
 from src.business_memory_v3 import build_business_memory, recall
@@ -35,13 +35,13 @@ from src.record_filters_v2 import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, d
 from src.records_export import export_records_excel
 from src.trip_dtr_report_v3 import DTR_REVIEW_COLUMNS, edited_dtr_frame, export_operational_dtr
 from src.rtgs_report_v2 import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
-from src.text_normalization import canonical_company, canonical_location, canonical_ownership, canonical_vehicle_capacity, plain_remark
+from src.text_normalization_v2 import canonical_company, canonical_location, canonical_ownership, canonical_vehicle_capacity, plain_remark
 from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, canonical_transporter_name, resolve_vijay_vehicle_number, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
 from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report_v5 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
-from src.records_store_v21 import RequestStore
+from src.records_store_v22 import RequestStore
 from src.payment_access import PENDING_PAYMENT_USERS
 from src.diesel_inputs import update_diesel
 from src.expense_date import seed_expense_date, remember_expense_date
@@ -71,7 +71,7 @@ st.markdown(
     '[data-testid="stDecoration"], #MainMenu {display:none !important;}</style>',
     unsafe_allow_html=True,
 )
-STORE_INTERFACE_VERSION = 21
+STORE_INTERFACE_VERSION = 22
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Debit"]
@@ -123,6 +123,7 @@ def secret(name):
 def get_store(url, interface_version):
     result = RequestStore(url)
     result.legacy_year_repair = result.repair_legacy_years()
+    result.company_brand_repair = result.repair_company_brands()
     return result
 
 
