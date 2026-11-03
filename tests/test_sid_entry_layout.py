@@ -22,7 +22,7 @@ def test_sid_preview_uses_cards_and_preserves_payment_and_fuel_rules():
 
 
 def test_other_members_keep_their_original_layout():
-    for user in ('Shyam',):
+    for user in ('Vinod', 'Nikhil'):
         app = trip_app(user)
         assert not app.exception
         assert not any('sid_' in block.proto.id for block in app.get('flex_container'))
@@ -83,7 +83,7 @@ def test_manish_responsive_layout_preserves_driver_and_expense_workflow():
     assert any('₹7,900.00' in m.value for m in app.markdown)
 
 
-@pytest.mark.parametrize('user', ['Gopal', 'Nitish', 'Ashok'])
+@pytest.mark.parametrize('user', ['Gopal', 'Nitish', 'Ashok', 'Shyam'])
 def test_branch_members_responsive_layout_keeps_payment_and_fuel_rules(user):
     app = trip_app(user)
     assert not app.exception

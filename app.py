@@ -1021,7 +1021,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False, layout_ta
             st.session_state.get(f"{prefix}_to_location"),
         )
         st.session_state[f"{prefix}_ownership_type"] = "Own"
-    sid_preview = current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok"}
+    sid_preview = current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam"}
     if sid_preview:
         left, right = st.columns(2, gap="small")
         basic_panel = left.container(border=True, key="sid_basic_panel")
@@ -1721,14 +1721,14 @@ div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);b
 </style>
 <div class="app-hero"><div class="brand-row"><img class="brand-mark" src="APP_LOGO_DATA" alt="Project Oneshot logo" style="object-fit:contain"/><div><div class="brand">Project <span>Oneshot</span></div><div class="subtitle">One record. Every operations report.</div></div></div><div class="status-pill"><span class="status-dot"></span>WORKSPACE READY</div></div>
 """.replace('APP_LOGO_DATA', 'data:image/png;base64,' + base64.b64encode(APP_LOGO.read_bytes()).decode('ascii')), unsafe_allow_html=True)
-if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok"}:
+if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam"}:
     render_sid_styles()
     render_sid_header(APP_LOGO)
     if current_user in {'Ajit', 'Manish'}:
         render_ajit_payment_styles()
     if current_user == 'Manish':
         st.markdown('<style>.st-key-sid_vehicle_panel{min-height:350px!important}@media(max-width:750px){.st-key-sid_vehicle_panel{min-height:0!important}}</style>', unsafe_allow_html=True)
-    if current_user in {"Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok"}:
+    if current_user in {"Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam"}:
         st.markdown('''<style>
         .st-key-sid_entry_preview .profit-loss-card{min-height:64px;padding:7px 11px;border-radius:14px;border-color:#e3edff;background:linear-gradient(120deg,#f4faff,#e3efff)}
         .st-key-sid_entry_preview .profit-loss-card span{font-size:11px;color:#101a44}
@@ -1795,8 +1795,8 @@ def confirm_trip_month(payload, generation):
 
 @st.fragment
 def render_new_entry():
-    with st.container(key="sid_entry_preview") if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok"} else nullcontext():
-        if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok"}:
+    with st.container(key="sid_entry_preview") if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam"} else nullcontext():
+        if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam"}:
             st.markdown('<div class="sid-page-title"><h1>New Trip Entry</h1><p>Add evidence once, review the details, and keep every report in sync.</p></div>', unsafe_allow_html=True)
         else:
             page_intro("Smart capture", "New trip entry", "Add evidence once, review the details, and keep every report in sync.", "✦")
@@ -1806,8 +1806,8 @@ def render_new_entry():
         entry_generation = st.session_state.setdefault("new_entry_generation", 0)
         entry_prefix = entry_state_prefix(entry_generation)
         st.session_state.setdefault(f"{entry_prefix}_vehicle_placed_by", LOGIN_VEHICLE_PLACERS.get(current_user, current_user))
-        evidence_panel = st.container(border=True, key="sid_evidence_panel") if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok"} else st
-        if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok"}:
+        evidence_panel = st.container(border=True, key="sid_evidence_panel") if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam"} else st
+        if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam"}:
             title_col, c1, or_col, c2 = evidence_panel.columns([4.7, 2.1, .35, 2.3], vertical_alignment="center")
             title_col.markdown('<div class="sid-upload-title"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + PATHS['upload'] + '</svg></span><div><strong>Upload Photos or PDFs</strong><small>JPG, JPEG, PNG, WEBP, PDF (Max 200MB per file)</small></div></div>', unsafe_allow_html=True)
             or_col.markdown('<div class="sid-upload-or">or</div>', unsafe_allow_html=True)
@@ -1830,7 +1830,7 @@ def render_new_entry():
         files = evidence(upload, None)
         if upload:
             autofill(evidence(upload, None), "", entry_prefix)
-        with st.container(border=current_user not in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok"}):
+        with st.container(border=current_user not in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam"}):
             layout_targets = {}
             values = trip_form(entry_prefix, business_memory, allowed_entry_branches, simplified=current_user == "Manish", layout_targets=layout_targets)
             repair_reason_missing = values["simplified"] and number(values["repairs_maintenance"]) > 0 and not clean_text(values["repair_reason"])
@@ -1841,8 +1841,8 @@ def render_new_entry():
             if missing_invoice:
                 st.caption('Invoice number is required before saving a trip.')
             save_disabled = not values["branch"] or not values["vehicle_number"] or missing_invoice or repair_reason_missing or values["has_duplicate_identifiers"] or invalid_operational_date
-            save_target = layout_targets['save'] if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok"} else st
-            if save_target.button("Save and Add Another" if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok"} else "Save and Another Entry", type="primary", disabled=save_disabled, key=f"{entry_prefix}_save", use_container_width=current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok"}):
+            save_target = layout_targets['save'] if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam"} else st
+            if save_target.button("Save and Add Another" if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam"} else "Save and Another Entry", type="primary", disabled=save_disabled, key=f"{entry_prefix}_save", use_container_width=current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam"}):
                 latest = store.list(status="All active")
                 if user_invoice_duplicates(latest, current_user, values["invoice_number"]) or user_lr_duplicates(latest, current_user, values["lr_number"]):
                     st.error("This invoice or LR was saved by another session. Refresh and review the existing record before saving.")
