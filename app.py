@@ -1,6 +1,6 @@
 import datetime as dt
 from contextlib import nullcontext
-from src.sid_entry_design import render_sid_styles, render_sid_header, section_heading, PATHS
+from src.sid_entry_design_v2 import render_sid_styles, render_sid_header, section_heading, PATHS
 import base64
 import hashlib
 import hmac

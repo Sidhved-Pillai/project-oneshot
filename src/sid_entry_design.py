@@ -89,4 +89,48 @@ def render_sid_styles():
     @media(max-width:750px){.stTabs [data-baseweb="tab-list"]{top:68px!important;left:12px!important;right:12px!important;overflow-x:auto!important}.st-key-sid_basic_panel,.st-key-sid_vehicle_panel,.st-key-sid_beneficiary_panel,.st-key-sid_payment_panel{min-height:0!important}}
     @media(max-width:1200px){.sid-brand strong{font-size:19px}.sid-brand small{font-size:9px}.sid-brand img{width:40px;height:40px}.stTabs>[data-baseweb="tab-list"]{left:300px!important;right:165px!important}[data-testid="stTabs"] [data-testid="stTab"]{font-size:10px!important;padding:7px!important}[data-testid="stTabs"] [data-testid="stTab"]:before{display:none}.sid-upload-title strong{font-size:16px}.sid-upload-title>span{min-width:50px}.st-key-sid_evidence_panel [data-testid="stToggle"] label p{font-size:12px!important}}
     @media(max-width:750px){.block-container{padding:125px 12px 25px!important}.sid-topbar{height:112px}.stTabs>[data-baseweb="tab-list"]{top:68px!important;left:12px!important;right:12px!important;overflow-x:auto!important}.sid-brand{left:16px}.st-key-sid_logout{right:15px!important}.sid-page-title{margin-left:0}.sid-page-title h1{font-size:28px!important}.sid-upload-title small{font-size:10px}}
+    @media(max-width:750px){
+      .block-container{padding:calc(126px + env(safe-area-inset-top)) 12px 24px!important}
+      .sid-topbar{height:calc(112px + env(safe-area-inset-top));border-radius:0 0 18px 18px}
+      .sid-brand{top:calc(12px + env(safe-area-inset-top));left:12px;gap:8px}
+      .sid-brand img{width:36px;height:36px}.sid-brand strong{font-size:17px;letter-spacing:-.6px}.sid-brand small{font-size:8px}
+      .st-key-sid_logout{top:calc(12px + env(safe-area-inset-top))!important;right:12px!important;width:100px!important}
+      .st-key-sid_logout button{height:36px!important;min-height:36px!important;padding:4px 10px!important;font-size:12px!important}
+      .stTabs [data-baseweb="tab-list"]{top:calc(62px + env(safe-area-inset-top))!important;left:12px!important;right:12px!important;height:43px!important;justify-content:flex-start!important;gap:7px!important;overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+      .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar{display:none}
+      [data-testid="stTabs"] [data-testid="stTab"]{flex:0 0 auto!important;width:max-content!important;min-width:max-content!important;height:36px!important;font-size:12px!important;padding:7px 12px!important;overflow:visible!important;white-space:nowrap!important}
+      .sid-page-title{margin:0 0 12px}.sid-page-title h1{font-size:27px!important}.sid-page-title p{font-size:13px!important;line-height:1.45}
+      .st-key-sid_entry_preview [data-testid="stHorizontalBlock"]{gap:10px!important}
+      .st-key-sid_basic_panel,.st-key-sid_vehicle_panel,.st-key-sid_beneficiary_panel,.st-key-sid_payment_panel{padding:12px!important;border-radius:18px!important;min-height:0!important}
+      .st-key-sid_entry_preview [data-testid="stWidgetLabel"] p{font-size:12px!important;line-height:17px!important}
+      .st-key-sid_entry_preview input,.st-key-sid_entry_preview textarea,.st-key-sid_entry_preview [data-baseweb="select"]{font-size:16px!important}
+      .st-key-sid_entry_preview [data-baseweb="input"],.st-key-sid_entry_preview [data-baseweb="input"]>div,.st-key-sid_entry_preview [data-baseweb="select"]>div,.st-key-sid_entry_preview [data-testid="stNumberInputContainer"]{height:42px!important;min-height:42px!important}
+      .st-key-sid_entry_preview input{height:40px!important;padding:6px 9px!important}
+      .sid-section-title{height:33px;margin-bottom:7px;gap:9px}.sid-section-title strong{font-size:17px}.sid-section-title>span{width:34px;height:34px}.sid-section-title svg{width:24px;height:24px}
+      /* Pair fields inside cards, while the main left/right cards stack naturally. */
+      .st-key-sid_basic_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"],.st-key-sid_vehicle_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"],.st-key-sid_beneficiary_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;align-items:start!important}
+      .st-key-sid_basic_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"],.st-key-sid_vehicle_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"],.st-key-sid_beneficiary_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"]{width:100%!important;min-width:0!important;max-width:100%!important}
+      .st-key-sid_vehicle_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(3){grid-column:1/-1}
+      /* The dynamic payment row wraps into two usable columns, including fuel details. */
+      .st-key-sid_payment_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]:has(>[data-testid="stColumn"]:nth-child(7)){display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;align-items:start!important}
+      .st-key-sid_payment_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"]{min-width:0!important;max-width:100%!important;width:100%!important}
+      .st-key-sid_payment_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]:not(:has(>[data-testid="stColumn"]:nth-child(7))){flex-direction:column!important}
+      .st-key-sid_payment_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"] [data-testid="stHorizontalBlock"]{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important}
+      .st-key-sid_payment_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]{min-width:0!important;max-width:100%!important;width:100%!important}
+      .st-key-sid_entry_preview [data-testid="stMetric"]{padding:7px!important;min-height:76px!important;border-radius:12px!important}
+      .st-key-sid_entry_preview [data-testid="stMetricLabel"] p{font-size:10px!important;white-space:normal!important;line-height:13px!important}
+      .st-key-sid_entry_preview [data-testid="stMetricValue"]{font-size:clamp(12px,3.35vw,16px)!important;line-height:24px!important;white-space:normal!important;overflow-wrap:anywhere}
+      .st-key-sid_entry_preview [data-testid="stTextArea"] textarea{height:62px!important;min-height:62px!important}
+      .st-key-sid_payment_panel button[kind="primary"]{width:100%!important;height:46px!important;min-height:46px!important}
+      /* Two clear evidence actions below a single small heading. */
+      .st-key-sid_evidence_panel{padding:12px!important;min-height:0!important;border-radius:18px!important}
+      .st-key-sid_evidence_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;align-items:center!important;gap:12px!important}
+      .st-key-sid_evidence_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"]{min-width:0!important;width:100%!important;max-width:100%!important}
+      .st-key-sid_evidence_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:first-child{grid-column:1/-1}
+      .st-key-sid_evidence_panel>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(3){display:none!important}
+      .sid-upload-title{margin:0;gap:10px}.sid-upload-title>span{min-width:42px;width:42px;height:42px;border-radius:11px}.sid-upload-title svg{width:28px;height:28px}.sid-upload-title strong{font-size:16px}.sid-upload-title small{font-size:9px;line-height:13px;margin-top:2px}
+      .st-key-sid_evidence_panel [data-testid="stFileUploaderDropzone"] button{width:100%!important;min-width:0!important;height:42px!important;padding:6px 10px!important}
+      .st-key-sid_evidence_panel [data-testid="stFileUploaderDropzone"] button:after{font-size:13px!important}
+      .st-key-sid_evidence_panel [data-testid="stToggle"] label p{font-size:12px!important;white-space:normal!important;line-height:16px!important}
+    }
     </style>''', unsafe_allow_html=True)
