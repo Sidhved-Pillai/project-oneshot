@@ -14,7 +14,7 @@ import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
 from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record, can_view_trip_leaderboard
-from src.ai_intake_v4 import extract_intake, merge_same_trip_intake_rows, should_autofill_field
+from src.ai_intake_v5 import extract_intake, merge_same_trip_intake_rows, should_autofill_field
 from src.case_jar import case_jar_totals
 from src.invoice_recovery_v4 import PRIORITY_FIELDS, scan_context, recover_entry_fields
 from src.business_memory_v3 import build_business_memory, recall
@@ -57,7 +57,7 @@ from src.branch_names import canonical_branch as normalized_branch_name
 from src.batched_records_v6 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
 from src.vijay_finance import project_vijay_records, vijay_finance_summary
-from src.record_form_v3 import record_form
+from src.record_form_v4 import record_form
 from src.dialog_browser import explicit_close_script
 
 load_dotenv(ROOT / ".env")
@@ -881,6 +881,7 @@ def trip_payload(v, files, invoice_filename=None):
         "Branch": v["branch"], "Compnay Name": company, "Date": v["date"], "Driver Name": clean_text(v.get('driver_name')), "Vehicle No.": vehicle_number,
         "Vehicle Type": capacity, "Own/Outside Veh.": v["ownership_type"], "From": origin,
         "To": destination, "LR No.": v["lr_number"], "Invoice No.": v["invoice_number"],
+        "Customer Name": clean_text(v.get("customer_name")),
         "Revenue": v["revenue"], "Transporter Freight": transporter_freight, "RTGS ADVANCE": v["rtgs_advance"],
         "Cash Adv.": v["cash_advance"], "UPI": v["upi"], "Diesel Adv.": v["diesel_advance"], "Billtee": billtee, "Total Adv.": total_advance,
         "Diesel Qty": number(v.get("diesel_quantity")), "Diesel Rate": number(v.get("diesel_rate")),
@@ -1033,7 +1034,10 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False):
     if previous_date and previous_date < OPERATIONS_START:
         st.session_state[f"{prefix}_date"] = None
         st.warning("Choose a trip date in 2026 or later.")
-    v.update({"date": c1.date_input("Date *", value=st.session_state.get(f"{prefix}_date", dt.date.today()), format="DD/MM/YYYY", key=f"{prefix}_date", **date_options), "branch": c2.selectbox("Branch *", branch_choices, index=branch_choices.index(current_branch), key=branch_key, placeholder="Select a branch"), "company_name": st.text_input("Company name *", key=f"{prefix}_company_name", placeholder="e.g., SG Logistics")})
+    v.update({"date": c1.date_input("Date *", value=st.session_state.get(f"{prefix}_date", dt.date.today()), format="DD/MM/YYYY", key=f"{prefix}_date", **date_options), "branch": c2.selectbox("Branch *", branch_choices, index=branch_choices.index(current_branch), key=branch_key, placeholder="Select a branch")})
+    company_col, customer_col = st.columns(2)
+    v["company_name"] = company_col.text_input("Company name *", key=f"{prefix}_company_name", placeholder="e.g., Bisleri International Private Limited")
+    v["customer_name"] = customer_col.text_input("Customer Name", key=f"{prefix}_customer_name", placeholder="e.g., Shraddha Enterprises", help="The party receiving the goods, as shown under Ship To / Consignee on the invoice.")
     c1, c2 = st.columns(2)
     v["from_location"] = c1.text_input("From *", key=f"{prefix}_from_location", placeholder="e.g., Talegaon, Pune")
     v["to_location"] = c2.text_input("To *", key=f"{prefix}_to_location", placeholder="e.g., Bhiwandi, Thane")
@@ -1431,6 +1435,7 @@ def view_record(row):
     display = {
         "Date": row.get("trip_date"), "Type": "Direct expense" if is_expense else "Trip",
         "Branch": row.get("branch", ""), "Company": row.get("company_name", ""),
+        "Customer Name": raw.get("Customer Name", ""),
         "Vehicle": row.get("vehicle_number", ""), "Vehicle Capacity": row.get("vehicle_type", ""),
         "Driver Name": raw.get('Driver Name', ''),
         "Own / Outside": row.get("ownership_type", ""), "From": row.get("from_location", ""),
@@ -1575,6 +1580,7 @@ def view_record(row):
             update_values["notes"] = normalized_remark
             updated_dtr = {
                 **raw, "Branch": item["Branch"], "Compnay Name": normalized_company, "Date": update_values["trip_date"],
+                "Customer Name": clean_text(item.get("Customer Name", raw.get("Customer Name", ""))),
                 'Driver Name':clean_text(item.get('Driver Name')),
                 "Vehicle No.": normalized_vehicle, "Vehicle Type": normalized_capacity,
                 "Own/Outside Veh.": item["Own / Outside"], "From": normalized_from, "To": normalized_to,

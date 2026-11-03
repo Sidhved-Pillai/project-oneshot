@@ -53,6 +53,10 @@ def test_entry_preserves_original_controls_without_extra_buttons():
         app = trip_app(user)
         assert not app.exception
         assert not any(button.label in {'Calculate payments','Apply trip details'} for button in app.button)
+        customer = next(widget for widget in app.text_input if widget.label == 'Customer Name')
+        customer.set_value('Shraddha Enterprises').run()
+        assert app.session_state['test_returned_values']['customer_name'] == 'Shraddha Enterprises'
+        assert not app.exception
 
 
 def test_payment_calculations_update_without_a_calculate_button():

@@ -111,6 +111,7 @@ class UnifiedIntakeRow(BaseModel):
     diesel_quantity: Optional[float] = None
     diesel_rate: Optional[float] = None
     company_name: str = ""
+    customer_name: str = ""
     vehicle_number: str = ""
     vehicle_capacity: str = ""
     ownership_type: str = ""
@@ -278,7 +279,12 @@ missing values and explain unclear readings in review_notes.
   fiscal-year codes, or delivery stamps as the invoice date. 22-10-2026 means 2026-10-22.
 - Revenue freight is always entered manually by the operator. Always return revenue as null, even if an
   amount appears in the evidence or spoken instruction.
-- Populate company_name only when the customer or company is explicitly identifiable in the evidence.
+- Populate customer_name with the delivery recipient / consignee business in the Ship To / Shipped To
+  or delivery-party block. Prefer Ship To over Billed To when they differ. Extract the party name,
+  not its address, customer code, GSTIN, transporter, or bank-account holder. For example, a Bisleri
+  invoice shipped to SHRADDHA ENTERPRISES means customer_name is Shraddha Enterprises while
+  company_name is Bisleri International Private Limited. Leave customer_name blank if unreadable.
+- Populate company_name only when the consignor / supplying company is explicitly identifiable in the evidence.
   Never substitute a transporter, vehicle owner, beneficiary, bank-account holder, or a company inferred
   from the route. If multiple organisations are visible and the customer is ambiguous, leave company_name blank.
 - Read invoice_number from the document field explicitly labelled Invoice No/Invoice Number. Do not place it
