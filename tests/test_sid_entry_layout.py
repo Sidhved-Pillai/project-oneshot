@@ -1,4 +1,5 @@
 from tests.test_batched_interactions import trip_app
+import pytest
 
 
 def test_sid_preview_uses_cards_and_preserves_payment_and_fuel_rules():
@@ -21,7 +22,7 @@ def test_sid_preview_uses_cards_and_preserves_payment_and_fuel_rules():
 
 
 def test_other_members_keep_their_original_layout():
-    for user in ('Ashok', 'Nitish', 'Shyam'):
+    for user in ('Ashok', 'Shyam'):
         app = trip_app(user)
         assert not app.exception
         assert not any('sid_' in block.proto.id for block in app.get('flex_container'))
@@ -80,3 +81,23 @@ def test_manish_responsive_layout_preserves_driver_and_expense_workflow():
     assert app.session_state['test_returned_values']['diesel_quantity'] == 20
     assert next(m for m in app.metric if m.label == 'Total expense').value == '₹2,100.00'
     assert any('₹7,900.00' in m.value for m in app.markdown)
+
+
+@pytest.mark.parametrize('user', ['Gopal', 'Nitish'])
+def test_pune_members_responsive_layout_keeps_payment_and_fuel_rules(user):
+    app = trip_app(user)
+    assert not app.exception
+    assert any('sid_basic_panel' in b.proto.id for b in app.get('flex_container'))
+    assert {'Transporter name', 'Beneficiary name'} <= {w.label for w in app.selectbox}
+    assert not any(w.label == 'Driver name' for w in app.text_input)
+    next(w for w in app.number_input if w.label == 'Transporter freight (₹)').set_value(5000).run()
+    next(w for w in app.number_input if w.label == 'Diesel (₹)').set_value(1800).run()
+    next(w for w in app.number_input if w.label == 'Diesel Rate (₹/L)').set_value(90).run()
+    next(w for w in app.selectbox if w.label == 'Pump Name').select('IOCL').run()
+    next(w for w in app.selectbox if w.label == 'Choose Cardholder Name').select('Nitish').run()
+    next(w for w in app.number_input if w.label == 'UPI (₹)').set_value(200).run()
+    assert not app.exception
+    values = app.session_state['test_returned_values']
+    assert values['diesel_quantity'] == 20 and values['card_name'] == 'Nitish'
+    assert next(m for m in app.metric if m.label == 'Total advance').value == '₹2,000.00'
+    assert next(m for m in app.metric if m.label == 'Balance payable').value == '₹3,000.00'
