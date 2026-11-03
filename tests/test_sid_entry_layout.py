@@ -21,7 +21,7 @@ def test_sid_preview_uses_cards_and_preserves_payment_and_fuel_rules():
 
 
 def test_other_members_keep_their_original_layout():
-    for user in ('Ashok', 'Manish', 'Nitish', 'Shyam'):
+    for user in ('Ashok', 'Nitish', 'Shyam'):
         app = trip_app(user)
         assert not app.exception
         assert not any('sid_' in block.proto.id for block in app.get('flex_container'))
@@ -63,3 +63,20 @@ def test_ajit_compact_layout_keeps_outside_and_own_payment_rules():
     assert next(m for m in app.metric if m.label == 'Total expense').value == '₹1,900.00'
     assert any('₹8,100.00' in m.value for m in app.markdown)
     assert not any(w.label in ('Halting Charges (₹)', 'Loading Charges (₹)') for w in app.number_input)
+
+
+def test_manish_responsive_layout_preserves_driver_and_expense_workflow():
+    app = trip_app('Manish')
+    assert not app.exception
+    assert any('sid_basic_panel' in b.proto.id for b in app.get('flex_container'))
+    assert any(w.label == 'Driver name' for w in app.text_input)
+    assert 'Transporter freight (₹)' not in {w.label for w in app.number_input}
+    next(w for w in app.number_input if w.label == 'Revenue freight (₹)').set_value(10000).run()
+    next(w for w in app.number_input if w.label == 'Diesel (₹)').set_value(1800).run()
+    next(w for w in app.number_input if w.label == 'Diesel Rate (₹/L)').set_value(90).run()
+    next(w for w in app.number_input if w.label == 'Route Expense (UPI) (₹)').set_value(200).run()
+    next(w for w in app.number_input if w.label == 'Toll Expense (₹)').set_value(100).run()
+    assert not app.exception
+    assert app.session_state['test_returned_values']['diesel_quantity'] == 20
+    assert next(m for m in app.metric if m.label == 'Total expense').value == '₹2,100.00'
+    assert any('₹7,900.00' in m.value for m in app.markdown)
