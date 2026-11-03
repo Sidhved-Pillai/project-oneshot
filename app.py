@@ -30,7 +30,7 @@ from src.invoice_display import dtr_invoice_text
 from src.number_format import format_inr, indian_number
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
 from src.current_leaderboard import branch_trip_leaderboard, current_month_leaderboard
-from src import current_pnl_report_v5 as pnl_reporting
+from src import current_pnl_report_v6 as pnl_reporting
 from src.record_filters_v2 import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, direct_expense_headings, filter_direct_expenses, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
 from src.records_export import export_records_excel
 from src.trip_dtr_report_v3 import DTR_REVIEW_COLUMNS, edited_dtr_frame, export_operational_dtr
@@ -40,7 +40,7 @@ from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROF
 from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
-from src.current_pnl_report_v5 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
+from src.current_pnl_report_v6 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.records_store_v22 import RequestStore
 from src.payment_access import PENDING_PAYMENT_USERS
 from src.diesel_inputs import update_diesel
@@ -77,7 +77,7 @@ STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Debit"]
 MANISH_DIRECT_EXPENSE_COLUMNS = [
     "Driver's salary", "Office & General expenses", "EMI", "Conveyance",
-    "Insurance", "Vehicle Tax", "Repair and maintenance", "Passing expense", "Extra Expense", "RTO Challan & Fine",
+    "Insurance", "Vehicle Tax", "Repair and maintenance", "Passing expense", "Extra Expense", "RTO Challan & Fine", "Tyre Purchased",
 ]
 ALL_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense", "Debit"]
 BRANCHES = ["Wada", "Pune", "Andheri", "Vadodara"]
@@ -155,7 +155,7 @@ def cached_rtgs_excel(frame, report_date):
 
 @st.cache_data(show_spinner=False, max_entries=12)
 def cached_pnl_excel(trips, expenses, start, end, ownership_filter):
-    # Finance revision 5: include halting and loading charges in trip expenses.
+    # Finance revision 6: include Tyre Purchased in expense columns and totals.
     return bytes(export_pnl(trips, expenses, start, end, ownership_filter))
 
 

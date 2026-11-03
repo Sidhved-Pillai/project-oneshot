@@ -15,14 +15,14 @@ from .branch_names import canonical_branch
 DIRECT_EXPENSE_COLUMNS = [
     "Route expense", "Bill discounting", "Salary", "Driver's salary", "Rent",
     "Office & General expenses", "Conveyance", "EMI", "Insurance", "Vehicle Tax",
-    "Repair and maintenance", "Interest", "Extra Expense", "RTO Challan & Fine",
+    "Repair and maintenance", "Interest", "Extra Expense", "RTO Challan & Fine", "Tyre Purchased",
 ]
 REPORT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Passing expense", "Debit"]
 BRANCH_PNL_COLUMNS = [
     "Branch", "Revenue-Own", "Revenue OS", "Total Revenue", "Transporter Freight",
     "Extra Exp", "Passing Exp", "Debit", "Bill Discounting", "UPI", "Salary", "Rent",
     "Office Expense", "Conveyance", "EMI", "Insurance", "Vehicle Tax", "R & M", "Toll",
-    "Driver's Salary", "Diesel", "Interest", "Expense", "Profit",
+    "Driver's Salary", "Diesel", "Interest", "Tyre Purchased", "Expense", "Profit",
 ]
 VEHICLE_NO_PNL_COLUMNS = ["Vehicle No.", "Branch", "Ownership", *BRANCH_PNL_COLUMNS[1:]]
 
@@ -227,6 +227,7 @@ def branch_pnl_summary(trip_rows, expense_rows, distribute_interest=True):
             "Driver's Salary": categories["Driver's salary"],
             "Diesel": diesel,
             "Interest": interest_shares.get(branch, 0.0) if interest_shares is not None else categories["Interest"],
+            "Tyre Purchased": categories["Tyre Purchased"],
         }
         row = _rounded_money_rows([row])[0]
         row["Total Revenue"] = round(row["Revenue-Own"] + row["Revenue OS"], 2)
@@ -268,7 +269,8 @@ def vehicle_pnl_summary(trip_rows, expense_rows, ownership):
         debit = _category_total(own_expenses, "Debit")
         other_trip_payments = _vijay_other_payments(own_trips)
         additional_trip_costs = _additional_trip_costs(own_trips)
-        expenses = route + toll + diesel + other_trip_payments + driver_salary + emi + insurance + vehicle_tax + repairs + rto_challan + debit + additional_trip_costs
+        tyres = _category_total(own_expenses, "Tyre Purchased")
+        expenses = route + toll + diesel + other_trip_payments + driver_salary + emi + insurance + vehicle_tax + repairs + rto_challan + debit + additional_trip_costs + tyres
         rows = [
             {"Particular": "Revenue freight", "Amount": revenue},
             {"Particular": "Route expenses (UPI)", "Amount": -route},
@@ -285,6 +287,8 @@ def vehicle_pnl_summary(trip_rows, expense_rows, ownership):
         ]
         if other_trip_payments:
             rows.insert(4, {"Particular": "Other trip payments", "Amount": -other_trip_payments})
+        if tyres:
+            rows.insert(4, {"Particular": "Tyre Purchased", "Amount": -tyres})
         if additional_trip_costs:
             rows.insert(4, {'Particular':'Halting and loading charges', 'Amount':-additional_trip_costs})
         return rows

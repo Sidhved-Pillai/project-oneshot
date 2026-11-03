@@ -1219,7 +1219,8 @@ def test_pnl_uses_trip_margin_and_direct_expense_categories():
     assert values["Net Profit / (Loss)"] == 19000
     workbook = load_workbook(BytesIO(export_pnl(trips, expenses, dt.date(2026, 8, 1), dt.date(2026, 8, 31))))
     assert workbook["P&L"]["A1"].value.startswith("Profit & Loss")
-    assert len(DIRECT_EXPENSE_COLUMNS) == 14
+    assert len(DIRECT_EXPENSE_COLUMNS) == 15
+    assert "Tyre Purchased" in DIRECT_EXPENSE_COLUMNS
     assert "RTO Challan & Fine" in DIRECT_EXPENSE_COLUMNS
 
 
