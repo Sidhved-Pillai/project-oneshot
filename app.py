@@ -1,6 +1,7 @@
 import datetime as dt
 from contextlib import nullcontext
 from src.sid_entry_design_v2 import render_sid_styles, render_sid_header, section_heading, PATHS
+from src.ajit_payment_design import render_ajit_payment_styles
 import base64
 import hashlib
 import hmac
@@ -1180,7 +1181,8 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False, layout_ta
         if sid_preview:
             fuel_visible = number(st.session_state.get(f"{prefix}_diesel_advance")) > 0
             holder_visible = fuel_visible and clean_text(st.session_state.get(f"{prefix}_diesel_pump_name")).casefold() in ('reliance', 'iocl')
-            sid_payment_columns = st.columns(7 + (3 if fuel_visible else 0) + int(holder_visible), gap="small")
+            freight_target = st.container(key='ajit_freight_inputs') if current_user == 'Ajit' else st
+            sid_payment_columns = freight_target.columns((1 if own_workflow else 2) if current_user == 'Ajit' else 7 + (3 if fuel_visible else 0) + int(holder_visible), gap="small")
         if own_workflow:
             if current_user == "Vijay":
                 revenue_key = f"{prefix}_revenue"
@@ -1237,7 +1239,12 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False, layout_ta
         diesel_active = number(st.session_state.get(f"{prefix}_diesel_advance")) > 0
         pump_key = f"{prefix}_diesel_pump_name"
         card_active = diesel_active and clean_text(st.session_state.get(pump_key)).casefold() in ("reliance", "iocl")
-        columns = iter(sid_payment_columns[1 if own_workflow else 2:] if sid_preview else st.columns(len(fields) + (3 if diesel_active else 0) + int(card_active)))
+        if current_user == 'Ajit':
+            columns = iter(st.container(key='ajit_payment_inputs').columns(len(fields)))
+            fuel_panel = st.container(key='ajit_fuel_details') if diesel_active else None
+            fuel_columns = iter(fuel_panel.columns(3 + int(card_active))) if diesel_active else None
+        else:
+            columns = iter(sid_payment_columns[1 if own_workflow else 2:] if sid_preview else st.columns(len(fields) + (3 if diesel_active else 0) + int(card_active)))
         v["diesel_quantity"], v["diesel_rate"] = None, None
         v["diesel_pump_name"], v["card_name"], v["cardholders_name"] = "", "", ""
         for label, field in fields:
@@ -1246,17 +1253,18 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False, layout_ta
                 key=f"{prefix}_{field}",
             )
             if field == "diesel_advance" and diesel_active:
-                v["diesel_rate"] = next(columns).number_input("Diesel Rate (₹/L)", min_value=0.0,
+                detail_columns = fuel_columns if current_user == 'Ajit' else columns
+                v["diesel_rate"] = next(detail_columns).number_input("Diesel Rate (₹/L)", min_value=0.0,
                     value=None, key=f"{prefix}_diesel_rate", placeholder="",
                     on_change=update_diesel_details, args=(prefix, 'diesel_rate'))
-                v["diesel_quantity"] = next(columns).number_input("Diesel Qty (L)", min_value=0.0,
+                v["diesel_quantity"] = next(detail_columns).number_input("Diesel Qty (L)", min_value=0.0,
                     value=None, key=f"{prefix}_diesel_quantity", placeholder="",
                     on_change=update_diesel_details, args=(prefix, 'diesel_quantity'))
                 pumps = ["", "Reliance", "IOCL", "Gaurav", "Shree Balaji Petroleum", "Om Vinayak"]
                 selected_pump = clean_text(st.session_state.get(pump_key))
                 if selected_pump and selected_pump not in pumps:
                     pumps.append(selected_pump)
-                v["diesel_pump_name"] = next(columns).selectbox("Pump Name", pumps,
+                v["diesel_pump_name"] = next(detail_columns).selectbox("Pump Name", pumps,
                     key=pump_key, accept_new_options=True, placeholder="Choose a pump")
                 if card_active:
                     holders = ["", "Nikhil", "Vinod", "Ajit", "Altaf", "Nitish", "Nisar"]
@@ -1264,7 +1272,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False, layout_ta
                     selected_holder = clean_text(st.session_state.get(holder_key))
                     if selected_holder and selected_holder not in holders:
                         holders.append(selected_holder)
-                    v["cardholders_name"] = next(columns).selectbox("Choose Cardholder Name", holders,
+                    v["cardholders_name"] = next(detail_columns).selectbox("Choose Cardholder Name", holders,
                         key=holder_key, accept_new_options=True, placeholder="Choose a cardholder")
                     v["card_name"] = v["cardholders_name"]
         if own_workflow and current_user != "Vijay":
@@ -1291,33 +1299,45 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False, layout_ta
             total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
             total_advance = total
         if sid_preview:
-            remark_panel, totals_panel, save_panel = st.columns([3, 3, 1.8], vertical_alignment="center")
+            if current_user == 'Ajit':
+                totals_panel = st.container(key='ajit_payment_totals')
+                remark_panel, save_panel = st.container(key='ajit_payment_footer').columns([3, 1], vertical_alignment='bottom')
+            else:
+                remark_panel, totals_panel, save_panel = st.columns([3, 3, 1.8], vertical_alignment="center")
             if layout_targets is not None:
                 layout_targets['save'] = save_panel
-        summary = (totals_panel if sid_preview else st).columns(3 if current_user == "Vijay" or not own_workflow else 2)
-        metric_offset = 0
-        if not own_workflow:
-            summary[0].metric("Transporter freight", format_inr(number(v["transporter_freight"])))
-            metric_offset = 1
-        if current_user == "Vijay":
-            summary[0].metric("Total Expense", format_inr(total))
-            summary[1].metric("Total Advance", format_inr(total_advance))
-            loss_class = " negative" if balance < 0 else ""
-            summary[2].markdown(f'<div class="profit-loss-card{loss_class}"><span>Profit / Loss</span><strong>{format_inr(balance)}</strong></div>', unsafe_allow_html=True)
+        if current_user == 'Ajit':
+            summary = totals_panel.columns(2 if own_workflow else 4)
+            if own_workflow:
+                summary[0].metric("Total expense", format_inr(total))
+                loss_class = " negative" if balance < 0 else ""
+                summary[1].markdown(f'<div class="profit-loss-card{loss_class}"><span>Profit / Loss</span><strong>{format_inr(balance)}</strong></div>', unsafe_allow_html=True)
+            else:
+                trip_expense = number(v['transporter_freight']) + number(v.get('halting_charges')) + number(v.get('loading_charges'))
+                summary[0].metric("Total advance", format_inr(total_advance))
+                summary[1].metric("Balance payable", format_inr(balance))
+                summary[2].metric("Total Expense", format_inr(trip_expense))
+                summary[3].metric("Profit / Loss", format_inr(number(v['revenue']) - trip_expense))
         else:
-            summary[metric_offset].metric("Total expense" if own_workflow else "Total advance", format_inr(total))
-        if own_workflow and current_user != "Vijay":
-            loss_class = " negative" if balance < 0 else ""
-            summary[metric_offset + 1].markdown(f'<div class="profit-loss-card{loss_class}"><span>Profit / Loss</span><strong>{format_inr(balance)}</strong></div>', unsafe_allow_html=True)
-        elif not own_workflow:
-            summary[metric_offset + 1].metric("Balance payable", format_inr(balance), help="Transporter freight minus RTGS, Cash, UPI, Diesel and Billtee deductions. A negative amount indicates an overpayment.")
+            summary = (totals_panel if sid_preview else st).columns(3 if current_user == "Vijay" or not own_workflow else 2)
+            metric_offset = 0
+            if not own_workflow:
+                summary[0].metric("Transporter freight", format_inr(number(v["transporter_freight"])))
+                metric_offset = 1
+            if current_user == "Vijay":
+                summary[0].metric("Total Expense", format_inr(total))
+                summary[1].metric("Total Advance", format_inr(total_advance))
+                loss_class = " negative" if balance < 0 else ""
+                summary[2].markdown(f'<div class="profit-loss-card{loss_class}"><span>Profit / Loss</span><strong>{format_inr(balance)}</strong></div>', unsafe_allow_html=True)
+            else:
+                summary[metric_offset].metric("Total expense" if own_workflow else "Total advance", format_inr(total))
+            if own_workflow and current_user != "Vijay":
+                loss_class = " negative" if balance < 0 else ""
+                summary[metric_offset + 1].markdown(f'<div class="profit-loss-card{loss_class}"><span>Profit / Loss</span><strong>{format_inr(balance)}</strong></div>', unsafe_allow_html=True)
+            elif not own_workflow:
+                summary[metric_offset + 1].metric("Balance payable", format_inr(balance), help="Transporter freight minus RTGS, Cash, UPI, Diesel and Billtee deductions. A negative amount indicates an overpayment.")
         if balance < 0 and not own_workflow:
             st.warning(f"Advance exceeds transporter freight by {format_inr(abs(balance))}. Please review the payment amounts.")
-        if current_user == 'Ajit' and not own_workflow:
-            trip_expense = number(v['transporter_freight']) + number(v.get('halting_charges')) + number(v.get('loading_charges'))
-            expense_col, profit_col = st.columns(2)
-            expense_col.metric('Total Expense', format_inr(trip_expense))
-            profit_col.metric('Profit / Loss', format_inr(number(v['revenue']) - trip_expense))
         remark_key = f"{prefix}_remarks"
         generated_remark = trip_auto_remark(v["vehicle_number"], v["from_location"], v["to_location"], v["vehicle_capacity"], v["date"])
         if any(clean_text(v[field]) for field in ("vehicle_number", "from_location", "to_location", "vehicle_capacity")):
@@ -1704,6 +1724,8 @@ div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);b
 if current_user in {"Sid", "Vijay", "Ajit"}:
     render_sid_styles()
     render_sid_header(APP_LOGO)
+    if current_user == 'Ajit':
+        render_ajit_payment_styles()
     if current_user in {"Vijay", "Ajit"}:
         st.markdown('''<style>
         .st-key-sid_entry_preview .profit-loss-card{min-height:64px;padding:7px 11px;border-radius:14px;border-color:#e3edff;background:linear-gradient(120deg,#f4faff,#e3efff)}

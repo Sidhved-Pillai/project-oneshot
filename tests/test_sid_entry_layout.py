@@ -53,6 +53,9 @@ def test_ajit_compact_layout_keeps_outside_and_own_payment_rules():
     assert not app.exception
     assert app.session_state['test_returned_values']['diesel_quantity'] == 20
     assert next(m for m in app.metric if m.label == 'Balance payable').value == '₹3,200.00'
+    assert 'Transporter freight' not in {m.label for m in app.metric}
+    assert {'Total advance', 'Balance payable', 'Total Expense', 'Profit / Loss'} <= {m.label for m in app.metric}
+    assert any('ajit_payment_totals' in b.proto.id for b in app.get('flex_container'))
     next(w for w in app.selectbox if w.label == 'Own or outside').select('Own').run()
     next(w for w in app.number_input if w.label == 'Revenue freight (₹)').set_value(10000).run()
     next(w for w in app.number_input if w.label == 'Toll Expense (₹)').set_value(100).run()
