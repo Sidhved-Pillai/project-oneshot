@@ -1,13 +1,22 @@
 import json
 import pytest
+from sqlalchemy import insert
+from src.request_store import upi_reimbursement_profiles
 from tests.test_pending_payments import trip
 from src.records_store_v24 import RequestStore
 from src.pending_payments import payment_groups
 from src.billtee_payments import billtee_rtgs_rows
 
 
+def seed_profile(store):
+    with store.engine.begin() as conn:
+        conn.execute(insert(upi_reimbursement_profiles).values(user_name='Nitish', beneficiary_data=json.dumps({
+            'BNF_NAME':'Test Branch Head', 'BENE_ACC_NO':'009876', 'BENE_IFSC':'TEST0000002'})))
+
+
 def test_billtee_independent_idempotent_and_rtgs_status(tmp_path):
     store = RequestStore(f'sqlite:///{tmp_path / "billtee.db"}')
+    seed_profile(store)
     number = trip(store, dtr_data={'Billtee':100})
     before = store.get(number)
     selection = {number:before['updated_at']}
@@ -17,7 +26,9 @@ def test_billtee_independent_idempotent_and_rtgs_status(tmp_path):
     assert not store.list_balance_payments() and not store.list_upi_payments()
     queued = store.list_billtee_payments()
     payload = json.loads(queued[number]['rtgs_data'])
-    assert payload['BENE_ACC_NO'] == '001234' and payload['AMOUNT'] == 100
+    assert payload['BENE_ACC_NO'] == '009876' and payload['AMOUNT'] == 100
+    assert payload['BNF_NAME'] == 'Test Branch Head'
+    assert payload['BENE_IFSC'] == 'TEST0000002'
     rows = billtee_rtgs_rows([before], queued)
     assert rows[0]['request_number'] == 'BILLTEE:' + number
     assert rows[0]['_billtee_payment'] and not rows[0].get('_balance_payment')
@@ -31,8 +42,9 @@ def test_billtee_independent_idempotent_and_rtgs_status(tmp_path):
 
 def test_billtee_atomic_revalidation_and_permissions(tmp_path):
     store = RequestStore(f'sqlite:///{tmp_path / "validation.db"}')
+    seed_profile(store)
     first = trip(store, dtr_data={'Billtee':100})
-    second = trip(store, dtr_data={'Billtee':200}, rtgs_data={})
+    second = trip(store, dtr_data={'Billtee':200}, created_by='Gopal')
     selected = {number:store.get(number)['updated_at'] for number in (first,second)}
     with pytest.raises(ValueError, match='bank details'):
         store.send_pending_payments(selected, 'billtee', 'Sid')
@@ -46,12 +58,15 @@ def test_billtee_atomic_revalidation_and_permissions(tmp_path):
         store.send_pending_payments({zero:store.get(zero)['updated_at']}, 'billtee', 'Sid')
 
 
-def test_billtee_transporter_grouping_positive_trips_only():
+def test_billtee_branch_head_grouping_positive_trips_only():
     trips = [{'request_number':str(i), 'transporter_name':name, 'ownership_type':'Own',
               'dtr_data':{'Billtee':value}, 'created_by':owner} for i,(name,value,owner) in enumerate([
-        ('Vikash Roadlines',100,'Ajit'), ('Vikas Road lines',200,'Nitish'), ('Other',0,'Sid')])]
+        ('Vikash Roadlines',100,'Ajit'), ('Different transporter',200,'Ajit'),
+        ('Vikash Roadlines',300,'Nitish'), ('Other',0,'Sid')])]
     groups = payment_groups(trips, 'billtee', {'0':{'rtgs_done':True}}, {})
-    assert len(groups) == 1 and len(groups[0]) == 2
+    assert len(groups) == 2 and len(groups[0]) == 2
+    assert groups[0][0]['name'] == 'Ajit'
+    assert groups[1][0]['name'] == 'Nitish'
     assert sum(item['amount'] for item in groups[0]) == 300
     assert {item['status'] for item in groups[0]} == {'Pending','RTGS Done'}
 

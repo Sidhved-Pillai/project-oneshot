@@ -53,16 +53,16 @@ def payment_groups(trips, kind, requests, profiles):
         if trip.get('report_scope') == 'Expense' or trip.get('is_archived') or trip.get('status') == 'Cancelled':
             continue
         raw = data(trip.get('dtr_data'))
-        if kind in ('balance', 'billtee'):
-            if kind == 'balance' and str(trip.get('ownership_type') or '').strip().lower().startswith('own'):
+        if kind == 'balance':
+            if str(trip.get('ownership_type') or '').strip().lower().startswith('own'):
                 continue
-            value = amount(raw.get('Billtee')) if kind == 'billtee' else amount(trip.get('balance_amount'))
+            value = amount(trip.get('balance_amount'))
             profile = data(trip.get('rtgs_data'))
             name = str(trip.get('transporter_name') or raw.get('Transporter Name') or 'Transporter not specified').strip()
             owner = ''
             profile = {**profile, 'BNF_NAME':profile.get('BNF_NAME') or trip.get('beneficiary_name','')}
         else:
-            value = amount(trip.get('upi'))
+            value = amount(raw.get('Billtee')) if kind == 'billtee' else amount(trip.get('upi'))
             owner = str(trip.get('created_by') or '').strip()
             profile = profiles.get(owner, {})
             name = canonical_vehicle_placer(raw.get('Veh Placed by')) or owner or 'Payer not specified'
@@ -73,7 +73,7 @@ def payment_groups(trips, kind, requests, profiles):
         # Keep different beneficiary accounts separate even when transporter names match.
         key = (name.casefold(), owner, *(str(profile.get(field) or '').strip() for field in ('BNF_NAME','BENE_ACC_NO','BENE_IFSC')))
         groups[key].append({'trip':trip, 'name':name, 'profile':profile, 'amount':value, 'status':status})
-    if kind not in ('balance', 'billtee'):
+    if kind != 'balance':
         return list(groups.values())
     combined = {}
     for group in groups.values():
@@ -202,7 +202,7 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
     </style><div class="pp-intro"><div class="pp-icon">₹</div><div><h2>Pending Payments</h2><p>Review and send pending Balance Payments, UPI or Billtee payments.</p></div></div>''', unsafe_allow_html=True)
     summary_cards(pending_summary(trips, balance_requests, upi_requests))
     kind = st.session_state.get('pending_kind_card', 'balance')
-    profiles = store.pending_upi_profiles(user) if kind == 'upi' else {}
+    profiles = store.pending_upi_profiles(user) if kind in ('upi', 'billtee') else {}
     queued = store.list_billtee_payments() if kind == 'billtee' else balance_requests if kind == 'balance' else upi_requests
     groups = payment_groups(trips, kind, queued, profiles)
     with st.container(key='pending_toolbar'):
@@ -223,7 +223,7 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
         if entered and entered not in suggestions:
             suggestions.append(entered)
         search = search_col.selectbox('Search transporter / payer', suggestions, accept_new_options=True,
-            placeholder='Search payer…' if kind == 'upi' else 'Search transporter…',
+            placeholder='Search branch head…' if kind == 'billtee' else 'Search payer…' if kind == 'upi' else 'Search transporter…',
             label_visibility='collapsed', key=search_key)
         branch = branch_col.selectbox('Branch', ['All Branches','Andheri','Pune','Vadodara','Wada'], label_visibility='collapsed', key='pending_branch')
         sort = sort_col.selectbox('Sort by', ['Total Amount (High to Low)','Name'], label_visibility='collapsed', key='pending_sort')

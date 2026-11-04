@@ -511,9 +511,13 @@ class RequestStore:
                     if row.get('report_scope') == 'Expense' or row.get('is_archived') or row.get('status') == 'Cancelled':
                         raise ValueError('Choose an active trip record.')
                     payload = json.loads(row.get('rtgs_data') or '{}')
-                    payload['BNF_NAME'] = payload.get('BNF_NAME') or row.get('beneficiary_name') or ''
+                    profile = conn.execute(select(upi_reimbursement_profiles.c.beneficiary_data).where(
+                        upi_reimbursement_profiles.c.user_name == row.get('created_by'))).scalar_one_or_none()
+                    beneficiary = json.loads(profile or '{}')
+                    payload.update({field:str(beneficiary.get(field) or '').strip()
+                                    for field in ('BNF_NAME','BENE_ACC_NO','BENE_IFSC')})
                     if not all(str(payload.get(field) or '').strip() for field in ('BNF_NAME','BENE_ACC_NO','BENE_IFSC')):
-                        raise ValueError('Complete the transporter beneficiary bank details before sending.')
+                        raise ValueError('Billtee reimbursement bank details are not configured for this branch head.')
                     from decimal import Decimal, InvalidOperation
                     try:
                         value = Decimal(str(json.loads(row.get('dtr_data') or '{}').get('Billtee') or 0))
