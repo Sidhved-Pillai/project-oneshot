@@ -63,11 +63,11 @@ def test_nikhat_expense_date_survives_form_clear_without_affecting_others():
 
 def test_only_approved_reviewers_can_access_and_send_pending_payments(tmp_path):
     store = RequestStore(f"sqlite:///{tmp_path/'access.db'}")
-    assert PENDING_PAYMENT_USERS == {'Vinod','Nikhil','Sid','Ajit','Shyam'}
+    assert PENDING_PAYMENT_USERS == {'Vinod','Nikhil','Sid','Ajit','Shyam','Nikhat'}
     for user in PENDING_PAYMENT_USERS:
         number = trip(store)
         assert store.send_pending_payments({number:store.get(number)['updated_at']},'balance',user) == 1
-    for user in ('Nikhat','Vijay','Manish','Nitish','Ashok'):
+    for user in ('Vijay','Manish','Nitish','Ashok'):
         with pytest.raises(ValueError,match='access'):
             store.pending_upi_profiles(user)
         with pytest.raises(ValueError,match='access'):

@@ -36,8 +36,8 @@ def test_grouped_balance_sends_selected_once_and_preserves_trips(tmp_path):
     assert len(groups) == 1 and len(groups[0]) == 2
     selected = {number:row['updated_at'] for number,row in before.items()}
     with pytest.raises(ValueError):
-        store.send_pending_payments(selected, 'balance', 'Nikhat')
-    assert store.send_pending_payments(selected, 'balance', 'Sid') == 2
+        store.send_pending_payments(selected, 'balance', 'Nitish')
+    assert store.send_pending_payments(selected, 'balance', 'Nikhat') == 2
     assert store.send_pending_payments(selected, 'balance', 'Sid') == 0
     assert store.list_balance_payments().keys() == before.keys()
     assert {number:store.get(number) for number in numbers} == before
