@@ -1,4 +1,4 @@
-"""Sid-only grouped review of unsent trip balance and UPI reimbursements."""
+"""Grouped review of unsent balance, UPI reimbursement and Billtee requests."""
 import json
 import math
 import hashlib
@@ -53,10 +53,10 @@ def payment_groups(trips, kind, requests, profiles):
         if trip.get('report_scope') == 'Expense' or trip.get('is_archived') or trip.get('status') == 'Cancelled':
             continue
         raw = data(trip.get('dtr_data'))
-        if kind == 'balance':
-            if str(trip.get('ownership_type') or '').strip().lower().startswith('own'):
+        if kind in ('balance', 'billtee'):
+            if kind == 'balance' and str(trip.get('ownership_type') or '').strip().lower().startswith('own'):
                 continue
-            value = amount(trip.get('balance_amount'))
+            value = amount(raw.get('Billtee')) if kind == 'billtee' else amount(trip.get('balance_amount'))
             profile = data(trip.get('rtgs_data'))
             name = str(trip.get('transporter_name') or raw.get('Transporter Name') or 'Transporter not specified').strip()
             owner = ''
@@ -73,7 +73,7 @@ def payment_groups(trips, kind, requests, profiles):
         # Keep different beneficiary accounts separate even when transporter names match.
         key = (name.casefold(), owner, *(str(profile.get(field) or '').strip() for field in ('BNF_NAME','BENE_ACC_NO','BENE_IFSC')))
         groups[key].append({'trip':trip, 'name':name, 'profile':profile, 'amount':value, 'status':status})
-    if kind != 'balance':
+    if kind not in ('balance', 'billtee'):
         return list(groups.values())
     combined = {}
     for group in groups.values():
@@ -194,24 +194,28 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
     [class*="st-key-pending_card_"]{background:linear-gradient(125deg,#fff,#fbfdff)!important;border:1px solid #e2eaf2!important;border-radius:16px!important;padding:12px!important;box-shadow:0 6px 20px rgba(30,60,90,.035)!important;margin-bottom:10px}
     [class*="st-key-pending_card_"] [data-testid="stHorizontalBlock"]{align-items:center}
     .pp-identity{display:flex;gap:13px;align-items:center;min-height:50px}.pp-avatar{display:grid;place-items:center;flex-shrink:0;width:45px;height:45px;border-radius:50%;background:#d4f4e7;border:1px solid #b8e6d4;color:#0d7153;font-size:21px;font-weight:700}.pp-name{color:#0d1731;font-weight:750;font-size:17px;overflow-wrap:anywhere}.pp-meta{color:#7b86a1;font-size:12px;margin-top:3px}.pp-total span{display:block;color:#7b86a1;font-size:12px}.pp-total strong{color:#101a32;font-size:20px}
-    [class*="st-key-pending_send_"] button,[class*="st-key-pending_group_"] [data-testid="stFormSubmitButton"] button{background:#267b5f!important;color:white!important;border:0!important;border-radius:11px!important;box-shadow:none!important;font-size:12px!important;white-space:nowrap;min-height:40px!important}
-    [class*="st-key-pending_send_"] button:disabled{opacity:.4}
+    [class*="st-key-pending_submit_"] button{background:#267b5f!important;color:white!important;border:0!important;border-radius:11px!important;box-shadow:none!important;font-size:12px!important;white-space:nowrap;min-height:40px!important}
+    [class*="st-key-pending_submit_"] button:disabled{opacity:.4}
     [class*="st-key-pending_expand_"] button{border:0!important;border-radius:50%!important;width:32px!important;min-width:32px!important;min-height:32px!important;padding:0!important;background:#f4f7fb!important;box-shadow:none!important}
     [class*="st-key-pending_card_"] [data-testid="stForm"]{border:0;padding:0}
     [class*="st-key-pending_card_"] [data-testid="stDataFrame"]{box-shadow:none!important;border-radius:10px!important}
-    </style><div class="pp-intro"><div class="pp-icon">₹</div><div><h2>Pending Payments</h2><p>Review and send pending Balance Payments or UPI payments.</p></div></div>''', unsafe_allow_html=True)
+    </style><div class="pp-intro"><div class="pp-icon">₹</div><div><h2>Pending Payments</h2><p>Review and send pending Balance Payments, UPI or Billtee payments.</p></div></div>''', unsafe_allow_html=True)
     summary_cards(pending_summary(trips, balance_requests, upi_requests))
     kind = st.session_state.get('pending_kind_card', 'balance')
     profiles = store.pending_upi_profiles(user) if kind == 'upi' else {}
-    groups = payment_groups(trips, kind, balance_requests if kind == 'balance' else upi_requests, profiles)
+    queued = store.list_billtee_payments() if kind == 'billtee' else balance_requests if kind == 'balance' else upi_requests
+    groups = payment_groups(trips, kind, queued, profiles)
     with st.container(key='pending_toolbar'):
-        balance_col, upi_col, search_col, branch_col, sort_col = st.columns([1.5,.85,2.4,1.5,2.2], gap='small')
+        balance_col, upi_col, billtee_col, search_col, branch_col, sort_col = st.columns([1.5,.75,.85,2.1,1.5,2.2], gap='small')
         balance_col.button('Balance Payment', icon=':material/local_shipping:',
                            type='primary' if kind == 'balance' else 'secondary', use_container_width=True,
                            on_click=st.session_state.update, args=({'pending_kind_card':'balance'},))
         upi_col.button('UPI', icon=':material/directions_car:',
                        type='primary' if kind == 'upi' else 'secondary', use_container_width=True,
                        on_click=st.session_state.update, args=({'pending_kind_card':'upi'},))
+        billtee_col.button('Billtee', icon=':material/receipt_long:',
+                       type='primary' if kind == 'billtee' else 'secondary', use_container_width=True,
+                       on_click=st.session_state.update, args=({'pending_kind_card':'billtee'},))
         suggestions = ['', *sorted({group[0]['name'] for group in groups
                                     if any(item['status'] == 'Pending' for item in group)}, key=str.casefold)]
         search_key = f'pending_search_suggestion_{kind}'
@@ -219,7 +223,7 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
         if entered and entered not in suggestions:
             suggestions.append(entered)
         search = search_col.selectbox('Search transporter / payer', suggestions, accept_new_options=True,
-            placeholder='Search transporter…' if kind == 'balance' else 'Search payer…',
+            placeholder='Search payer…' if kind == 'upi' else 'Search transporter…',
             label_visibility='collapsed', key=search_key)
         branch = branch_col.selectbox('Branch', ['All Branches','Andheri','Pune','Vadodara','Wada'], label_visibility='collapsed', key='pending_branch')
         sort = sort_col.selectbox('Sort by', ['Total Amount (High to Low)','Name'], label_visibility='collapsed', key='pending_sort')
@@ -274,7 +278,6 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
         key = hashlib.sha256((kind + signature).encode()).hexdigest()[:16]
         open_key = f'pending_open_{key}'
         expanded = st.session_state.get(open_key, False)
-        selected_all = {item['trip']['request_number']:item['trip'].get('updated_at') for item in ready if item['status'] == 'Pending'}
         with st.container(key=f'pending_card_{key}'):
             arrow, identity, figure, action = st.columns([.35,4.1,2.5,1.65], gap='small', vertical_alignment='center')
             arrow.button('', icon=':material/keyboard_arrow_down:' if expanded else ':material/chevron_right:',
@@ -286,13 +289,9 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
             except (ValueError, TypeError):
                 last_trip = 'Not specified'
             identity.markdown(f'<div class="pp-identity"><div class="pp-avatar">{html.escape(first["name"][:1].upper())}</div><div><div class="pp-name">{html.escape(first["name"])}</div><div class="pp-meta">{len(group)} trips · Last trip: {html.escape(last_trip)}</div></div></div>', unsafe_allow_html=True)
-            figure.markdown(f'<div class="pp-total"><span>Total {"Balance" if kind == "balance" else "UPI"} Amount</span><strong>{format_inr(total)}</strong></div>', unsafe_allow_html=True)
+            figure.markdown(f'<div class="pp-total"><span>Total {dict(balance="Balance", upi="UPI", billtee="Billtee")[kind]} Amount</span><strong>{format_inr(total)}</strong></div>', unsafe_allow_html=True)
             if missing:
                 figure.markdown(f'<div class="pp-missing">{missing_count} trips need {html.escape(", ".join(missing))}</div>', unsafe_allow_html=True)
-            if action.button('Send for RTGS', icon=':material/send:', key=f'pending_send_{key}', type='primary',
-                             disabled=not configured or not selected_all,
-                             help=f'Send {len(ready)} trips with complete bank details. {missing_count} incomplete trips stay pending.' if missing else 'Send all pending trips in this group to RTGS', use_container_width=True):
-                send_reviewed_group(selected_all, kind, user, store)
             if kind == 'balance':
                 def matches_bill(bill):
                     source = transporter_key(bill['transporter_name'])
@@ -319,12 +318,13 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
                     'Beneficiary':item['profile'].get('BNF_NAME',''), 'Account':item['profile'].get('BENE_ACC_NO',''),
                     'IFSC':item['profile'].get('BENE_IFSC',''), 'Bank details':'Complete' if bank_ready(item) else 'Missing',
                     'Invoice No.':trip.get('invoice_number'), 'Freight':amount(trip.get('transporter_freight')),
-                    'Paid':amount(trip.get('total_advance')), 'Balance' if kind == 'balance' else 'UPI':item['amount'], 'Status':item['status']})
+                    'Paid':amount(trip.get('total_advance')), dict(balance='Balance', upi='UPI', billtee='Billtee')[kind]:item['amount'], 'Status':item['status']})
             with st.form(f'pending_group_{key}'):
                 frame = pd.DataFrame(rows)
                 edited = st.data_editor(frame, hide_index=True, width='stretch',
                     disabled=[col for col in frame if col != 'Select'], key=f'pending_selection_{key}')
-                send = st.form_submit_button('Send selected for RTGS', type='primary', disabled=not configured)
+                with st.container(key=f'pending_submit_{key}'):
+                    send = st.form_submit_button('Send selected for RTGS', type='primary', disabled=not configured)
             if send:
                 selected = {row['Record']:by_number[row['Record']].get('updated_at')
                             for row in edited.to_dict('records') if row['Select'] and row['Status'] == 'Pending' and row['Bank details'] == 'Complete'}

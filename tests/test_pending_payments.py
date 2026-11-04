@@ -93,13 +93,15 @@ render_pending_payments('Sid',trips,{}, {},Store())
 ''').run()
     assert not app.exception
     buttons = [button for button in app.button if button.label == 'Send for RTGS']
-    assert len(buttons) == 2
+    assert len(buttons) == 0
     assert len(app.dataframe) == 0
     next(button for button in app.button if str(button.key).startswith('pending_expand_')).click().run()
     assert not app.exception
     assert len(app.dataframe) == 1
     assert len(app.get('expander')) == 0
-    next(button for button in app.button if button.label == 'Send for RTGS').click().run()
+    editor_key = next(key for key in app.session_state.filtered_state if key.startswith('pending_selection_'))
+    app.session_state[editor_key] = {'edited_rows':{0:{'Select':True}}, 'added_rows':[], 'deleted_rows':[]}
+    next(button for button in app.button if button.label == 'Send selected for RTGS').click().run()
     assert not app.exception
     selected,kind,user = app.session_state['sent_test']
     assert selected == {'REQ-0':'version'}
@@ -122,9 +124,9 @@ render_pending_payments('Sid',trips,{'REQ-0':{'rtgs_done':False},'REQ-1':{'rtgs_
     assert not app.exception
     assert {'Balance Payment','UPI'} <= {button.label for button in app.button}
     assert not any(widget.label in ('Status','Payment groups page') for widget in app.selectbox)
-    assert len([button for button in app.button if button.label == 'Send for RTGS']) == 20
+    assert len([button for button in app.button if str(button.key).startswith('pending_expand_')]) == 20
     assert any('22 trips' in caption.value for caption in app.caption)
     next(button for button in app.button if button.label == 'Next →').click().run()
     assert not app.exception
-    assert len([button for button in app.button if button.label == 'Send for RTGS']) == 2
+    assert len([button for button in app.button if str(button.key).startswith('pending_expand_')]) == 2
     assert app.session_state['pending_current_page_balance'] == 2

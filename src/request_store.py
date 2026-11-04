@@ -1,5 +1,6 @@
 import datetime as dt
 import json
+import math
 import os
 import uuid
 from pathlib import Path
@@ -98,6 +99,16 @@ upi_payments = Table(
     Column("rtgs_done", Boolean, nullable=False, default=False),
     Column("requested_by", String(120), nullable=False),
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
+)
+
+billtee_payments = Table(
+    'trip_billtee_payments', metadata,
+    Column('request_number', String(40), primary_key=True),
+    Column('amount', Numeric(14, 2), nullable=False),
+    Column('rtgs_data', Text, nullable=False),
+    Column('rtgs_done', Boolean, nullable=False, default=False),
+    Column('requested_by', String(120), nullable=False),
+    Column('created_at', DateTime, nullable=False, server_default=func.now()),
 )
 
 intake_batches = Table(
@@ -473,7 +484,7 @@ class RequestStore:
                     for row in conn.execute(select(upi_reimbursement_profiles)).mappings()}
 
     def send_pending_payments(self, selected, kind, user):
-        if user not in PENDING_PAYMENT_USERS or kind not in ('balance', 'upi'):
+        if user not in PENDING_PAYMENT_USERS or kind not in ('balance', 'upi', 'billtee'):
             raise ValueError('You do not have access to Pending Payments.')
         with self.engine.begin() as conn:
             sent = 0
@@ -496,6 +507,30 @@ class RequestStore:
                         from .balance_bill import bill_group_key
                         key = bill_group_key(row)
                         bill_rows.setdefault(key, []).append((dict(row), row.get('balance_amount') or 0))
+                elif kind == 'billtee':
+                    if row.get('report_scope') == 'Expense' or row.get('is_archived') or row.get('status') == 'Cancelled':
+                        raise ValueError('Choose an active trip record.')
+                    payload = json.loads(row.get('rtgs_data') or '{}')
+                    payload['BNF_NAME'] = payload.get('BNF_NAME') or row.get('beneficiary_name') or ''
+                    if not all(str(payload.get(field) or '').strip() for field in ('BNF_NAME','BENE_ACC_NO','BENE_IFSC')):
+                        raise ValueError('Complete the transporter beneficiary bank details before sending.')
+                    from decimal import Decimal, InvalidOperation
+                    try:
+                        value = Decimal(str(json.loads(row.get('dtr_data') or '{}').get('Billtee') or 0))
+                    except InvalidOperation:
+                        raise ValueError('This trip has no valid Billtee amount.')
+                    if not value.is_finite() or value <= 0:
+                        raise ValueError('This trip has no positive Billtee amount.')
+                    if conn.execute(select(billtee_payments.c.request_number).where(billtee_payments.c.request_number == number)).first():
+                        continue
+                    payload.update(AMOUNT=float(value), _payment_kind='billtee', _payment_id='BILLTEE:' + number)
+                    payload['REMARK'] = str(payload.get('REMARK') or row.get('notes') or '') + ' Billtee Payment'
+                    payload['Origin Area'] = row.get('branch', '')
+                    conn.execute(insert(billtee_payments).values(request_number=number, amount=value,
+                        rtgs_data=json.dumps(payload), rtgs_done=False, requested_by=user))
+                    conn.execute(insert(activity_logs).values(user_name=user, action='Sent for Billtee',
+                        request_number=number, details=f'Billtee RTGS requested: {value}'))
+                    sent += 1
                 else:
                     sent += self.send_upi_payment(number, user, _conn=conn)
             if bill_rows:
@@ -588,6 +623,18 @@ class RequestStore:
                 request_number=request_number, details=f'Received on {date}' if received else 'Previous LR status and received date restored'))
         return True
 
+    def list_billtee_payments(self):
+        with self.engine.connect() as conn:
+            return {row['request_number']:dict(row) for row in conn.execute(select(billtee_payments)).mappings()}
+
+    def update_billtee_payment(self, payment_id, data, user):
+        if user != 'Nikhat' or not payment_id.startswith('BILLTEE:') or not math.isfinite(float(data['AMOUNT'])) or float(data['AMOUNT']) < 0:
+            raise ValueError('Invalid Billtee payment correction.')
+        with self.engine.begin() as conn:
+            conn.execute(update(billtee_payments).where(billtee_payments.c.request_number == payment_id.removeprefix('BILLTEE:')).values(
+                amount=data['AMOUNT'], rtgs_data=json.dumps({**data, '_payment_kind':'billtee', '_payment_id':payment_id}, default=str)))
+            conn.execute(insert(activity_logs).values(user_name=user, action='Updated Billtee RTGS', request_number=payment_id.removeprefix('BILLTEE:'), details='Billtee payment details corrected'))
+
     def list_upi_payments(self):
         with self.engine.connect() as conn:
             rows = conn.execute(select(upi_payments)).mappings().all()
@@ -628,7 +675,9 @@ class RequestStore:
         with self.engine.begin() as conn:
             balance_numbers = [number.removeprefix(BALANCE_PREFIX) for number in request_numbers if number.startswith(BALANCE_PREFIX)]
             upi_numbers = [number.removeprefix(UPI_PREFIX) for number in request_numbers if number.startswith(UPI_PREFIX)]
-            request_numbers = [number for number in request_numbers if not number.startswith((BALANCE_PREFIX, UPI_PREFIX))]
+            billtee_numbers = [number.removeprefix('BILLTEE:') for number in request_numbers if number.startswith('BILLTEE:')]
+            request_numbers = [number for number in request_numbers if not number.startswith((BALANCE_PREFIX, UPI_PREFIX, 'BILLTEE:'))]
+            billtee_count = conn.execute(update(billtee_payments).where(billtee_payments.c.request_number.in_(billtee_numbers)).values(rtgs_done=bool(done))).rowcount if billtee_numbers else 0
             upi_count = conn.execute(update(upi_payments).where(
                 upi_payments.c.request_number.in_(upi_numbers),
             ).values(rtgs_done=bool(done))).rowcount if upi_numbers else 0
@@ -640,7 +689,7 @@ class RequestStore:
                 .where(requests.c.request_number.in_(request_numbers))
                 .values(rtgs_done=bool(done), updated_at=dt.datetime.now())
             )
-        return result.rowcount + balance_count + upi_count
+        return result.rowcount + balance_count + upi_count + billtee_count
 
     def log_action(self, user_name, action, request_number="", details=""):
         """Append one immutable audit event."""

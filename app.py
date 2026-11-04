@@ -34,18 +34,19 @@ from src import current_pnl_report_v6 as pnl_reporting
 from src.record_filters_v2 import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, direct_expense_headings, filter_direct_expenses, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
 from src.records_export import export_records_excel
 from src.trip_dtr_report_v3 import DTR_REVIEW_COLUMNS, edited_dtr_frame, export_operational_dtr
-from src.rtgs_report_v2 import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
+from src.rtgs_report_v3 import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization_v2 import canonical_company, canonical_location, canonical_ownership, canonical_vehicle_capacity, plain_remark
 from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROFILES, canonical_transporter_name, resolve_vijay_vehicle_number, vijay_transporter_for_vehicle, vijay_transporter_freight, vijay_transporter_profile
 from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report_v6 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
-from src.records_store_v23 import RequestStore
+from src.records_store_v24 import RequestStore
 from src.payment_access import PENDING_PAYMENT_USERS
 from src.diesel_inputs import update_diesel
 from src.expense_date import seed_expense_date, remember_expense_date
-from src.pending_payments_v8 import render_pending_payments
+from src.pending_payments_v9 import render_pending_payments
+from src.billtee_payments import billtee_rtgs_rows
 from src.invoice_viewer import invoice_viewer_html
 from src.duplicate_review import duplicate_review_frame, selected_duplicate_numbers
 from src.expense_autofill import expense_identity_inputs
@@ -71,7 +72,7 @@ st.markdown(
     '[data-testid="stDecoration"], #MainMenu {display:none !important;}</style>',
     unsafe_allow_html=True,
 )
-STORE_INTERFACE_VERSION = 23
+STORE_INTERFACE_VERSION = 24
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Debit"]
@@ -2448,14 +2449,16 @@ with reports_tab:
         )
         upi_candidates = upi_rtgs_rows(
             [row for row in balance_report_rows if row.get('report_scope') != 'Expense'], upi_requests)
-        rtgs_candidates = balance_candidates + ([] if show_only_balance_payable else upi_candidates + list(reversed([
+        billtee_candidates = billtee_rtgs_rows(
+            [row for row in balance_report_rows if row.get('report_scope') != 'Expense'], store.list_billtee_payments())
+        rtgs_candidates = balance_candidates + ([] if show_only_balance_payable else billtee_candidates + upi_candidates + list(reversed([
             item for item in trips if number(item.get("rtgs_advance")) > 0
         ])))
         select_all_rtgs = st.checkbox("Select all", key="rtgs_select_all")
         selection_frame = pd.DataFrame([
             {
                 "Select": select_all_rtgs or not bool(row.get("rtgs_done")),
-                "Record": request_label(row) + (" · UPI Payment" if row.get("_upi_payment") else " · Balance Payment" if row.get("_balance_payment") else " · Advance"),
+                "Record": request_label(row) + (" · Billtee Payment" if row.get("_billtee_payment") else " · UPI Payment" if row.get("_upi_payment") else " · Balance Payment" if row.get("_balance_payment") else " · Advance"),
                 "Date": f"{as_date(row.get('trip_date')):%d/%m/%y}",
                 "Beneficiary": clean_text(row.get("beneficiary_name")),
                 "Account Number": clean_text(unpack(row.get("rtgs_data")).get("BENE_ACC_NO")),
@@ -2534,6 +2537,9 @@ with reports_tab:
                     disabled=not changed_rtgs_rows, key="save_nikhat_rtgs_changes",
                 ):
                     for saved_row, effective_row in changed_rtgs_rows:
+                        if saved_row.get('_billtee_payment'):
+                            store.update_billtee_payment(saved_row['request_number'], effective_row['rtgs_data'], current_user)
+                            continue
                         if saved_row.get("_upi_payment"):
                             store.update_upi_payment(saved_row["request_number"], effective_row["rtgs_data"], current_user)
                             continue
