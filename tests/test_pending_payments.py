@@ -45,7 +45,7 @@ def test_grouped_balance_sends_selected_once_and_preserves_trips(tmp_path):
 
 def test_upi_uses_payers_profile_and_missing_profile_rolls_back_batch(tmp_path):
     store = RequestStore(f"sqlite:///{tmp_path / 'upi.db'}")
-    numbers = [trip(store), trip(store, created_by='Gopal')]
+    numbers = [trip(store), trip(store, created_by='Ashok')]
     with store.engine.begin() as conn:
         conn.execute(insert(upi_reimbursement_profiles).values(user_name='Nitish', beneficiary_data=json.dumps({
             'BNF_NAME':'Test Payer', 'BENE_ACC_NO':'009876', 'BENE_IFSC':'TEST0000002'})))

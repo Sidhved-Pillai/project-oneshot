@@ -15,7 +15,7 @@ import streamlit.components.v1 as components
 
 from .branch_names import canonical_branch
 from .number_format import format_inr
-from .vehicle_placer import canonical_vehicle_placer
+from .reimbursement_owner import reimbursement_owner
 from .payment_access import PENDING_PAYMENT_USERS
 from .dtr_dates import parse_dtr_date
 from .operational_dates import OPERATIONS_START
@@ -63,9 +63,9 @@ def payment_groups(trips, kind, requests, profiles):
             profile = {**profile, 'BNF_NAME':profile.get('BNF_NAME') or trip.get('beneficiary_name','')}
         else:
             value = amount(raw.get('Billtee')) if kind == 'billtee' else amount(trip.get('upi'))
-            owner = str(trip.get('created_by') or '').strip()
+            owner = reimbursement_owner(trip)
             profile = profiles.get(owner, {})
-            name = canonical_vehicle_placer(raw.get('Veh Placed by')) or owner or 'Payer not specified'
+            name = owner or 'Payer not specified'
         if value <= 0:
             continue
         payment = requests.get(trip.get('request_number'))

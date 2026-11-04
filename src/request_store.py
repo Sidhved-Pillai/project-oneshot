@@ -16,6 +16,7 @@ from .dtr_generator import DTR_COLUMNS
 from .balance_payments import BALANCE_PREFIX, can_send_balance
 from .upi_payments import UPI_PREFIX, can_send_upi
 from .payment_access import PENDING_PAYMENT_USERS
+from .reimbursement_owner import reimbursement_owner
 
 
 metadata = MetaData()
@@ -460,7 +461,7 @@ class RequestStore:
             amount = row['upi']
             data = json.loads(row.get('rtgs_data') or '{}')
             profile = conn.execute(select(upi_reimbursement_profiles.c.beneficiary_data).where(
-                upi_reimbursement_profiles.c.user_name == (row.get('created_by') if user in PENDING_PAYMENT_USERS else user))).scalar_one_or_none()
+                upi_reimbursement_profiles.c.user_name == reimbursement_owner(row))).scalar_one_or_none()
             beneficiary = json.loads(profile or '{}')
             required = ('BNF_NAME', 'BENE_ACC_NO', 'BENE_IFSC')
             if not all(str(beneficiary.get(key) or '').strip() for key in required):
@@ -512,7 +513,7 @@ class RequestStore:
                         raise ValueError('Choose an active trip record.')
                     payload = json.loads(row.get('rtgs_data') or '{}')
                     profile = conn.execute(select(upi_reimbursement_profiles.c.beneficiary_data).where(
-                        upi_reimbursement_profiles.c.user_name == row.get('created_by'))).scalar_one_or_none()
+                        upi_reimbursement_profiles.c.user_name == reimbursement_owner(row))).scalar_one_or_none()
                     beneficiary = json.loads(profile or '{}')
                     payload.update({field:str(beneficiary.get(field) or '').strip()
                                     for field in ('BNF_NAME','BENE_ACC_NO','BENE_IFSC')})

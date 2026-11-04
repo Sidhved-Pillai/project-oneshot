@@ -44,7 +44,7 @@ def test_billtee_atomic_revalidation_and_permissions(tmp_path):
     store = RequestStore(f'sqlite:///{tmp_path / "validation.db"}')
     seed_profile(store)
     first = trip(store, dtr_data={'Billtee':100})
-    second = trip(store, dtr_data={'Billtee':200}, created_by='Gopal')
+    second = trip(store, dtr_data={'Billtee':200}, created_by='Ashok')
     selected = {number:store.get(number)['updated_at'] for number in (first,second)}
     with pytest.raises(ValueError, match='bank details'):
         store.send_pending_payments(selected, 'billtee', 'Sid')
