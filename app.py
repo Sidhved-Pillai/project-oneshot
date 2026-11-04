@@ -41,11 +41,11 @@ from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report_v6 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
-from src.records_store_v24 import RequestStore
-from src.payment_access import PENDING_PAYMENT_USERS
+from src.payment_access_v2 import PENDING_PAYMENT_USERS
+from src.records_store_v25 import RequestStore
 from src.diesel_inputs import update_diesel
 from src.expense_date import seed_expense_date, remember_expense_date
-from src.pending_payments_v9 import render_pending_payments
+from src.pending_payments_v10 import render_pending_payments
 from src.billtee_payments import billtee_rtgs_rows
 from src.invoice_viewer import invoice_viewer_html
 from src.duplicate_review import duplicate_review_frame, selected_duplicate_numbers
@@ -72,7 +72,7 @@ st.markdown(
     '[data-testid="stDecoration"], #MainMenu {display:none !important;}</style>',
     unsafe_allow_html=True,
 )
-STORE_INTERFACE_VERSION = 24
+STORE_INTERFACE_VERSION = 25
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Debit"]
@@ -1723,9 +1723,17 @@ div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);b
 </style>
 <div class="app-hero"><div class="brand-row"><img class="brand-mark" src="APP_LOGO_DATA" alt="Project Oneshot logo" style="object-fit:contain"/><div><div class="brand">Project <span>Oneshot</span></div><div class="subtitle">One record. Every operations report.</div></div></div><div class="status-pill"><span class="status-dot"></span>WORKSPACE READY</div></div>
 """.replace('APP_LOGO_DATA', 'data:image/png;base64,' + base64.b64encode(APP_LOGO.read_bytes()).decode('ascii')), unsafe_allow_html=True)
-if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam"}:
+if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam", "Nikhat"}:
     render_sid_styles()
     render_sid_header(APP_LOGO)
+    if current_user == 'Nikhat':
+        st.markdown('''<style>
+        [data-testid="stTabs"] [data-testid="stTab"]:nth-child(1):before{content:'layers'}
+        [data-testid="stTabs"] [data-testid="stTab"]:nth-child(2):before{content:'calendar_month'}
+        [data-testid="stTabs"] [data-testid="stTab"]:nth-child(3):before{content:'work'}
+        [data-testid="stTabs"] [data-testid="stTab"]:nth-child(4):before{content:'bar_chart'}
+        [data-testid="stTabs"] [data-testid="stTab"]:nth-child(5):before{content:'history'}
+        </style>''', unsafe_allow_html=True)
     if current_user in {'Ajit', 'Manish'}:
         render_ajit_payment_styles()
     if current_user == 'Manish':
@@ -1755,12 +1763,13 @@ if hidden_tabs:
         for index in hidden_tabs
     )
     st.markdown(f"<style>{hidden_tab_css}</style>", unsafe_allow_html=True)
-if current_user in PENDING_PAYMENT_USERS:
+if current_user == 'Nikhat':
+    expense_tab, records_tab, pending_tab, reports_tab, logs_tab = st.tabs(
+        ['Direct Expenses','Records','Pending Payments','Generate Reports','Logs'])
+    new_tab = None
+elif current_user in PENDING_PAYMENT_USERS:
     new_tab, expense_tab, records_tab, pending_tab, reports_tab, logs_tab = st.tabs(
         ["New Entry", "Direct Expenses", "Records", "Pending Payments", "Generate Reports", "Logs"])
-elif current_user == 'Nikhat':
-    expense_tab, records_tab, reports_tab, logs_tab = st.tabs(['Direct Expenses','Records','Generate Reports','Logs'])
-    new_tab = None
 else:
     new_tab, expense_tab, records_tab, reports_tab, logs_tab = st.tabs(["New Entry", "Direct Expenses", "Records", "Generate Reports", "Logs"])
 
