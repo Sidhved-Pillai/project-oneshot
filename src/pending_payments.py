@@ -11,6 +11,7 @@ from collections import defaultdict
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 from .branch_names import canonical_branch
 from .number_format import format_inr
@@ -128,7 +129,30 @@ def send_reviewed_group(selected, kind, user, store):
         st.error(str(exc))
     else:
         st.session_state['pending_payment_notice'] = f'Sent {count} payment(s) to RTGS.'
+        if kind == 'balance' and count:
+            st.session_state['pending_bill_history_open'] = True
         st.rerun()
+
+
+@st.dialog('Print Bill', width='large')
+def view_balance_bills(bills, store, user):
+    from .balance_bill import render_bill_html, export_bill
+    choices = {row['id']:f"BP-{row['id']:06d} · {row['transporter_name']} · {row['trip_count']} trips · {format_inr(row['amount'])}" for row in bills}
+    chosen = st.selectbox('Bill', list(choices), format_func=choices.get)
+    if chosen is None:
+        return
+    try:
+        bill = store.get_balance_bill(chosen, user)
+    except ValueError as exc:
+        st.error(str(exc))
+        return
+    content = render_bill_html(bill)
+    excel_col, print_col = st.columns(2)
+    excel_col.download_button('Download Excel bill', export_bill(bill),
+        f'{bill["bill_number"]}.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    print_col.download_button('Download printable bill', content,
+        f'{bill["bill_number"]}.html', 'text/html')
+    components.html(content, height=650, scrolling=True)
 
 
 @st.fragment
@@ -205,6 +229,15 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
     if start > end:
         st.error('Choose an end date on or after the start date.')
         return
+    bills = store.list_balance_bills(user) if kind == 'balance' and hasattr(store, 'list_balance_bills') else []
+    if kind == 'balance' and bills:
+        # Keep issued statements available even after every trip was sent.
+        with st.expander('Balance Payment Bills', expanded=st.session_state.get('pending_bill_history_open', False)):
+            st.caption('Saved selections sent to RTGS. Open a bill to see the current paid/pending status, print it or download Excel.')
+            bill_options = {row['id']:f"BP-{row['id']:06d} · {row['transporter_name']} · {row['trip_count']} trips · {format_inr(row['amount'])}" for row in bills}
+            selected_bill = st.selectbox('Saved bill', list(bill_options), format_func=bill_options.get)
+            if st.button('Print Bill', key='pending_bill_history', icon=':material/print:'):
+                view_balance_bills([row for row in bills if row['id'] == selected_bill], store, user)
     filtered = []
     for group in groups:
         matching = [item for item in group
@@ -260,6 +293,17 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
                              disabled=not configured or not selected_all,
                              help=f'Send {len(ready)} trips with complete bank details. {missing_count} incomplete trips stay pending.' if missing else 'Send all pending trips in this group to RTGS', use_container_width=True):
                 send_reviewed_group(selected_all, kind, user, store)
+            if kind == 'balance':
+                def matches_bill(bill):
+                    source = transporter_key(bill['transporter_name'])
+                    target = transporter_key(first['name'])
+                    return source == target or (len(source) >= 8 and re.findall(r'\d+',source) == re.findall(r'\d+',target)
+                        and abs(len(source)-len(target)) <= max(len(source),len(target))*.06
+                        and SequenceMatcher(None,source,target).ratio() >= .94)
+                matching_bills = [bill for bill in bills if matches_bill(bill)]
+                if action.button('Print Bill', icon=':material/print:', key=f'pending_print_{key}',
+                    disabled=not matching_bills, help='View saved RTGS submission bills for this transporter' if matching_bills else 'A bill is created after trips are sent to RTGS', use_container_width=True):
+                    view_balance_bills(matching_bills, store, user)
             if not expanded:
                 continue
             st.caption('Each trip is sent to its own saved beneficiary. Trips missing bank details remain pending.')

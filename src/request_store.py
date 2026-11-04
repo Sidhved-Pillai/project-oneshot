@@ -73,6 +73,17 @@ balance_payments = Table(
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
 )
 
+balance_bills = Table(
+    'balance_payment_bills', metadata,
+    Column('id', Integer, primary_key=True, autoincrement=True),
+    Column('transporter_name', String(200), nullable=False),
+    Column('requested_by', String(120), nullable=False),
+    Column('created_at', DateTime, nullable=False),
+    Column('trip_count', Integer, nullable=False),
+    Column('amount', Numeric(14,2), nullable=False),
+    Column('snapshot', Text, nullable=False),
+)
+
 upi_reimbursement_profiles = Table(
     "upi_reimbursement_profiles", metadata,
     Column("user_name", String(120), primary_key=True),
@@ -466,6 +477,7 @@ class RequestStore:
             raise ValueError('You do not have access to Pending Payments.')
         with self.engine.begin() as conn:
             sent = 0
+            bill_rows = {}
             for number, version in sorted(selected.items()):
                 row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
                     requests.c.request_number == number).with_for_update()).mappings().first()
@@ -478,10 +490,49 @@ class RequestStore:
                     if not all(str(data.get(key) or (row.get('beneficiary_name') if key == 'BNF_NAME' else '') or '').strip()
                                for key in ('BNF_NAME','BENE_ACC_NO','BENE_IFSC')):
                         raise ValueError('Complete the transporter beneficiary bank details before sending.')
-                    sent += self.send_balance_payment(number, user, _conn=conn)
+                    newly_sent = self.send_balance_payment(number, user, _conn=conn)
+                    sent += newly_sent
+                    if newly_sent:
+                        from .balance_bill import bill_group_key
+                        key = bill_group_key(row)
+                        bill_rows.setdefault(key, []).append((dict(row), row.get('balance_amount') or 0))
                 else:
                     sent += self.send_upi_payment(number, user, _conn=conn)
+            if bill_rows:
+                from .balance_bill import make_bill, totals
+                from zoneinfo import ZoneInfo
+                for rows in bill_rows.values():
+                    snapshot = make_bill(rows, user)
+                    conn.execute(insert(balance_bills).values(
+                        transporter_name=snapshot['transporter'], requested_by=user,
+                        created_at=dt.datetime.now(ZoneInfo('Asia/Kolkata')).replace(tzinfo=None),
+                        trip_count=len(rows), amount=totals(snapshot)['grand_total'],
+                        snapshot=json.dumps(snapshot, default=str),
+                    ))
             return sent
+
+    def list_balance_bills(self, user):
+        if user not in PENDING_PAYMENT_USERS:
+            raise ValueError('You do not have access to transporter bills.')
+        with self.engine.connect() as conn:
+            return [dict(row) for row in conn.execute(select(
+                balance_bills.c.id, balance_bills.c.transporter_name, balance_bills.c.created_at,
+                balance_bills.c.trip_count, balance_bills.c.amount,
+            ).order_by(balance_bills.c.id.desc())).mappings()]
+
+    def get_balance_bill(self, bill_id, user):
+        if user not in PENDING_PAYMENT_USERS:
+            raise ValueError('You do not have access to transporter bills.')
+        with self.engine.connect() as conn:
+            row = conn.execute(select(balance_bills).where(balance_bills.c.id == bill_id)).mappings().first()
+            if not row:
+                raise ValueError('This transporter bill was not found.')
+            snapshot = json.loads(row['snapshot'])
+            statuses = dict(conn.execute(select(balance_payments.c.request_number, balance_payments.c.rtgs_done).where(
+                balance_payments.c.request_number.in_([item['request_number'] for item in snapshot['rows']]),
+            )).all())
+            return {**snapshot, 'bill_number':f'BP-{row["id"]:06d}', 'created_at':str(row['created_at']),
+                    'payment_status':statuses}
 
     def mark_invoice_receipts(self, changes, user):
         """Save a receipt batch in one transaction, including its audit history."""
