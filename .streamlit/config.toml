@@ -8,6 +8,8 @@ font = "sans-serif"
 
 [server]
 headless = true
+# Retain in-progress widget values/uploads while a phone is in another app.
+disconnectedSessionTTL = 1800
 
 [browser]
 gatherUsageStats = false

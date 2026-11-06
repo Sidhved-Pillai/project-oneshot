@@ -3,6 +3,7 @@ from contextlib import nullcontext
 from src.sid_entry_design_v4 import render_sid_styles, render_sid_header, section_heading, PATHS
 from src.ajit_payment_design import render_ajit_payment_styles
 from src.ajit_navigation import render_ajit_navigation_styles
+from src.mobile_resume import render_mobile_resume_styles
 import base64
 import hashlib
 import hmac
@@ -1352,6 +1353,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False, layout_ta
 
 
 require_authentication()
+render_mobile_resume_styles()
 if st.session_state.pop("welcome_pending", False):
     st.toast(f"Welcome {st.session_state['authenticated_user']}!", icon="👋")
 
