@@ -2,6 +2,7 @@ import datetime as dt
 from contextlib import nullcontext
 from src.sid_entry_design_v4 import render_sid_styles, render_sid_header, section_heading, PATHS
 from src.ajit_payment_design import render_ajit_payment_styles
+from src.ajit_navigation import render_ajit_navigation_styles
 import base64
 import hashlib
 import hmac
@@ -1726,6 +1727,8 @@ div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);b
 if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam", "Nikhat"}:
     render_sid_styles()
     render_sid_header(APP_LOGO)
+    if current_user == 'Ajit':
+        render_ajit_navigation_styles()
     if current_user == 'Nikhat':
         st.markdown('''<style>
         [data-testid="stTabs"] [data-testid="stTab"]:nth-child(1):before{content:'layers'}
