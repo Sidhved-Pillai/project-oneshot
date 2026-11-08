@@ -4,7 +4,7 @@ from tests.test_batched_interactions import trip_app
 from src.pnl_report import branch_pnl_summary, vehicle_number_pnl_summary, vehicle_pnl_summary
 
 
-@pytest.mark.parametrize('user', ['Ajit', 'Vijay', 'Ashok', 'Manish', 'Nitish', 'Shyam', 'Sid'])
+@pytest.mark.parametrize('user', ['Ajit', 'Vijay', 'Ashok', 'Nitish', 'Shyam', 'Sid'])
 def test_inline_diesel_details_expand_and_hide_for_every_user(user):
     app = trip_app(user)
     assert not app.exception

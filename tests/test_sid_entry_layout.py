@@ -73,8 +73,8 @@ def test_manish_responsive_layout_preserves_driver_and_expense_workflow():
     assert any(w.label == 'Driver name' for w in app.text_input)
     assert 'Transporter freight (₹)' not in {w.label for w in app.number_input}
     next(w for w in app.number_input if w.label == 'Revenue freight (₹)').set_value(10000).run()
-    next(w for w in app.number_input if w.label == 'Diesel (₹)').set_value(1800).run()
     next(w for w in app.number_input if w.label == 'Diesel Rate (₹/L)').set_value(90).run()
+    next(w for w in app.number_input if w.label == 'Diesel Qty (L)').set_value(20).run()
     next(w for w in app.number_input if w.label == 'Route Expense (UPI) (₹)').set_value(200).run()
     next(w for w in app.number_input if w.label == 'Toll Expense (₹)').set_value(100).run()
     assert not app.exception

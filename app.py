@@ -1000,6 +1000,16 @@ def update_diesel_details(prefix, changed):
         st.session_state[f'{prefix}_{target}'] = round(amount / value, 2)
 
 
+def update_manish_diesel(prefix, changed):
+    from decimal import Decimal, ROUND_HALF_UP
+    rate = st.session_state.get(f'{prefix}_diesel_rate')
+    quantity = st.session_state.get(f'{prefix}_diesel_quantity')
+    st.session_state[f'{prefix}_diesel_advance'] = (
+        float((Decimal(str(rate)) * Decimal(str(quantity))).quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
+        if rate is not None and quantity is not None else None
+    )
+
+
 def trip_form(prefix, memory, allowed_branches=None, simplified=False, layout_targets=None):
     v = {}
     normalization = {
@@ -1240,30 +1250,35 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False, layout_ta
             fields = [("Diesel", "diesel_advance"), ("UPI", "upi"), ("Cash", "cash_advance"),
                       ("RTGS", "rtgs_advance"), ("Billtee", "billtee")]
             v["toll_expense"], v["repairs_maintenance"], v["repair_reason"] = 0.0, 0.0, ""
-        diesel_active = number(st.session_state.get(f"{prefix}_diesel_advance")) > 0
+        manish_fuel = current_user == 'Manish'
+        diesel_active = manish_fuel or number(st.session_state.get(f"{prefix}_diesel_advance")) > 0
         pump_key = f"{prefix}_diesel_pump_name"
         card_active = diesel_active and clean_text(st.session_state.get(pump_key)).casefold() in ("reliance", "iocl")
         if current_user in {'Ajit', 'Manish'}:
-            columns = iter(st.container(key='ajit_payment_inputs').columns(len(fields)))
+            columns = iter(st.container(key='ajit_payment_inputs').columns(len(fields) - int(manish_fuel)))
             fuel_panel = st.container(key='ajit_fuel_details') if diesel_active else None
-            fuel_columns = iter(fuel_panel.columns(3 + int(card_active))) if diesel_active else None
+            fuel_columns = iter(fuel_panel.columns(3 + int(manish_fuel) + int(card_active))) if diesel_active else None
         else:
             columns = iter(sid_payment_columns[1 if own_workflow else 2:] if sid_preview else st.columns(len(fields) + (3 if diesel_active else 0) + int(card_active)))
         v["diesel_quantity"], v["diesel_rate"] = None, None
         v["diesel_pump_name"], v["card_name"], v["cardholders_name"] = "", "", ""
         for label, field in fields:
-            v[field] = next(columns).number_input(
-                f"{label} (₹)", min_value=0.0, value=None, placeholder="",
-                key=f"{prefix}_{field}",
-            )
+            if not (manish_fuel and field == 'diesel_advance'):
+                v[field] = next(columns).number_input(
+                    f"{label} (₹)", min_value=0.0, value=None, placeholder="",
+                    key=f"{prefix}_{field}",
+                )
             if field == "diesel_advance" and diesel_active:
                 detail_columns = fuel_columns if current_user in {'Ajit', 'Manish'} else columns
                 v["diesel_rate"] = next(detail_columns).number_input("Diesel Rate (₹/L)", min_value=0.0,
                     value=None, key=f"{prefix}_diesel_rate", placeholder="",
-                    on_change=update_diesel_details, args=(prefix, 'diesel_rate'))
+                    on_change=update_manish_diesel if manish_fuel else update_diesel_details, args=(prefix, 'diesel_rate'))
                 v["diesel_quantity"] = next(detail_columns).number_input("Diesel Qty (L)", min_value=0.0,
                     value=None, key=f"{prefix}_diesel_quantity", placeholder="",
-                    on_change=update_diesel_details, args=(prefix, 'diesel_quantity'))
+                    on_change=update_manish_diesel if manish_fuel else update_diesel_details, args=(prefix, 'diesel_quantity'))
+                if manish_fuel:
+                    v['diesel_advance'] = next(detail_columns).number_input('Diesel (₹)', min_value=0.0,
+                        value=None, key=f'{prefix}_diesel_advance', disabled=True, placeholder='')
                 pumps = ["", "Reliance", "IOCL", "Gaurav", "Shree Balaji Petroleum", "Om Vinayak"]
                 selected_pump = clean_text(st.session_state.get(pump_key))
                 if selected_pump and selected_pump not in pumps:
