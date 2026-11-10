@@ -4,6 +4,7 @@ from src.sid_entry_design_v4 import render_sid_styles, render_sid_header, sectio
 from src.ajit_payment_design import render_ajit_payment_styles
 from src.ajit_navigation import render_ajit_navigation_styles
 from src.mobile_resume import render_mobile_resume_styles
+from src.cloud_chrome import hide_manage_app
 import base64
 import hashlib
 import hmac
@@ -78,6 +79,7 @@ st.markdown(
     '[data-testid="stDecoration"], #MainMenu {display:none !important;}</style>',
     unsafe_allow_html=True,
 )
+hide_manage_app()
 STORE_INTERFACE_VERSION = 30
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
