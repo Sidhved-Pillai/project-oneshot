@@ -51,6 +51,7 @@ from src.pending_payments_v12 import render_pending_payments
 from src.billtee_payments import billtee_rtgs_rows
 from src.invoice_viewer import invoice_viewer_html
 from src.duplicate_review import duplicate_review_frame, selected_duplicate_numbers
+from src.expense_duplicates import expense_duplicate_signature
 from src.expense_autofill import expense_identity_inputs
 from src.upi_payments import can_send_upi, upi_rtgs_rows
 from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, balance_rtgs_rows, can_send_balance
@@ -638,6 +639,8 @@ def duplicate_records(rows):
             "" if invoice else round(number(row.get("revenue")), 2),
             "" if invoice else round(number(row.get("amount")), 2),
         )
+        if row.get('report_scope') == 'Expense':
+            signature = expense_duplicate_signature(row)
         if clean_text(row.get('created_by')) == 'Manish' and row.get('report_scope') != 'Expense':
             lr = re.sub(r'[^a-z0-9]', '', clean_text(unpack(row.get('dtr_data')).get('LR No.')).casefold())
             if not lr:
