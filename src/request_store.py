@@ -259,7 +259,7 @@ class RequestStore:
             row_id = result.inserted_primary_key[0]
             number = f"REQ-{values['trip_date']:%Y%m}-{row_id:06d}"
             conn.execute(update(requests).where(requests.c.id == row_id).values(request_number=number))
-            self._insert_revision(conn, number, clean, "initial", clean.get("created_by", ""))
+            self._insert_revision(conn, number, dict(conn.execute(select(*REQUEST_METADATA_COLUMNS).where(requests.c.id == row_id)).mappings().one()), "initial", clean.get("created_by", ""))
         return number
 
     def create_many(self, values_list):
@@ -270,7 +270,7 @@ class RequestStore:
                 row_id = result.inserted_primary_key[0]
                 number = f"REQ-{values['trip_date']:%Y%m}-{row_id:06d}"
                 conn.execute(update(requests).where(requests.c.id == row_id).values(request_number=number))
-                self._insert_revision(conn, number, self._clean_values(values), "initial", values.get("created_by", ""))
+                self._insert_revision(conn, number, dict(conn.execute(select(*REQUEST_METADATA_COLUMNS).where(requests.c.id == row_id)).mappings().one()), "initial", values.get("created_by", ""))
                 numbers.append(number)
         return numbers
 
@@ -289,6 +289,7 @@ class RequestStore:
                 clean["updated_at"] = dt.datetime.now()
                 if index < len(existing):
                     number = existing[index]["request_number"]
+                    self._insert_revision(conn, number, existing[index], "before_" + change_source, edited_by)
                     conn.execute(update(requests).where(requests.c.request_number == number).values(**clean))
                     row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(requests.c.request_number == number)).mappings().first()
                     self._insert_revision(conn, number, dict(row), change_source, edited_by)
@@ -323,6 +324,7 @@ class RequestStore:
                 raise ValueError('This record changed while you were editing. Close and reopen it before saving; no changes were overwritten.')
             if original.get('report_scope') == 'Expense' and 'dtr_data' in clean:
                 clean.update(expense_summary({**dict(original), **clean}))
+            self._insert_revision(conn, request_number, dict(original), "before_" + change_source, edited_by)
             conn.execute(update(requests).where(requests.c.request_number == request_number).values(**clean))
             row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(requests.c.request_number == request_number)).mappings().first()
             if row:
@@ -339,6 +341,10 @@ class RequestStore:
                     ).with_for_update()).first()
                     if current is None or current.updated_at != expected_versions.get(request_number):
                         raise ValueError("Record changed since the DTR was opened")
+                original = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
+                    requests.c.request_number == request_number).with_for_update()).mappings().first()
+                if original:
+                    self._insert_revision(conn, request_number, dict(original), "before_" + change_source, edited_by)
                 clean = {key: value for key, value in values.items() if key in requests.c and key not in {"id", "request_number", "created_at"}}
                 for field in ("rtgs_data", "dtr_data"):
                     if isinstance(clean.get(field), dict):
@@ -359,11 +365,28 @@ class RequestStore:
         return json.dumps({key: value for key, value in values.items() if key not in excluded}, default=str)
 
     def _insert_revision(self, conn, request_number, values, change_source, edited_by):
-        conn.execute(insert(record_revisions).values(
+        previous = conn.execute(select(record_revisions.c.id).where(
+            record_revisions.c.request_number == request_number).order_by(record_revisions.c.id.desc()).limit(1)).scalar_one_or_none()
+        inserted = conn.execute(insert(record_revisions).values(
             request_number=request_number, batch_id=values.get("batch_id"),
             report_scope=values.get("report_scope", ""), snapshot=self._revision_snapshot(values),
             change_source=change_source, edited_by=edited_by,
         ))
+        if not change_source.startswith('before_'):
+            after = json.loads(self._revision_snapshot({**values, 'request_number': request_number}))
+            action = ('Deleted record' if after.get('is_archived') or after.get('status') == 'Cancelled'
+                      else 'Created record' if previous is None else 'Updated record')
+            from .audit_view import object_value
+            dtr = object_value(after.get('dtr_data'))
+            dtr = dtr if isinstance(dtr, dict) else {}
+            summary = {key: after.get(key) for key in ('request_number', 'report_scope', 'trip_date',
+                'branch', 'vehicle_number', 'invoice_number', 'expense_type', 'beneficiary_name')}
+            summary['lr_number'] = dtr.get('LR No.', '')
+            conn.execute(insert(activity_logs).values(user_name=edited_by or values.get('created_by') or 'System',
+                action=action, request_number=request_number,
+                details=json.dumps({'audit_version': 1, 'source': change_source, 'message': change_source,
+                                    'revision_id': inserted.inserted_primary_key[0], 'previous_revision_id': previous,
+                                    'after': summary}, default=str)))
 
     def get(self, request_number):
         with self.engine.connect() as conn:
@@ -645,9 +668,13 @@ class RequestStore:
         if user != 'Nikhat' or not payment_id.startswith('BILLTEE:') or not math.isfinite(float(data['AMOUNT'])) or float(data['AMOUNT']) < 0:
             raise ValueError('Invalid Billtee payment correction.')
         with self.engine.begin() as conn:
+            original = conn.execute(select(billtee_payments.c.rtgs_data).where(
+                billtee_payments.c.request_number == payment_id.removeprefix('BILLTEE:')).with_for_update()).scalar_one_or_none()
+            if original is None:
+                raise ValueError('Payment no longer exists.')
             conn.execute(update(billtee_payments).where(billtee_payments.c.request_number == payment_id.removeprefix('BILLTEE:')).values(
                 amount=data['AMOUNT'], rtgs_data=json.dumps({**data, '_payment_kind':'billtee', '_payment_id':payment_id}, default=str)))
-            conn.execute(insert(activity_logs).values(user_name=user, action='Updated Billtee RTGS', request_number=payment_id.removeprefix('BILLTEE:'), details='Billtee payment details corrected'))
+            conn.execute(insert(activity_logs).values(user_name=user, action='Updated Billtee RTGS', request_number=payment_id.removeprefix('BILLTEE:'), details=json.dumps({'audit_version': 1, 'before': {'rtgs_data': json.loads(original)}, 'after': {'rtgs_data': data}}, default=str)))
 
     def list_upi_payments(self):
         with self.engine.connect() as conn:
@@ -660,10 +687,14 @@ class RequestStore:
         number = payment_id.removeprefix(UPI_PREFIX)
         data = {**data, '_payment_kind': 'upi', '_payment_id': payment_id}
         with self.engine.begin() as conn:
+            original = conn.execute(select(upi_payments.c.rtgs_data).where(
+                upi_payments.c.request_number == payment_id.removeprefix(UPI_PREFIX)).with_for_update()).scalar_one_or_none()
+            if original is None:
+                raise ValueError('Payment no longer exists.')
             conn.execute(update(upi_payments).where(upi_payments.c.request_number == number).values(
                 amount=data['AMOUNT'], rtgs_data=json.dumps(data, default=str)))
             conn.execute(insert(activity_logs).values(user_name=user, action='Updated UPI RTGS',
-                request_number=number, details='UPI payment details corrected'))
+                request_number=number, details=json.dumps({'audit_version': 1, 'before': {'rtgs_data': json.loads(original)}, 'after': {'rtgs_data': data}}, default=str)))
 
     def update_balance_payment(self, payment_id, data, user):
         if user != "Nikhat":
@@ -673,15 +704,19 @@ class RequestStore:
         number = payment_id.removeprefix(BALANCE_PREFIX)
         data = {**data, "_payment_kind": "balance", "_payment_id": payment_id}
         with self.engine.begin() as conn:
+            original = conn.execute(select(balance_payments.c.rtgs_data).where(
+                balance_payments.c.request_number == payment_id.removeprefix(BALANCE_PREFIX)).with_for_update()).scalar_one_or_none()
+            if original is None:
+                raise ValueError('Payment no longer exists.')
             conn.execute(update(balance_payments).where(
                 balance_payments.c.request_number == number,
             ).values(amount=data["AMOUNT"], rtgs_data=json.dumps(data, default=str)))
             conn.execute(insert(activity_logs).values(
                 user_name=user, action="Updated balance RTGS", request_number=number,
-                details="Balance payment details corrected",
+                details=json.dumps({'audit_version': 1, 'before': {'rtgs_data': json.loads(original)}, 'after': {'rtgs_data': data}}, default=str),
             ))
 
-    def mark_rtgs_done(self, request_numbers, done=True):
+    def mark_rtgs_done(self, request_numbers, done=True, edited_by="System"):
         """Persist the RTGS download status for the selected trip records."""
         request_numbers = [number for number in request_numbers if number]
         if not request_numbers:
@@ -691,6 +726,19 @@ class RequestStore:
             upi_numbers = [number.removeprefix(UPI_PREFIX) for number in request_numbers if number.startswith(UPI_PREFIX)]
             billtee_numbers = [number.removeprefix('BILLTEE:') for number in request_numbers if number.startswith('BILLTEE:')]
             request_numbers = [number for number in request_numbers if not number.startswith((BALANCE_PREFIX, UPI_PREFIX, 'BILLTEE:'))]
+            for table, numbers, prefix in ((billtee_payments, billtee_numbers, 'BILLTEE:'),
+                    (upi_payments, upi_numbers, UPI_PREFIX), (balance_payments, balance_numbers, BALANCE_PREFIX),
+                    (requests, request_numbers, '')):
+                if not numbers:
+                    continue
+                for old in conn.execute(select(table.c.request_number, table.c.rtgs_done).where(
+                        table.c.request_number.in_(numbers)).with_for_update()).mappings():
+                    if bool(old['rtgs_done']) != bool(done):
+                        conn.execute(insert(activity_logs).values(user_name=edited_by, action='Updated RTGS status',
+                            request_number=old['request_number'], details=json.dumps({'audit_version':1,
+                                'message': prefix + old['request_number'],
+                                'before': {'rtgs_done': bool(old['rtgs_done'])},
+                                'after': {'rtgs_done': bool(done)}})))
             billtee_count = conn.execute(update(billtee_payments).where(billtee_payments.c.request_number.in_(billtee_numbers)).values(rtgs_done=bool(done))).rowcount if billtee_numbers else 0
             upi_count = conn.execute(update(upi_payments).where(
                 upi_payments.c.request_number.in_(upi_numbers),
@@ -708,12 +756,54 @@ class RequestStore:
     def log_action(self, user_name, action, request_number="", details=""):
         """Append one immutable audit event."""
         with self.engine.begin() as conn:
+            # Record mutations already append their exact snapshots atomically.
+            if request_number and any(word in action.lower() for word in ('created', 'updated record', 'deleted record')):
+                recent = conn.execute(select(activity_logs.c.details).where(
+                    activity_logs.c.request_number == request_number,
+                    activity_logs.c.user_name == user_name,
+                    activity_logs.c.created_at >= dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) - dt.timedelta(seconds=15),
+                ).order_by(activity_logs.c.id.desc()).limit(1)).scalar_one_or_none()
+                if recent and '"audit_version": 1' in recent:
+                    return
             conn.execute(insert(activity_logs).values(
                 user_name=user_name or "Unknown member",
                 action=action,
                 request_number=request_number or "",
                 details=details or "",
             ))
+
+    def activity_details(self, event):
+        """Resolve legacy snapshots only when actor/time match; never use today's record."""
+        from .audit_view import event_data
+        data = event_data(event)
+        if data.get('revision_id'):
+            with self.engine.connect() as conn:
+                snapshots = {r.id: json.loads(r.snapshot) for r in conn.execute(
+                    select(record_revisions.c.id, record_revisions.c.snapshot).where(
+                        record_revisions.c.request_number == event.get('request_number'),
+                        record_revisions.c.id.in_([data['revision_id'], data.get('previous_revision_id')]),
+                    ))}
+            return {**event, 'details': json.dumps({**data,
+                'after': snapshots.get(data['revision_id']),
+                'before': snapshots.get(data.get('previous_revision_id'))}, default=str)}
+        if data.get('audit_version') or not event.get('request_number'):
+            return event
+        timestamp = event.get('created_at')
+        if not timestamp:
+            return event
+        with self.engine.connect() as conn:
+            revisions = [dict(r) for r in conn.execute(select(record_revisions).where(
+                record_revisions.c.request_number == event['request_number'],
+                record_revisions.c.created_at <= timestamp,
+            ).order_by(record_revisions.c.id.desc()).limit(3)).mappings()]
+        if not revisions:
+            return event
+        latest = revisions[0]
+        if latest.get('edited_by') != event.get('user_name') or abs((timestamp - latest['created_at']).total_seconds()) > 120:
+            return event
+        return {**event, 'details': json.dumps({'message': event.get('details', ''),
+            'after': json.loads(latest['snapshot']),
+            'before': json.loads(revisions[1]['snapshot']) if len(revisions) > 1 else None}, default=str)}
 
     def list_activity_logs(self, limit=500):
         """Return newest audit events first. Log rows are intentionally append-only."""
