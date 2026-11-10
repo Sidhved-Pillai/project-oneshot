@@ -40,12 +40,12 @@ st.text_input('IFSC',key='expense_0_ifsc')
 
 
 def test_duplicate_selections_are_batched_and_number_function_not_shadowed():
+    component = Path('src/dashboard_duplicates_component/index.html').read_text()
+    assert "selected.add(box.dataset.id)" in component
+    assert "numbers:[...selected]" in component
+    # Checkbox changes stay in the browser; only Delete Selected sends a mutation.
+    checkbox_handler = component.split("box.onchange=()=>",1)[1].split("document.querySelector('.cancel')",1)[0]
+    assert 'emit(' not in checkbox_handler
     tree = ast.parse(Path('app.py').read_text())
-    form = next(n for n in ast.walk(tree) if isinstance(n,ast.With) and any(
-        isinstance(item.context_expr,ast.Call) and item.context_expr.args
-        and isinstance(item.context_expr.args[0],ast.Constant)
-        and item.context_expr.args[0].value=='duplicate_delete_batch' for item in n.items))
-    calls = [n.func.attr for n in ast.walk(form) if isinstance(n,ast.Call) and isinstance(n.func,ast.Attribute)]
-    assert 'data_editor' in calls and 'form_submit_button' in calls
     assert not any(isinstance(n,ast.For) and isinstance(n.target,ast.Name) and n.target.id=='number'
                    for n in tree.body for n in ast.walk(n) if not isinstance(n,ast.FunctionDef))

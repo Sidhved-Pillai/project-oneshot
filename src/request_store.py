@@ -434,6 +434,35 @@ class RequestStore:
             self._insert_revision(conn, request_number, dict(row), "pending_invoice_match", edited_by)
         return True
 
+    def delete_duplicate_copies(self, selected, expected_versions, user, find_duplicates):
+        """Recheck duplicates under row locks and soft-delete the selected copies atomically."""
+        if user != 'Sid':
+            raise ValueError('Only Sid can use duplicate review.')
+        selected = list(dict.fromkeys(selected))
+        if not selected:
+            raise ValueError('Select at least one duplicate copy.')
+        with self.engine.begin() as conn:
+            active = [dict(r) for r in conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
+                requests.c.status != 'Cancelled', requests.c.is_archived.is_(False)
+            ).order_by(requests.c.id).with_for_update()).mappings()]
+            copies = {r['request_number']: r for r in find_duplicates(active)}
+            current = {r['request_number']: r for r in active}
+            if any(key not in current or str(current[key].get('updated_at')) != str(version)
+                   for key, version in expected_versions.items()):
+                raise ValueError('Records changed while you were reviewing. No records were deleted.')
+            if any(key not in copies or key not in expected_versions for key in selected):
+                raise ValueError('Selection is no longer a duplicate copy. No records were deleted.')
+            for key in selected:
+                row = copies[key]
+                dtr = json.loads(row.get('dtr_data') or '{}')
+                dtr['_deleted_previous_status'] = row.get('status') or 'Submitted'
+                values = {'is_archived':True, 'status':'Cancelled', 'dtr_data':json.dumps(dtr, default=str),
+                          'updated_at':dt.datetime.now()}
+                self._insert_revision(conn, key, row, 'before_dashboard_duplicate_delete', user)
+                conn.execute(update(requests).where(requests.c.request_number == key).values(**values))
+                self._insert_revision(conn, key, {**row, **values}, 'dashboard_duplicate_delete', user)
+        return len(selected)
+
     def delete_request(self, request_number):
         """Permanently delete one unified record and its revision history."""
         with self.engine.begin() as conn:

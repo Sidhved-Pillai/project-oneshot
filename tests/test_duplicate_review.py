@@ -22,8 +22,10 @@ def test_duplicate_grid_details_are_unselected_and_selection_uses_record_ids():
 
 def test_duplicate_grid_only_edits_selection_and_shyam_has_no_cross_icon():
     source = Path('app.py').read_text()
-    assert "disabled=[col for col in duplicate_frame if col != 'Select']" in source
-    assert 'records_duplicate_grid_' in source
+    assert 'dashboard_review_duplicates' in Path('src/sid_dashboard.py').read_text()
+    assert 'Delete Duplicate records' not in source
+    component = Path('src/dashboard_duplicates_component/index.html').read_text()
+    assert 'Original (Keep)' in component and 'type="checkbox"' in component
     assert 'records_delete_selection_' not in source
     assert "stage_invoice_receipt(record['request_number'], received)" in source
     assert "received_undo_" not in source

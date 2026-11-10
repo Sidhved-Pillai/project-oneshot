@@ -45,14 +45,15 @@ from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report_v6 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.payment_access_v2 import PENDING_PAYMENT_USERS
-from src.records_store_v29 import RequestStore
+from src.records_store_v30 import RequestStore
+from src.sid_dashboard import render_dashboard, switch_to_reports
+from src.dashboard_duplicate_review import review_duplicates
 from src.audit_ui import render_logs
 from src.diesel_inputs import update_diesel
 from src.expense_date import seed_expense_date, remember_expense_date
 from src.pending_payments_v12 import render_pending_payments
 from src.billtee_payments import billtee_rtgs_rows
 from src.invoice_viewer import invoice_viewer_html
-from src.duplicate_review import duplicate_review_frame, selected_duplicate_numbers
 from src.expense_duplicates import expense_duplicate_signature
 from src.expense_autofill import expense_identity_inputs
 from src.upi_payments import can_send_upi, upi_rtgs_rows
@@ -77,7 +78,7 @@ st.markdown(
     '[data-testid="stDecoration"], #MainMenu {display:none !important;}</style>',
     unsafe_allow_html=True,
 )
-STORE_INTERFACE_VERSION = 29
+STORE_INTERFACE_VERSION = 30
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Debit"]
@@ -629,9 +630,10 @@ def record_select_label(row):
     return f"{request_label(row)} [{details}]"
 
 
-def duplicate_records(rows):
+def duplicate_records(rows, include_originals=False):
     """Return redundant copies while retaining the oldest record in each group."""
     grouped = {}
+    duplicate_sets = {}
     duplicates = []
     for row in sorted(rows, key=lambda item: int(item.get("id") or 0)):
         invoice = clean_text(row.get("invoice_number")).casefold()
@@ -652,9 +654,10 @@ def duplicate_records(rows):
             signature = ('Manish LR', lr)
         if signature in grouped:
             duplicates.append(row)
+            duplicate_sets.setdefault(signature, {'original':grouped[signature], 'duplicates':[]})['duplicates'].append(row)
         else:
             grouped[signature] = row
-    return duplicates
+    return list(duplicate_sets.values()) if include_originals else duplicates
 
 
 def trip_auto_remark(vehicle_number, origin, destination, vehicle_capacity, trip_date):
@@ -1764,6 +1767,14 @@ div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);b
 if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam", "Nikhat"}:
     render_sid_styles()
     render_sid_header(APP_LOGO)
+    if current_user == 'Sid':
+        st.markdown('''<style>
+        [data-testid="stTabs"] [data-testid="stTab"]:nth-child(1):before{content:'home'}
+        [data-testid="stTabs"] [data-testid="stTab"]:nth-child(2):before{content:'calendar_month'}
+        [data-testid="stTabs"] [data-testid="stTab"]:nth-child(3):before{content:'work'}
+        [data-testid="stTabs"] [data-testid="stTab"]:nth-child(4):before{content:'bar_chart'}
+        [data-testid="stTabs"] [data-testid="stTab"]:nth-child(5):before{content:'history'}
+        </style>''',unsafe_allow_html=True)
     if current_user == 'Ajit':
         render_ajit_navigation_styles()
     if current_user == 'Nikhat':
@@ -1790,6 +1801,12 @@ if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok"
 else:
     _, logout_column = st.columns([8, 1])
     logout_column.button('Logout', icon=':material/logout:', key='logout', on_click=logout)
+if current_user == 'Sid' and (pnl_request := st.session_state.pop('dashboard_pnl_request', None)):
+    st.session_state['report_from_v2'], st.session_state['report_to_v2'] = pnl_request
+    st.session_state['report_type'] = 'P&L'
+    st.session_state['pnl_ownership_filter'] = 'Both'
+    st.session_state['pnl_vehicle_filter'] = 'All'
+    st.session_state['dashboard_pnl_jump'] = True
 hidden_tabs = []
 if not can_use_direct_expenses:
     hidden_tabs.append(2)
@@ -1803,7 +1820,11 @@ if hidden_tabs:
         for index in hidden_tabs
     )
     st.markdown(f"<style>{hidden_tab_css}</style>", unsafe_allow_html=True)
-if current_user == 'Nikhat':
+if current_user == 'Sid':
+    dashboard_tab, records_tab, pending_tab, reports_tab, logs_tab = st.tabs(
+        ['Dashboard', 'Records', 'Pending Payments', 'Generate Reports', 'Logs'], default='Dashboard')
+    new_tab = expense_tab = None
+elif current_user == 'Nikhat':
     expense_tab, records_tab, pending_tab, reports_tab, logs_tab = st.tabs(
         ['Direct Expenses','Records','Pending Payments','Generate Reports','Logs'])
     new_tab = None
@@ -2052,8 +2073,9 @@ def render_direct_expenses():
                 st.rerun()
             st.success(f"Saved {request_label(saved, v['date'])}.")
 
-with expense_tab:
-    render_direct_expenses()
+if expense_tab is not None:
+    with expense_tab:
+        render_direct_expenses()
 
 @st.fragment
 def record_edit_control(record):
@@ -2096,6 +2118,14 @@ def save_invoice_receipt_batch():
         st.session_state['shyam_pending_receipts'] = {}
         st.session_state['receipt_batch_notice'] = f'Saved {len(pending)} invoice receipt change(s).'
 
+
+if current_user == 'Sid':
+    with dashboard_tab:
+        if notice := st.session_state.pop('dashboard_duplicate_notice', None):
+            st.success(notice)
+        render_dashboard(current_user, normalization_rows, duplicate_records(normalization_rows, include_originals=True),
+                         pnl_reporting.branch_pnl_summary,
+                         lambda groups: review_duplicates(current_user, groups, store, duplicate_records))
 
 with records_tab:
     page_intro("", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
@@ -2315,39 +2345,6 @@ with records_tab:
                 st.success(notice)
             if error := st.session_state.pop('receipt_batch_error', None):
                 st.error(error)
-        if current_user == "Sid":
-            duplicate_rows = duplicate_records(scoped_rows)
-            duplicate_by_number = {row['request_number']: row for row in duplicate_rows}
-            with st.expander("Delete Duplicate records"):
-                if not duplicate_rows:
-                    st.info("No duplicate records found.")
-                chosen = []
-                with st.form('duplicate_delete_batch', border=False):
-                    if duplicate_rows:
-                        duplicate_set_version = hashlib.sha256(
-                            repr([(row['request_number'], str(row.get('updated_at'))) for row in duplicate_rows]).encode()
-                        ).hexdigest()[:12]
-                        duplicate_frame = duplicate_review_frame(duplicate_rows)
-                        selected_frame = st.data_editor(
-                            duplicate_frame, hide_index=True, width='stretch', height=350,
-                            num_rows='fixed', disabled=[col for col in duplicate_frame if col != 'Select'],
-                            column_config={'Select': st.column_config.CheckboxColumn('Select', help='Select this duplicate for deletion')},
-                            key=f'records_duplicate_grid_{duplicate_set_version}',
-                        )
-                        chosen = selected_duplicate_numbers(selected_frame, duplicate_by_number)
-                    st.caption("Select duplicate rows, then Confirm & Delete. The oldest record in each group is retained; deleted copies remain recoverable.")
-                    delete_submitted = st.form_submit_button("Confirm & Delete", disabled=not duplicate_rows)
-                if delete_submitted and not chosen:
-                    st.warning('Select at least one duplicate record to delete.')
-                if delete_submitted and chosen:
-                    fresh_duplicates = {row['request_number']: row for row in duplicate_records(store.list(status='All active'))}
-                    if any(number not in fresh_duplicates or fresh_duplicates[number].get('updated_at') != duplicate_by_number[number].get('updated_at') for number in chosen):
-                        st.error('These records changed. Refresh and review the duplicate spreadsheet before deleting. No records were deleted.')
-                        st.stop()
-                    for request_number in chosen:
-                        soft_delete_record(fresh_duplicates[request_number], record_select_label(fresh_duplicates[request_number]))
-                    st.success(f"Deleted {len(chosen)} record(s).")
-                    st.rerun()
 
 if current_user in PENDING_PAYMENT_USERS:
     with pending_tab:
@@ -2706,3 +2703,6 @@ with logs_tab:
         st.warning("Logs are available only to special members.")
     else:
         render_logs(dashboard_logs, store)
+
+if current_user == 'Sid' and st.session_state.pop('dashboard_pnl_jump', False):
+    switch_to_reports()
