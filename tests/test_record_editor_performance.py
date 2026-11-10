@@ -10,6 +10,10 @@ def test_fragment_edit_control_opens_dialog():
                    and node.name == 'record_edit_control')
     app = AppTest.from_string('''
 import streamlit as st
+class Store:
+    def get(self, number):
+        return {'request_number':number, 'status':'Verified'}
+store = Store()
 st.session_state['dashboard_reads'] = st.session_state.get('dashboard_reads', 0) + 1
 @st.dialog('Test record editor')
 def view_record(record):

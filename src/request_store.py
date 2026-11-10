@@ -17,6 +17,7 @@ from .balance_payments import BALANCE_PREFIX, can_send_balance
 from .upi_payments import UPI_PREFIX, can_send_upi
 from .payment_access import PENDING_PAYMENT_USERS
 from .reimbursement_owner import reimbursement_owner
+from .record_integrity import expense_summary
 
 
 metadata = MetaData()
@@ -307,13 +308,21 @@ class RequestStore:
                 self._insert_revision(conn, old["request_number"], old, change_source, edited_by)
         return numbers
 
-    def update(self, request_number, values, change_source="manual", edited_by=""):
+    def update(self, request_number, values, change_source="manual", edited_by="", expected_version=None):
         clean = {key: value for key, value in values.items() if key in requests.c and key not in {"id", "request_number", "created_at"}}
         for field in ("rtgs_data", "dtr_data"):
             if isinstance(clean.get(field), dict):
                 clean[field] = json.dumps(clean[field], default=str)
         clean["updated_at"] = dt.datetime.now()
         with self.engine.begin() as conn:
+            original = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
+                requests.c.request_number == request_number).with_for_update()).mappings().first()
+            if not original:
+                raise ValueError('This record no longer exists.')
+            if expected_version is not None and str(original.get('updated_at')) != str(expected_version):
+                raise ValueError('This record changed while you were editing. Close and reopen it before saving; no changes were overwritten.')
+            if original.get('report_scope') == 'Expense' and 'dtr_data' in clean:
+                clean.update(expense_summary({**dict(original), **clean}))
             conn.execute(update(requests).where(requests.c.request_number == request_number).values(**clean))
             row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(requests.c.request_number == request_number)).mappings().first()
             if row:

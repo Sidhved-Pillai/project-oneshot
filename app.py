@@ -34,7 +34,8 @@ from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for
 from src.current_leaderboard import branch_trip_leaderboard, current_month_leaderboard
 from src import current_pnl_report_v6 as pnl_reporting
 from src.record_filters_v2 import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, direct_expense_headings, filter_direct_expenses, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
-from src.records_export import export_records_excel
+from src.records_export_v2 import export_records_excel
+from src.record_integrity import can_edit_record, expense_summary
 from src.trip_dtr_report_v3 import DTR_REVIEW_COLUMNS, edited_dtr_frame, export_operational_dtr
 from src.rtgs_report_v3 import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization_v2 import canonical_company, canonical_location, canonical_ownership, canonical_vehicle_capacity, plain_remark
@@ -44,7 +45,7 @@ from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report_v6 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.payment_access_v2 import PENDING_PAYMENT_USERS
-from src.records_store_v27 import RequestStore
+from src.records_store_v28 import RequestStore
 from src.diesel_inputs import update_diesel
 from src.expense_date import seed_expense_date, remember_expense_date
 from src.pending_payments_v12 import render_pending_payments
@@ -64,7 +65,7 @@ from src.branch_names import canonical_branch as normalized_branch_name
 from src.batched_records_v6 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
 from src.vijay_finance import project_vijay_records, vijay_finance_summary
-from src.record_form_v4 import record_form
+from src.record_form_v5 import record_form
 from src.dialog_browser import explicit_close_script
 
 load_dotenv(ROOT / ".env")
@@ -75,7 +76,7 @@ st.markdown(
     '[data-testid="stDecoration"], #MainMenu {display:none !important;}</style>',
     unsafe_allow_html=True,
 )
-STORE_INTERFACE_VERSION = 27
+STORE_INTERFACE_VERSION = 28
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Debit"]
@@ -138,11 +139,13 @@ def cached_business_memory(rows):
 
 @st.cache_data(show_spinner=False, max_entries=12)
 def cached_records_excel(rows):
+    # Revision 2: expense metadata follows the saved category breakdown.
     return export_records_excel(rows)
 
 
 @st.cache_data(show_spinner=False, max_entries=12)
 def cached_expenses_excel(rows):
+    # Revision 2: discard exports containing obsolete Expense Heading values.
     return export_records_excel(rows, direct_expenses=True)
 
 
@@ -1549,22 +1552,22 @@ def view_record(row):
             })
     if is_vijay_record:
         display.update({'Case':number(raw.get('Case')), 'Jar':number(raw.get('Jar'))})
-    locked_columns = ["Type", "Branch"] if record_branch_scope else ["Type"]
+    editable = can_edit_record(current_user, row)
+    locked_columns = (["Type", "Branch"] if record_branch_scope else ["Type"]) if editable else list(display)
     if is_own_record:
         locked_columns.append("Profit / Loss")
     edited_item, replacement_evidence, save_clicked = record_form(
         display, {}, request_number, locked_columns, BRANCHES,
-        load_evidence=lambda: store.get_evidence(request_number))
+        load_evidence=lambda: store.get_evidence(request_number), can_edit=editable)
     replace_evidence_key = f"replace_record_evidence_{request_number}"
     repair_reason_missing = is_own_record and number(edited_item.get("Repairs & Maintenance")) > 0 and not clean_text(edited_item.get("Reason"))
     if repair_reason_missing:
         st.caption("Reason is required before repair and maintenance changes can be saved.")
-    edited_trip_date = (parse_month_date(edited_item.get("Date"), row.get("trip_date"))
-                        if row.get("created_by") == "Ashok" else parse_dtr_date(edited_item.get("Date")))
+    edited_trip_date = parse_dtr_date(edited_item.get('Date'))
     invalid_ashok_date = edited_trip_date is None or edited_trip_date < OPERATIONS_START
     if invalid_ashok_date:
-        st.error("Enter a date in 2026 or later. Ashok's historical edits must also stay in the original month.")
-    if save_clicked and not (repair_reason_missing or invalid_ashok_date):
+        st.error("Enter a valid date in 2026 or later. Previous months are allowed.")
+    if save_clicked and editable and not (repair_reason_missing or invalid_ashok_date):
         item = edited_item
         ownership_type = clean_text(item["Own / Outside"])
         transporter_freight = float(applicable_transporter_freight(ownership_type, item["Transporter Freight"]))
@@ -1572,7 +1575,7 @@ def view_record(row):
         repairs_maintenance = number(item.get("Repairs & Maintenance"))
         toll_expense = number(item.get("Toll Expense"))
         update_values = {
-            "trip_date": edited_trip_date if row.get("created_by") == "Ashok" else as_date(item["Date"]), "branch": clean_text(item["Branch"]),
+            "trip_date": edited_trip_date, "branch": clean_text(item["Branch"]),
             "company_name": canonical_company(item["Company"], KNOWN_COMPANIES), "vehicle_number": canonical_vehicle_number(item["Vehicle"]),
             "vehicle_type": canonical_vehicle_capacity(item["Vehicle Capacity"]), "ownership_type": ownership_type,
             "from_location": canonical_location(item["From"], KNOWN_LOCATIONS), "to_location": canonical_location(item["To"], KNOWN_LOCATIONS),
@@ -1606,6 +1609,7 @@ def view_record(row):
             }
             update_values.update({
                 "amount": sum(categories.values()),
+                "expense_type": ', '.join(name for name, value in categories.items() if value),
                 "payment_mode": ", ".join(name for name, value in payments.items() if value),
                 "total_advance": sum(payments.values()),
                 "dtr_data": {
@@ -1682,7 +1686,12 @@ def view_record(row):
                 "dtr_data": updated_dtr, "rtgs_data": updated_rtgs,
             })
         with st.spinner('Saving record changes…'):
-            store.update(row["request_number"], update_values, "records_tab", current_user)
+            try:
+                store.update(row["request_number"], update_values, "records_tab", current_user,
+                             expected_version=row.get('updated_at'))
+            except ValueError as exc:
+                st.error(str(exc))
+                return
             audit_action("Updated record", row["request_number"], request_label(row))
         st.session_state.pop(replace_evidence_key, None)
         st.session_state.pop("evidence_request_number", None)
@@ -2012,12 +2021,17 @@ def render_direct_expenses():
         invalid_expense_date = v['date'] is None or v['date'] < OPERATIONS_START
         if invalid_expense_date:
             st.error('Choose an expense date in 2026 or later.')
-        save_disabled = not can_use_direct_expenses or not v["branch"] or invalid_period or invalid_expense_date
+        if expense_total <= 0:
+            st.caption('Enter at least one expense amount before saving.')
+        save_disabled = not can_use_direct_expenses or not v["branch"] or invalid_period or invalid_expense_date or expense_total <= 0
         save_another_expense = st.button(
             "Save & Add Another", type="primary", key=f"{expense_prefix}_save_another",
             disabled=save_disabled,
         )
         if save_another_expense:
+            if expense_generation != st.session_state.get('direct_expense_generation', 0):
+                st.warning('This expense form was already saved. Open the next entry before saving again.')
+                return
             saved = store.create({
                 **expense_payload(v, expense_files), "created_by": current_user,
             })
@@ -2038,7 +2052,11 @@ def record_edit_control(record):
     # Open the dialog without rebuilding every tab, report, and database snapshot.
     if st.button('', icon=':material/edit:', help='Edit record / View invoice evidence',
                  key=f"view_record_{record['request_number']}", use_container_width=True):
-        view_record(record)
+        latest = store.get(record['request_number'])
+        if latest and not latest.get('is_archived') and latest.get('status') != 'Cancelled':
+            view_record(latest)
+        else:
+            st.warning('This record is no longer active. Refresh Records.')
 
 
 @st.fragment

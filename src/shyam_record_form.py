@@ -6,6 +6,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from .invoice_viewer import invoice_viewer_html
+from .operational_dates import OPERATIONS_START
 
 
 @st.fragment
@@ -24,7 +25,7 @@ def invoice_preview(request_number, load_evidence):
             st.caption('No invoice evidence attached.')
 
 
-def record_form(display, evidence, request_number, locked, branches, load_evidence=None):
+def record_form(display, evidence, request_number, locked, branches, load_evidence=None, can_edit=True):
     # The preview is its own fragment: loading a photo does not submit or rebuild
     # the form, so unsaved field edits remain in the browser.
     invoice_preview(request_number, load_evidence or (lambda: evidence))
@@ -56,7 +57,7 @@ def record_form(display, evidence, request_number, locked, branches, load_eviden
                                                      key=key, disabled=field in locked)
                 elif isinstance(value, (dt.date, dt.datetime)) or field == 'Date' or 'Period ' in field:
                     values[field] = column.date_input(field, value=value, format='DD/MM/YYYY', key=key,
-                                                     disabled=field in locked)
+                                                     min_value=OPERATIONS_START, disabled=field in locked)
                 elif isinstance(value, (int, float)):
                     amount = float(value)
                     values[field] = column.number_input(field, value=amount if math.isfinite(amount) else 0.0,
@@ -65,8 +66,8 @@ def record_form(display, evidence, request_number, locked, branches, load_eviden
                     values[field] = column.text_input(field, value=str(value or ''), key=key,
                                                        disabled=field in locked)
         values['Remarks'] = st.text_area('Remarks', value=str(display.get('Remarks') or ''),
-                                        key=f'shyam_edit_{request_number}_remarks')
+                                        key=f'shyam_edit_{request_number}_remarks', disabled=not can_edit)
         replacement = st.file_uploader('Replace or attach invoice', type=['png','jpg','jpeg','webp','pdf'],
-                                       key=f'shyam_evidence_{request_number}')
-        submitted = st.form_submit_button('Save changes', type='primary')
+                                       key=f'shyam_evidence_{request_number}', disabled=not can_edit)
+        submitted = st.form_submit_button('Save changes', type='primary', disabled=not can_edit)
     return values, replacement, submitted
