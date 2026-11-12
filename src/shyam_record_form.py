@@ -7,6 +7,8 @@ import streamlit.components.v1 as components
 
 from .invoice_viewer import invoice_viewer_html
 from .operational_dates import OPERATIONS_START
+from .expense_review import expense_category_increase
+from .pnl_report import REPORT_EXPENSE_COLUMNS
 
 
 @st.fragment
@@ -69,5 +71,15 @@ def record_form(display, evidence, request_number, locked, branches, load_eviden
                                         key=f'shyam_edit_{request_number}_remarks', disabled=not can_edit)
         replacement = st.file_uploader('Replace or attach invoice', type=['png','jpg','jpeg','webp','pdf'],
                                        key=f'shyam_evidence_{request_number}', disabled=not can_edit)
+        category_names = [name for name in REPORT_EXPENSE_COLUMNS if name in display]
+        confirm_increase = True
+        if category_names:
+            before = {'categories': {name: display[name] for name in category_names}}
+            after = {'categories': {name: values[name] for name in category_names}}
+            if expense_category_increase(before, after):
+                st.warning('An existing expense amount is still filled and you added another category. '
+                           'If you are moving the expense, clear its old category to avoid counting it twice.')
+                confirm_increase = st.checkbox('These are separate expenses; keep both category amounts',
+                                              key=f'confirm_category_increase_{request_number}')
         submitted = st.form_submit_button('Save changes', type='primary', disabled=not can_edit)
-    return values, replacement, submitted
+    return values, replacement, submitted and confirm_increase

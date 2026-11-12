@@ -53,6 +53,7 @@ from src.dashboard_duplicate_review import review_duplicates
 from src.audit_ui import render_logs
 from src.diesel_inputs import update_diesel
 from src.expense_date import seed_expense_date, remember_expense_date
+from src.expense_review import apply_evidence_date, mark_expense_date_manual
 from src.pending_payments_v12 import render_pending_payments
 from src.billtee_payments import billtee_rtgs_rows
 from src.invoice_viewer import invoice_viewer_html
@@ -777,6 +778,10 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
         if mode == 'ENTRY' and not parse_dtr_date(getattr(result.rows[0], 'date', '')):
             st.session_state[f'{prefix}_date'] = None
             st.warning('The invoice date could not be read reliably. Please select the printed invoice date before saving.')
+        if mode == 'EXPENSE':
+            apply_evidence_date(st.session_state, prefix, result.rows[0].date)
+            if st.session_state.get(f'{prefix}_date') is None:
+                st.warning('The expense date could not be read reliably. Select the date from the receipt before saving.')
         expense_keys = {
             "route_expense": "category_0", "bill_discounting": "category_1", "salary": "category_2",
             "driver_salary": "category_3", "rent": "category_4", "office_general_expenses": "category_5",
@@ -1961,7 +1966,7 @@ def render_direct_expenses():
             c1, c2, c3, c4 = st.columns(4)
             expense_beneficiary, expense_vehicle = expense_identity_inputs(expense_prefix, c3, c4, normalization_rows)
             v = {
-                "date": c1.date_input("Date *", format="DD/MM/YYYY", key=f"{expense_prefix}_date", min_value=OPERATIONS_START),
+                "date": c1.date_input("Date *", format="DD/MM/YYYY", key=f"{expense_prefix}_date", min_value=OPERATIONS_START, on_change=mark_expense_date_manual, args=(expense_prefix,)),
                 "invoice_number": c2.text_input("Invoice No:", key=f"{expense_prefix}_invoice_number", placeholder="e.g., INV-1234"),
                 "beneficiary_name": expense_beneficiary,
                 "vehicle_number": expense_vehicle,
@@ -1970,7 +1975,7 @@ def render_direct_expenses():
             c1, c2, c3 = st.columns(3)
             expense_beneficiary, expense_vehicle = expense_identity_inputs(expense_prefix, c2, c3, normalization_rows)
             v = {
-                "date": c1.date_input("Date *", format="DD/MM/YYYY", key=f"{expense_prefix}_date", min_value=OPERATIONS_START),
+                "date": c1.date_input("Date *", format="DD/MM/YYYY", key=f"{expense_prefix}_date", min_value=OPERATIONS_START, on_change=mark_expense_date_manual, args=(expense_prefix,)),
                 "invoice_number": "",
                 "beneficiary_name": expense_beneficiary,
                 "vehicle_number": expense_vehicle,

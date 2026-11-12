@@ -264,6 +264,11 @@ under these categories: route expense, bill discounting, salary, driver's salary
 expenses, conveyance, EMI, insurance, vehicle tax, repair and maintenance, and interest. Also split the
 actual payment across UPI, diesel, cash, and RTGS when stated. Spoken instructions may be English, Hindi,
 Marathi, or mixed. Do not infer a category or payment split that is not explicit.
+For spreadsheet screenshots, read Date and Beneficiary from their labelled columns. Preserve the
+row's expense date even when it is in a previous month; never substitute today's date or a salary
+period. Put the named payee in beneficiary_name, not only in remarks. RM means repair and maintenance.
+Assign each expense amount to its explicit category once, not to two categories with the same amount.
+If the date or payee cannot be read, leave that field blank rather than inventing it.
 """
     if mode == "ENTRY":
         return common + """
