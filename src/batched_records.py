@@ -9,6 +9,7 @@ from .vehicle_normalization import canonical_vehicle_number
 from .vehicle_placer import canonical_vehicle_placer
 from .number_format import format_inr
 from .operational_dates_v2 import OPERATIONS_START
+from .route_expense_export import route_export_row
 
 
 def render_filters(rows, user, today):
@@ -18,6 +19,7 @@ def render_filters(rows, user, today):
     vehicles = sorted({canonical_vehicle_number(r.get('vehicle_number')) for r in rows} - {''})
     placers = sorted({canonical_vehicle_placer(data(r).get('Veh Placed by')) for r in rows} - {''})
     expenses = [r for r in rows if r.get('report_scope') == 'Expense']
+    expenses += [projected for row in rows if (projected := route_export_row(row)) is not None]
     amounts = sorted({float(r.get('amount') or 0) for r in expenses})
     defaults = dict(start=today.replace(day=1), end=today, record_type=TRIP_RECORDS,
                     vehicle='All', placer='All', ownership='Both', amount='All', heading='All',

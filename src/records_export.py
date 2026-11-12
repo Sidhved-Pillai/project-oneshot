@@ -12,6 +12,7 @@ from .text_normalization import canonical_ownership
 from .vehicle_placer import canonical_vehicle_placer
 from .transporter_profiles import canonical_transporter_name
 from .record_integrity import expense_summary
+from .route_expense_export import trip_route_amount
 
 def canonical_branch(value):
     original = " ".join(str(value or "").split()).strip()
@@ -86,6 +87,10 @@ def records_export_rows(records):
             "Card": payments.get("Card", 0), "Cardholders Name": dtr.get("Cardholders Name", ""),
         }
         item.update({column: categories.get(column, 0) for column in EXPENSE_EXPORT_COLUMNS})
+        if row.get('report_scope') != 'Expense':
+            item['Route expense'] = trip_route_amount(row)
+        if row.get('_trip_route_expense'):
+            item['Record Type'] = 'Trip Route Expense'
         output.append({column: item.get(column, "") for column in RECORD_EXPORT_COLUMNS})
     return output
 

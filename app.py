@@ -35,7 +35,8 @@ from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for
 from src.current_leaderboard import branch_trip_leaderboard, current_month_leaderboard
 from src import current_pnl_report_v6 as pnl_reporting
 from src.record_filters_v2 import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, direct_expense_headings, filter_direct_expenses, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
-from src.records_export_v2 import export_records_excel
+from src.records_export_v3 import export_records_excel
+from src.route_expense_export import direct_expense_download_records
 from src.record_integrity import can_edit_record, expense_summary
 from src.trip_dtr_report_v3 import DTR_REVIEW_COLUMNS, edited_dtr_frame, export_operational_dtr
 from src.rtgs_report_v3 import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
@@ -65,7 +66,7 @@ from src.dtr_dates import parse_dtr_date, dtr_editor_key
 from src.ashok_dates import parse_month_date
 from src.member_sessions import signing_key, issue_member_session, restore_member_session
 from src.branch_names import canonical_branch as normalized_branch_name
-from src.batched_records_v6 import render_filters, filter_identifiers
+from src.batched_records_v7 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
 from src.vijay_finance import project_vijay_records, vijay_finance_summary
 from src.record_form_v5 import record_form
@@ -82,8 +83,8 @@ st.markdown(
 hide_manage_app()
 STORE_INTERFACE_VERSION = 30
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
-STANDARD_DIRECT_EXPENSE_COLUMNS = list(DIRECT_EXPENSE_COLUMNS)
-NIKHAT_DIRECT_EXPENSE_COLUMNS = [*DIRECT_EXPENSE_COLUMNS, "Debit"]
+STANDARD_DIRECT_EXPENSE_COLUMNS = [name for name in DIRECT_EXPENSE_COLUMNS if name != "Route expense"]
+NIKHAT_DIRECT_EXPENSE_COLUMNS = [*STANDARD_DIRECT_EXPENSE_COLUMNS, "Debit"]
 MANISH_DIRECT_EXPENSE_COLUMNS = [
     "Driver's salary", "Office & General expenses", "EMI", "Conveyance",
     "Insurance", "Vehicle Tax", "Repair and maintenance", "Passing expense", "Extra Expense", "RTO Challan & Fine", "Tyre Purchased",
@@ -143,13 +144,13 @@ def cached_business_memory(rows):
 
 @st.cache_data(show_spinner=False, max_entries=12)
 def cached_records_excel(rows):
-    # Revision 2: expense metadata follows the saved category breakdown.
+    # Revision 3: include trip-linked route costs in the Route expense column.
     return export_records_excel(rows)
 
 
 @st.cache_data(show_spinner=False, max_entries=12)
 def cached_expenses_excel(rows):
-    # Revision 2: discard exports containing obsolete Expense Heading values.
+    # Revision 3: combine saved direct expenses with filtered trip route costs.
     return export_records_excel(rows, direct_expenses=True)
 
 
@@ -2243,17 +2244,23 @@ with records_tab:
     trip_record_count = sum(row.get("report_scope") != "Expense" for row in rows)
     expense_record_count = sum(row.get("report_scope") == "Expense" for row in rows)
     st.caption(f"{trip_record_count} trip record(s) and {expense_record_count} direct expense record(s) listed.")
-    if not rows:
-        st.info("No records match the selected filters.")
-    else:
-        rows = sort_records_by_date(rows, "Oldest first" if sort_arrow == "↑" else "Newest first")
-        if record_type == DIRECT_EXPENSES and current_user in EXPENSE_RECORD_SUMMARY_USERS:
+    if record_type == DIRECT_EXPENSES and current_user in EXPENSE_RECORD_SUMMARY_USERS:
+        expense_export_rows = direct_expense_download_records(rows, scoped_rows, applied_filters, without_invoice_evidence)
+        expense_export_rows = sort_records_by_date(expense_export_rows, "Oldest first" if sort_arrow == "↑" else "Newest first")
+        if expense_export_rows:
             st.download_button(
-                "Download Excel", cached_expenses_excel(rows),
+                "Download Excel", cached_expenses_excel(expense_export_rows),
                 f"Direct-Expenses-{filter_from}-{filter_to}.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key="download_filtered_direct_expenses",
             )
+            trip_route_count = sum(bool(row.get('_trip_route_expense')) for row in expense_export_rows)
+            if trip_route_count:
+                st.caption(f"Excel also includes {trip_route_count} trip-linked Route expense entry/entries from New Entry.")
+    if not rows:
+        st.info("No records match the selected filters.")
+    else:
+        rows = sort_records_by_date(rows, "Oldest first" if sort_arrow == "↑" else "Newest first")
         if current_user in {"Manish", "Vijay"}:
             export_rows = [row for row in rows if can_view_record(current_user, row)]
             st.download_button(
