@@ -11,6 +11,7 @@ from .number_format import format_inr
 from .operational_dates_v2 import OPERATIONS_START
 from .route_expense_export import route_export_row
 from .expense_amounts import expense_amounts
+from .record_lookup import identifier_matches
 
 
 def render_filters(rows, user, today):
@@ -80,11 +81,4 @@ def render_filters(rows, user, today):
 
 def filter_identifiers(rows, filters):
     """Case-insensitive partial identifier search, preserving full invoice numbers."""
-    def matches(row):
-        raw = row.get('dtr_data') or {}
-        dtr = json.loads(raw) if isinstance(raw, str) else raw
-        lr = str(dtr.get('LR No.') or '').strip().casefold()
-        invoice = str(row.get('invoice_number') or dtr.get('Invoice No.') or '').strip().casefold()
-        return (filters.get('lr_number', '').strip().casefold() in lr
-                and filters.get('invoice_number', '').strip().casefold() in invoice)
-    return [row for row in rows if matches(row)]
+    return [row for row in rows if identifier_matches(row, filters)]

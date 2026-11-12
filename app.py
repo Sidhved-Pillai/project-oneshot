@@ -39,6 +39,8 @@ from src.record_filters_v3 import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, d
 from src.records_export_v3 import export_records_excel
 from src.route_expense_export import direct_expense_download_records
 from src.record_integrity import can_edit_record, expense_summary
+from src.record_lookup import outside_date_identifier_matches
+from src.entry_date_confirmation import entry_date_requires_confirmation
 from src.trip_dtr_report_v3 import DTR_REVIEW_COLUMNS, edited_dtr_frame, export_operational_dtr
 from src.rtgs_report_v3 import RTGS_REVIEW_COLUMNS, export_rtgs, normalize_rtgs_records
 from src.text_normalization_v2 import canonical_company, canonical_location, canonical_ownership, canonical_vehicle_capacity, plain_remark
@@ -68,7 +70,7 @@ from src.dtr_dates import parse_dtr_date, dtr_editor_key
 from src.ashok_dates import parse_month_date
 from src.member_sessions import signing_key, issue_member_session, restore_member_session
 from src.branch_names import canonical_branch as normalized_branch_name
-from src.batched_records_v8 import render_filters, filter_identifiers
+from src.batched_records_v9 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
 from src.vijay_finance import project_vijay_records, vijay_finance_summary
 from src.record_form_v5 import record_form
@@ -609,6 +611,8 @@ def user_lr_duplicates(records, user_name, lr_value):
             continue
         if clean_text(record.get("status")).casefold() == "cancelled":
             continue
+        if record.get('is_archived'):
+            continue
         saved_value = record.get("lr_number") or unpack(record.get("dtr_data")).get("LR No.")
         saved = re.sub(r"[^a-z0-9]", "", clean_text(saved_value).casefold())
         if saved == entered:
@@ -1125,10 +1129,10 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False, layout_ta
                     duplicate_invoices.append(match)
         if duplicate_lrs:
             labels = ", ".join(request_label(row) for row in duplicate_lrs[:3])
-            c1.error(f"This LR number already exists in {labels}. Change it before saving.", icon="🚫")
+            c1.error(f"This LR number already exists in {labels}. Search it in Records to review its saved date; do not create another copy.", icon="🚫")
         if duplicate_invoices:
             labels = ", ".join(request_label(row) for row in duplicate_invoices[:3])
-            c2.error(f"This invoice number already exists in {labels}. Change it before saving.", icon="🚫")
+            c2.error(f"This invoice number already exists in {labels}. Search it in Records to review its saved date; do not create another copy.", icon="🚫")
         invalid_keys = ([lr_key] if duplicate_lrs else []) + [
             key for key, matches in invoice_duplicates_by_key.items() if matches
         ]
@@ -1868,7 +1872,9 @@ def finish_trip_save(payload, generation):
 
 @st.dialog('Confirm entry date')
 def confirm_trip_month(payload, generation):
-    st.write(f"The date is set as {payload['trip_date']:%B %Y}. Are you sure you want to proceed?")
+    st.write(f"The date is set as {payload['trip_date']:%d %B %Y}. Are you sure you want to proceed?")
+    if payload['trip_date'] > dt.date.today():
+        st.warning('This is a future date. Check the day and month before saving.')
     yes, no = st.columns(2)
     if yes.button('Yes', type='primary', key='confirm_outside_month_yes'):
         finish_trip_save(payload, generation)
@@ -1931,7 +1937,7 @@ def render_new_entry():
                     st.error("This invoice or LR was saved by another session. Refresh and review the existing record before saving.")
                     st.stop()
                 payload = {**trip_payload(values, files, invoice_filename), 'created_by': current_user}
-                if (values['date'].year, values['date'].month) != (dt.date.today().year, dt.date.today().month):
+                if entry_date_requires_confirmation(values['date'], dt.date.today()):
                     confirm_trip_month(payload, entry_generation)
                 else:
                     finish_trip_save(payload, entry_generation)
@@ -2181,6 +2187,13 @@ with records_tab:
                 and (vehicle_filter == "All" or canonical_vehicle_number(row.get("vehicle_number")) == vehicle_filter)
                 and ownership_matches(row.get("ownership_type"), ownership_filter)]
         outside_date_rows = []
+        if not rows:
+            outside_date_rows = outside_date_identifier_matches(type_rows, applied_filters)
+            if outside_date_rows:
+                rows = outside_date_rows
+                saved_dates = ', '.join(sorted({f"{as_date(row.get('trip_date')):%d/%m/%Y}" for row in rows}))
+                st.warning(f'Matching LR/invoice records are saved with date {saved_dates}, outside the selected date range. '
+                           'They are shown below so you can review and correct the existing records.')
         if not rows and vehicle_filter != "All" and record_type == TRIP_RECORDS:
             outside_date_rows = [
                 row for row in filter_record_type(identifier_rows, record_type)
