@@ -4,6 +4,7 @@ from src.sid_entry_design_v4 import render_sid_styles, render_sid_header, sectio
 from src.ajit_payment_design import render_ajit_payment_styles
 from src.ajit_navigation import render_ajit_navigation_styles
 from src.mobile_resume import render_mobile_resume_styles
+from src.entry_drafts import entry_draft_bridge
 from src.cloud_chrome import hide_manage_app
 import base64
 import hashlib
@@ -34,7 +35,7 @@ from src.number_format import format_inr, indian_number
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
 from src.current_leaderboard import branch_trip_leaderboard, current_month_leaderboard
 from src import current_pnl_report_v6 as pnl_reporting
-from src.record_filters_v2 import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, direct_expense_headings, filter_direct_expenses, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
+from src.record_filters_v3 import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, direct_expense_headings, filter_direct_expenses, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
 from src.records_export_v3 import export_records_excel
 from src.route_expense_export import direct_expense_download_records
 from src.record_integrity import can_edit_record, expense_summary
@@ -67,7 +68,7 @@ from src.dtr_dates import parse_dtr_date, dtr_editor_key
 from src.ashok_dates import parse_month_date
 from src.member_sessions import signing_key, issue_member_session, restore_member_session
 from src.branch_names import canonical_branch as normalized_branch_name
-from src.batched_records_v7 import render_filters, filter_identifiers
+from src.batched_records_v8 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
 from src.vijay_finance import project_vijay_records, vijay_finance_summary
 from src.record_form_v5 import record_form
@@ -526,6 +527,7 @@ def logout():
     st.query_params.pop('member_session', None)
     st.query_params.pop('ashok_session', None)
     st.session_state.clear()
+    st.session_state['_entry_draft_discard'] = True
 
 
 def require_authentication():
@@ -1386,6 +1388,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False, layout_ta
 
 
 require_authentication()
+entry_draft_bridge(st.session_state['authenticated_user'])
 render_mobile_resume_styles()
 if st.session_state.pop("welcome_pending", False):
     st.toast(f"Welcome {st.session_state['authenticated_user']}!", icon="👋")

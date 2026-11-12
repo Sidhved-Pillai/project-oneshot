@@ -1,0 +1,105 @@
+<!doctype html><html><body><script>
+const send=(type,extra={})=>parent.postMessage({isStreamlitMessage:true,type,...extra},'*');
+const boot=crypto.randomUUID();
+let args=null, doc=null, cache=null, storageKey=null, owner=null, timer=null, observer=null, attached=false;
+const pattern=/^st-key-((trip|expense)_(\d+)_([A-Za-z0-9_]+))$/;
+const excluded=new Set(['upload','camera','save','save_another','retry_autofill','invoice_evidence','camera_enabled']);
+const valid=(key)=>{const m=/^(trip|expense)_(\d+)_([A-Za-z0-9_]+)$/.exec(key);return m&&!excluded.has(m[3])&&Number(m[2])===cache.generations[m[1]];};
+function persist(){try{localStorage.setItem(storageKey,JSON.stringify({...cache,savedAt:Date.now()}));}catch(e){}}
+function fieldValue(root,key){
+ if(key.includes('_period_'))return args.values[key];
+ const input=root.querySelector('input:not([type=file]),textarea');
+ if(root.querySelector('[data-baseweb=select]')){
+  const control=root.querySelector('[data-baseweb=select]');
+  // BaseWeb's selected value precedes its searchable input, whose value may be empty.
+  const selected=control?.querySelector('div[value]');
+  const text=selected?.getAttribute('value');
+  const base=args.values[key];
+  if(input?.value && doc.activeElement===input)return undefined; // search text isn't a selection
+  if(text!==undefined&&text!==null){
+   if(typeof base==='number')return base;
+   return text.trim();
+  }
+  return base===undefined?undefined:base;
+ }
+ if(!input)return undefined;
+ if(input.type==='checkbox')return input.checked;
+ if(key.endsWith('_date')){
+  const raw=input.value.trim();if(!raw)return null;
+  const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw);
+  return m?`${m[3]}-${m[2]}-${m[1]}`:raw;
+ }
+ if(input.type==='number'||root.matches('[data-testid=stNumberInput]')||root.querySelector('[data-testid=stNumberInput]'))
+  return input.value===''?null:Number(input.value.replaceAll(',',''));
+ return input.value;
+}
+function capture(event){
+ if(!args?.ready||!cache)return;
+ for(const root of doc.querySelectorAll('[class*="st-key-trip_"],[class*="st-key-expense_"]')){
+  if(root.closest('[data-stale="true"]')&&!(event?.target&&root.contains(event.target)))continue;
+  const match=Array.from(root.classList).map(c=>pattern.exec(c)).find(Boolean);
+  if(!match||!valid(match[1]))continue;
+  const edited=event?.target&&root.contains(event.target);
+  if(cache.pending?.[match[1]]!==undefined&&!edited)continue;
+  const value=fieldValue(root,match[1]);
+  if(value!==undefined){
+   cache.values[match[1]]=value;
+   if(edited){cache.pending=cache.pending||{};cache.pending[match[1]]=value;}
+  }
+ }
+ persist();
+}
+function schedule(){clearTimeout(timer);timer=setTimeout(capture,200);}
+function attach(){
+ if(attached)return;attached=true;
+ doc.addEventListener('input',capture,true);doc.addEventListener('change',capture,true);
+ doc.addEventListener('visibilitychange',()=>{if(doc.hidden)capture();});
+ parent.addEventListener('pagehide',capture);
+ doc.addEventListener('click',e=>{if(e.target.closest('.st-key-logout')){
+  try{localStorage.removeItem(storageKey);}catch(e){}cache.values={};args.ready=false;
+ }},true);
+ observer=new MutationObserver(schedule);observer.observe(doc.body,{childList:true,subtree:true});
+}
+window.addEventListener('message',event=>{
+ if(event.source!==parent)return;
+ if(event.data.type!=='streamlit:render')return;
+ args=event.data.args;
+ try{doc=parent.document;}catch(e){send('streamlit:setComponentValue',{value:{values:{},generations:{}}});return;}
+ if(!storageKey||owner!==args.user){
+  let tab;
+  try{tab=parent.sessionStorage.getItem('oneshot_draft_tab');if(!tab){tab=crypto.randomUUID();parent.sessionStorage.setItem('oneshot_draft_tab',tab);}}catch(e){tab='current';}
+  storageKey=`oneshot-entry-draft-v1:${args.user}:${tab}`;
+  owner=args.user;cache=null;
+  try{cache=JSON.parse(localStorage.getItem(storageKey)||'null');}catch(e){}
+  if(!cache||Date.now()-cache.savedAt>7*86400000)cache={values:{},pending:{},generations:{trip:0,expense:0}};
+  send('streamlit:setComponentValue',{value:{...cache,boot,user:args.user}});
+ }
+ if(args.discard){
+  try{localStorage.removeItem(storageKey);}catch(e){}
+  cache={values:{},pending:{},generations:{trip:0,expense:0}};
+  send('streamlit:setComponentValue',{value:{...cache,boot,user:args.user,discarded:true}});
+  args.ready=true;attach();schedule();
+  send('streamlit:setFrameHeight',{height:0});return;
+ }
+ if(!args.ready){
+  args.ready=true;attach();schedule();
+  send('streamlit:setFrameHeight',{height:0});return;
+ }
+ if(args.ready){
+  for(const kind of ['trip','expense']){
+   if(cache.generations[kind]!==args.generations[kind]){
+    for(const key of Object.keys(cache.values))if(key.startsWith(kind+'_')){delete cache.values[key];if(cache.pending)delete cache.pending[key];}
+   }
+  }
+  cache.generations=args.generations;
+  for(const [key,value] of Object.entries(args.values)){
+   if(!cache.pending||!(key in cache.pending)||JSON.stringify(value)===JSON.stringify(cache.pending[key])){
+    cache.values[key]=value;if(cache.pending)delete cache.pending[key];
+   }
+  }
+  persist();attach();schedule();
+ }
+ send('streamlit:setFrameHeight',{height:0});
+});
+send('streamlit:componentReady',{apiVersion:1});
+</script></body></html>

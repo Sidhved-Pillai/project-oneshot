@@ -197,9 +197,9 @@ def test_newest_report_order_keeps_same_day_record_mapping_and_source_order():
 
 def test_direct_expenses_can_be_filtered_by_amount_and_heading():
     rows = [
-        {"id": 1, "amount": 5000, "dtr_data": {"categories": {"Debit": 5000, "Rent": 0}}},
-        {"id": 2, "amount": 5000, "dtr_data": '{"categories": {"Rent": 5000}}'},
-        {"id": 3, "amount": 2000, "expense_type": "Office & General expenses"},
+        {"id": 1, "report_scope": "Expense", "amount": 5000, "dtr_data": {"categories": {"Debit": 5000, "Rent": 0}}},
+        {"id": 2, "report_scope": "Expense", "amount": 5000, "dtr_data": '{"categories": {"Rent": 5000}}'},
+        {"id": 3, "report_scope": "Expense", "amount": 2000, "expense_type": "Office & General expenses"},
     ]
     assert direct_expense_headings(rows) == ["Debit", "Office & General expenses", "Rent"]
     assert [row["id"] for row in filter_direct_expenses(rows, 5000)] == [1, 2]

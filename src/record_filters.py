@@ -2,6 +2,7 @@ import datetime as dt
 import json
 
 import pandas as pd
+from .expense_amounts import currency, expense_amounts
 
 
 TRIP_RECORDS = "Trip Records"
@@ -54,10 +55,11 @@ def direct_expense_headings(records):
 
 
 def filter_direct_expenses(records, amount=None, heading="All"):
-    """Filter direct expenses by exact total amount and/or populated heading."""
+    """Match the same saved totals/category amounts offered by the dropdown."""
     filtered = list(records)
     if amount is not None:
-        filtered = [row for row in filtered if abs(_number(row.get("amount")) - float(amount)) < 0.005]
+        requested = currency(amount)
+        filtered = [row for row in filtered if requested is not None and requested in expense_amounts(row)]
     if heading != "All":
         filtered = [row for row in filtered if heading in direct_expense_headings([row])]
     return filtered

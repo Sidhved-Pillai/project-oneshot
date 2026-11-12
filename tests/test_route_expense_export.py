@@ -75,7 +75,7 @@ render_filters([{'request_number':'one','report_scope':'DTR','ownership_type':'O
     heading=next(w for w in app.selectbox if w.label=='Heading')
     assert 'Route expense' in heading.options
     amount=next(w for w in app.selectbox if w.label=='By Amount')
-    assert len(amount.options)==2
+    assert amount.options==['All']
 
 
 def test_direct_expense_forms_hide_route_and_keep_existing_category_widget_ids():
