@@ -11,8 +11,8 @@ from .pnl_report import REPORT_EXPENSE_COLUMNS
 from .text_normalization import canonical_ownership
 from .vehicle_placer import canonical_vehicle_placer
 from .transporter_profiles import canonical_transporter_name
-from .record_integrity import expense_summary
 from .route_expense_export import trip_route_amount
+from .expense_excel_layout import DIRECT_EXPENSE_EXPORT_COLUMNS, expense_excel_rows
 
 def canonical_branch(value):
     original = " ".join(str(value or "").split()).strip()
@@ -96,14 +96,12 @@ def records_export_rows(records):
 
 
 def export_records_excel(records, direct_expenses=False):
+    records = list(records)
     columns = list(RECORD_EXPORT_COLUMNS)
     exported = records_export_rows(records)
     if direct_expenses:
-        columns[4:4] = ["Amount", "Expense Heading"]
-        for item, record in zip(exported, records):
-            summary = expense_summary(record)
-            item.update({"Amount": summary.get('amount', record.get("amount", 0)),
-                         "Expense Heading": summary.get('expense_type', record.get("expense_type", ""))})
+        columns = list(DIRECT_EXPENSE_EXPORT_COLUMNS)
+        exported = expense_excel_rows(records, exported)
     frame = pd.DataFrame(exported, columns=columns)
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl", date_format="DD-MM-YYYY") as writer:

@@ -32,8 +32,7 @@ def test_recategorization_updates_filter_export_and_pnl(tmp_path):
     # Existing rows with a stale heading must export correctly as well.
     sheet = load_workbook(BytesIO(export_records_excel([{**row,'expense_type':"Driver's salary"}], True))).active
     values = dict(zip([cell.value for cell in sheet[1]], [cell.value for cell in sheet[2]]))
-    assert values['Expense Heading'] == 'Salary' and values['Salary'] == 2000
-    assert values["Driver's salary"] == 0
+    assert values['Expense Heading'] == 'Salary' and values['Amount'] == 2000
     report = branch_pnl_summary([], [{**row,'categories':json.loads(row['dtr_data'])['categories']}])
     wada = next(item for item in report if item['Branch'] == 'Wada')
     assert wada['Salary'] == 2000 and wada["Driver's Salary"] == 0

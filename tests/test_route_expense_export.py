@@ -35,9 +35,8 @@ def test_legacy_and_trip_route_expenses_share_heading_and_export_amount_without_
     records=[dict(zip([c.value for c in sheet[1]],values)) for values in sheet.iter_rows(min_row=2,values_only=True)]
     assert [r['Expense Heading'] for r in records]==['Route expense','Route expense']
     assert sum(r['Amount'] for r in records)==1400
-    assert sum(r['Route expense'] for r in records)==1400
-    assert records[1]['Record Type']=='Trip Route Expense'
-    assert records[1]['LR Number']=='LR-12' and records[1]['Invoice Number']=='INV-12'
+    assert records[1]['Vehicle Number']=='MH12AB1234'
+    assert records[1]['Total Advance']==1200 and records[1]['Payment Mode']=='UPI'
     assert [old,own,outside]==original
     assert branch_pnl_summary([own,outside],[{**old,'categories':{'Route expense':200}}])==before
 

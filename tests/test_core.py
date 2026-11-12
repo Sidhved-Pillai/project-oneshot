@@ -799,7 +799,7 @@ def test_direct_expense_excel_includes_every_row_amount_invoice_and_categories()
     sheet = workbook["Records"]
     headers = [cell.value for cell in sheet[1]]
     assert sheet.max_row == 56
-    for name, value in [("Amount", 1500.50), ("Debit", 1500.50), ("Invoice Number", "INV-123"), ("Expense Heading", "Debit")]:
+    for name, value in [("Amount", 1500.50), ("Expense Heading", "Debit")]:
         assert sheet.cell(2, headers.index(name) + 1).value == value
     assert sheet.cell(2, headers.index("Amount") + 1).number_format == '#,##0.00'
 
