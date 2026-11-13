@@ -45,10 +45,10 @@ def test_zero_and_loss_are_finite():
     assert m['profit'] == -1100 and m['revenue'] == 0
 
 
-def app():
+def app(user="Vinod"):
     from src.pnl_dashboard import render_pnl_dashboard
     from src.pnl_report import branch_pnl_summary
-    render_pnl_dashboard('Vinod',[],[],branch_pnl_summary,lambda groups:None)
+    render_pnl_dashboard(user,[],[],branch_pnl_summary,lambda groups:None)
 
 
 def test_all_widgets_and_popups_render_without_database():
@@ -67,11 +67,22 @@ def test_unknown_ownership_matches_report_instead_of_inventing_revenue():
     assert model['revenue']==sum(r['Revenue'] for r in model['revenue_rows'])==0
 
 
-def test_dashboard_duplicate_access_for_additional_users(tmp_path):
+def test_dashboard_duplicate_access_is_sid_only(tmp_path):
+    import pytest
     from src.request_store import RequestStore
     from tests.test_sid_dashboard import seed, finder
     store=RequestStore(f'sqlite:///{tmp_path / "access.db"}')
     for user in ('Vinod','Nikhil'):
         ids=seed(store)
         versions={i:str(store.get(i)['updated_at']) for i in ids}
-        assert store.delete_duplicate_copies([ids[-1]],versions,user,finder())==1
+        with pytest.raises(ValueError, match='Only Sid'):
+            store.delete_duplicate_copies([ids[-1]],versions,user,finder())
+        assert not store.get(ids[-1])['is_archived']
+
+
+def test_duplicates_section_only_rendered_for_sid():
+    for user in ('Sid', 'Vinod', 'Nikhil'):
+        ui = AppTest.from_function(app, args=(user,)).run()
+        assert not ui.exception
+        assert any(b.key == 'dashboard_review_duplicates' for b in ui.button) == (user == 'Sid')
+        assert len([b for b in ui.button if b.key.startswith('pl_open_')]) == 7

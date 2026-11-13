@@ -236,13 +236,14 @@ def render_pnl_dashboard(user, rows, groups, pnl_builder, review):
                     if st.button(f'{tile_label}\n\n**{value}**',key='pl_open_'+kind,use_container_width=True):
                         show_details(month if kind=='month' else daily,kind,
                                      f'{day.replace(day=1):%d %b %Y} – {day:%d %b %Y}' if kind=='month' else day.strftime('%d %b %Y'))
-        copies = [r for group in groups for r in group['duplicates']]
-        oldest = min((date_value(r.get('trip_date')) for r in copies if date_value(r.get('trip_date'))),default=None)
-        with st.container(key='pl_duplicates'):
-            text, number, facts, action = st.columns([3,1.3,3,1.6],vertical_alignment='center')
-            text.markdown(f'<div class="pl-dup">{icon("layers")}<div><h3>Duplicate Entries</h3><p>Review potential duplicate records and clean up your data.</p></div></div>',unsafe_allow_html=True)
-            number.markdown(f'<div class="pl-dup-count"><strong>{len(copies)}</strong>Potential Duplicates</div>',unsafe_allow_html=True)
-            facts.markdown(f'<span class="pl-chip">{len(groups)} Groups</span><span class="pl-chip">{len(copies)} Entries</span><span class="pl-chip">Oldest: {oldest.strftime("%d %b %Y") if oldest else "—"}</span>',unsafe_allow_html=True)
-            if action.button('Review Duplicates →',key='dashboard_review_duplicates',use_container_width=True):
-                review(groups)
-        st.caption('P&L uses entry dates, saved trip costs and the same direct expense allocations as Generate Reports. Month to date ends on the selected day. Duplicate review covers all active records.')
+        if user == 'Sid':
+            copies = [r for group in groups for r in group['duplicates']]
+            oldest = min((date_value(r.get('trip_date')) for r in copies if date_value(r.get('trip_date'))),default=None)
+            with st.container(key='pl_duplicates'):
+                text, number, facts, action = st.columns([3,1.3,3,1.6],vertical_alignment='center')
+                text.markdown(f'<div class="pl-dup">{icon("layers")}<div><h3>Duplicate Entries</h3><p>Review potential duplicate records and clean up your data.</p></div></div>',unsafe_allow_html=True)
+                number.markdown(f'<div class="pl-dup-count"><strong>{len(copies)}</strong>Potential Duplicates</div>',unsafe_allow_html=True)
+                facts.markdown(f'<span class="pl-chip">{len(groups)} Groups</span><span class="pl-chip">{len(copies)} Entries</span><span class="pl-chip">Oldest: {oldest.strftime("%d %b %Y") if oldest else "—"}</span>',unsafe_allow_html=True)
+                if action.button('Review Duplicates →',key='dashboard_review_duplicates',use_container_width=True):
+                    review(groups)
+        st.caption('P&L uses entry dates, saved trip costs and the same direct expense allocations as Generate Reports. Month to date ends on the selected day. ' + ('Duplicate review covers all active records.' if user == 'Sid' else ''))

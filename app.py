@@ -50,10 +50,10 @@ from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report_v6 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.payment_access_v2 import PENDING_PAYMENT_USERS
-from src.records_store_v31 import RequestStore
+from src.records_store_v32 import RequestStore
 from src.sid_dashboard import switch_to_reports
-from src.pnl_dashboard_v2 import render_pnl_dashboard as render_dashboard
-from src.dashboard_duplicate_review_v2 import review_duplicates
+from src.pnl_dashboard_v3 import render_pnl_dashboard as render_dashboard
+from src.dashboard_duplicate_review_v3 import review_duplicates
 from src.audit_ui import render_logs
 from src.diesel_inputs import update_diesel
 from src.expense_date import seed_expense_date, remember_expense_date
@@ -2155,7 +2155,7 @@ if current_user in {'Sid', 'Vinod', 'Nikhil'}:
     with dashboard_tab:
         if notice := st.session_state.pop('dashboard_duplicate_notice', None):
             st.success(notice)
-        render_dashboard(current_user, normalization_rows, duplicate_records(normalization_rows, include_originals=True),
+        render_dashboard(current_user, normalization_rows, duplicate_records(normalization_rows, include_originals=True) if current_user == 'Sid' else [],
                          pnl_reporting.branch_pnl_summary,
                          lambda groups: review_duplicates(current_user, groups, store, duplicate_records))
 

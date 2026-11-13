@@ -35,8 +35,8 @@ def review_payload(groups):
 
 @st.dialog('Review Duplicate Entries', width='large', dismissible=True, on_dismiss='ignore')
 def review_duplicates(user, groups, store, find_duplicates):
-    if user not in {'Sid', 'Vinod', 'Nikhil'}:
-        st.error('Duplicate review is available only to Sid, Vinod and Nikhil.')
+    if user != 'Sid':
+        st.error('Duplicate review is available only to Sid.')
         return
     from .sid_dashboard import STYLE
     st.markdown(STYLE, unsafe_allow_html=True)
