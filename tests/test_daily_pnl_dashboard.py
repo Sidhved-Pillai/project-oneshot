@@ -58,6 +58,7 @@ def test_all_widgets_and_popups_render_without_database():
     for key in ['pl_open_revenue','pl_open_expense','pl_open_profit','pl_open_margin','pl_open_entries','pl_open_direct','pl_open_month']:
         ui.button(key=key).click().run()
         assert not ui.exception
+        assert any('class="pl-dialog-title' in m.value for m in ui.markdown)
 
 
 def test_unknown_ownership_matches_report_instead_of_inventing_revenue():

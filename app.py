@@ -52,7 +52,7 @@ from src.current_pnl_report_v6 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary
 from src.payment_access_v2 import PENDING_PAYMENT_USERS
 from src.records_store_v31 import RequestStore
 from src.sid_dashboard import switch_to_reports
-from src.pnl_dashboard import render_pnl_dashboard as render_dashboard
+from src.pnl_dashboard_v2 import render_pnl_dashboard as render_dashboard
 from src.dashboard_duplicate_review_v2 import review_duplicates
 from src.audit_ui import render_logs
 from src.diesel_inputs import update_diesel
