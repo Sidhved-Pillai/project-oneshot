@@ -50,9 +50,10 @@ from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report_v6 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.payment_access_v2 import PENDING_PAYMENT_USERS
-from src.records_store_v30 import RequestStore
-from src.sid_dashboard import render_dashboard, switch_to_reports
-from src.dashboard_duplicate_review import review_duplicates
+from src.records_store_v31 import RequestStore
+from src.sid_dashboard import switch_to_reports
+from src.pnl_dashboard import render_pnl_dashboard as render_dashboard
+from src.dashboard_duplicate_review_v2 import review_duplicates
 from src.audit_ui import render_logs
 from src.diesel_inputs import update_diesel
 from src.expense_date import seed_expense_date, remember_expense_date
@@ -1779,7 +1780,7 @@ div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);b
 </style>
 <div class="app-hero"><div class="brand-row"><img class="brand-mark" src="APP_LOGO_DATA" alt="Project Oneshot logo" style="object-fit:contain"/><div><div class="brand">Project <span>Oneshot</span></div><div class="subtitle">One record. Every operations report.</div></div></div><div class="status-pill"><span class="status-dot"></span>WORKSPACE READY</div></div>
 """.replace('APP_LOGO_DATA', 'data:image/png;base64,' + base64.b64encode(APP_LOGO.read_bytes()).decode('ascii')), unsafe_allow_html=True)
-if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam", "Nikhat"}:
+if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam", "Nikhat", "Vinod", "Nikhil"}:
     render_sid_styles()
     render_sid_header(APP_LOGO)
     if current_user == 'Sid':
@@ -1790,6 +1791,17 @@ if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok"
         [data-testid="stTabs"] [data-testid="stTab"]:nth-child(4):before{content:'bar_chart'}
         [data-testid="stTabs"] [data-testid="stTab"]:nth-child(5):before{content:'history'}
         </style>''',unsafe_allow_html=True)
+    if current_user in {'Vinod', 'Nikhil'}:
+        st.markdown('''<style>
+        [data-testid="stTabs"] [data-testid="stTab"]:nth-child(1):before{content:'home'}
+        [data-testid="stTabs"] [data-testid="stTab"]:nth-child(2):before{content:'calendar_add_on'}
+        [data-testid="stTabs"] [data-testid="stTab"]:nth-child(3):before{content:'layers'}
+        [data-testid="stTabs"] [data-testid="stTab"]:nth-child(4):before{content:'calendar_month'}
+        [data-testid="stTabs"] [data-testid="stTab"]:nth-child(5):before{content:'work'}
+        [data-testid="stTabs"] [data-testid="stTab"]:nth-child(6):before{content:'bar_chart'}
+        [data-testid="stTabs"] [data-testid="stTab"]:nth-child(7):before{content:'history'}
+        @media(min-width:751px){.stTabs [data-baseweb="tab-list"]{overflow-x:auto!important;overflow-y:hidden!important;gap:3px!important}[data-testid="stTabs"] [data-testid="stTab"]{padding:7px 8px!important}}
+        </style>''', unsafe_allow_html=True)
     if current_user == 'Ajit':
         render_ajit_navigation_styles()
     if current_user == 'Nikhat':
@@ -1839,6 +1851,9 @@ if current_user == 'Sid':
     dashboard_tab, records_tab, pending_tab, reports_tab, logs_tab = st.tabs(
         ['Dashboard', 'Records', 'Pending Payments', 'Generate Reports', 'Logs'], default='Dashboard')
     new_tab = expense_tab = None
+elif current_user in {'Vinod', 'Nikhil'}:
+    dashboard_tab, new_tab, expense_tab, records_tab, pending_tab, reports_tab, logs_tab = st.tabs(
+        ['Dashboard', 'New Entry', 'Direct Expenses', 'Records', 'Pending Payments', 'Generate Reports', 'Logs'], default='Dashboard')
 elif current_user == 'Nikhat':
     expense_tab, records_tab, pending_tab, reports_tab, logs_tab = st.tabs(
         ['Direct Expenses','Records','Pending Payments','Generate Reports','Logs'])
@@ -2136,7 +2151,7 @@ def save_invoice_receipt_batch():
         st.session_state['receipt_batch_notice'] = f'Saved {len(pending)} invoice receipt change(s).'
 
 
-if current_user == 'Sid':
+if current_user in {'Sid', 'Vinod', 'Nikhil'}:
     with dashboard_tab:
         if notice := st.session_state.pop('dashboard_duplicate_notice', None):
             st.success(notice)

@@ -26,6 +26,8 @@ def test_sid_navigation_replaces_entry_tabs_and_other_users_keep_theirs():
     tree=ast.parse(Path('app.py').read_text())
     navigation=next(n for n in tree.body if isinstance(n,ast.If) and any(isinstance(x,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='dashboard_tab' for target in x.targets for t in ast.walk(target)) for x in ast.walk(n)))
     for user, expected in [('Sid',['Dashboard','Records','Pending Payments','Generate Reports','Logs']),
+                           ('Vinod',['Dashboard','New Entry','Direct Expenses','Records','Pending Payments','Generate Reports','Logs']),
+                           ('Nikhil',['Dashboard','New Entry','Direct Expenses','Records','Pending Payments','Generate Reports','Logs']),
                            ('Ajit',['New Entry','Direct Expenses','Records','Pending Payments','Generate Reports','Logs']),
                            ('Nikhat',['Direct Expenses','Records','Pending Payments','Generate Reports','Logs'])]:
         labels=[]

@@ -436,8 +436,8 @@ class RequestStore:
 
     def delete_duplicate_copies(self, selected, expected_versions, user, find_duplicates):
         """Recheck duplicates under row locks and soft-delete the selected copies atomically."""
-        if user != 'Sid':
-            raise ValueError('Only Sid can use duplicate review.')
+        if user not in {'Sid', 'Vinod', 'Nikhil'}:
+            raise ValueError('Only Sid, Vinod and Nikhil can use duplicate review.')
         selected = list(dict.fromkeys(selected))
         if not selected:
             raise ValueError('Select at least one duplicate copy.')

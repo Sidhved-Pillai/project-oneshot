@@ -35,9 +35,11 @@ def review_payload(groups):
 
 @st.dialog('Review Duplicate Entries', width='large', dismissible=True, on_dismiss='ignore')
 def review_duplicates(user, groups, store, find_duplicates):
-    if user != 'Sid':
-        st.error('Duplicate review is available only to Sid.')
+    if user not in {'Sid', 'Vinod', 'Nikhil'}:
+        st.error('Duplicate review is available only to Sid, Vinod and Nikhil.')
         return
+    from .sid_dashboard import STYLE
+    st.markdown(STYLE, unsafe_allow_html=True)
     st.markdown('''<style>[role="dialog"]:has(.dash-review-heading){width:min(1500px,96vw)!important;max-width:96vw!important;max-height:94dvh;overflow-y:auto;border-radius:24px;background:linear-gradient(120deg,#fff,#f4f8ff)}[role="dialog"]:has(.dash-review-heading) div[style*="padding: 1.5rem 1.5rem 0.75rem"]{display:none!important}.dash-review-heading h3{font-size:30px!important;margin:0!important}.dash-review-heading p{color:#52658a}.dash-review-close button{border-radius:50%}.dash-review-chips{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.dash-review-chips span{border:1px solid #d4e1fc;border-radius:12px;padding:10px;background:#f4f8ff;color:#19224d;font-size:13px;white-space:nowrap}</style>''',unsafe_allow_html=True)
     components.html(explicit_close_script(), height=0)
     copies = [r for g in groups for r in g['duplicates']]
