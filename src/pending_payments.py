@@ -22,7 +22,8 @@ from .operational_dates import OPERATIONS_START
 
 
 def transporter_key(name):
-    value = re.sub(r'[^a-z0-9]', '', name.casefold())
+    words = re.sub(r'\b(?:shree|shri+|sri)\b', 'shree', str(name or '').casefold())
+    value = re.sub(r'[^a-z0-9]', '', words)
     return value.replace('vikash', 'vikas')
 
 
@@ -58,7 +59,7 @@ def payment_groups(trips, kind, requests, profiles):
                 continue
             value = amount(trip.get('balance_amount'))
             profile = data(trip.get('rtgs_data'))
-            name = str(trip.get('transporter_name') or raw.get('Transporter Name') or 'Transporter not specified').strip()
+            name = str(trip.get('_pending_transporter_name') or trip.get('transporter_name') or raw.get('Transporter Name') or 'Transporter not specified').strip()
             owner = ''
             profile = {**profile, 'BNF_NAME':profile.get('BNF_NAME') or trip.get('beneficiary_name','')}
         else:
@@ -75,25 +76,44 @@ def payment_groups(trips, kind, requests, profiles):
         groups[key].append({'trip':trip, 'name':name, 'profile':profile, 'amount':value, 'status':status})
     if kind != 'balance':
         return list(groups.values())
-    combined = {}
-    for group in groups.values():
+    combined = []
+    for group in sorted(groups.values(), key=lambda g:(transporter_key(g[0]['name']),g[0]['name'])):
         key = transporter_key(group[0]['name'])
-        # Fuzzy names affect display grouping only. Each trip keeps its own bank
-        # profile, amount and ID when sent; no account is inferred or copied.
-        matches = [known for known in combined if key and known and len(key) >= 8
-                   and abs(len(key) - len(known)) <= max(len(key), len(known)) * .06
-                   and re.findall(r'\d+', key) == re.findall(r'\d+', known)
-                   and SequenceMatcher(None, key, known).ratio() >= .94]
-        canonical = key if key in combined else matches[0] if len(matches) == 1 else key
-        combined.setdefault(canonical, []).extend(group)
-    return list(combined.values())
+        def banks(items):
+            return {(re.sub(r'\s+','',str(i['profile'].get('BENE_ACC_NO') or '')),
+                     re.sub(r'\s+','',str(i['profile'].get('BENE_IFSC') or '')).upper())
+                    for i in items if i['profile'].get('BENE_ACC_NO') and i['profile'].get('BENE_IFSC')}
+        matches = []
+        for index, known in enumerate(combined):
+            other = transporter_key(known[0]['name'])
+            same_digits = re.findall(r'\d+',key) == re.findall(r'\d+',other)
+            similarity = SequenceMatcher(None,key,other).ratio()
+            bank_match = bool(banks(group) & banks(known))
+            if key == other or (len(key)>=8 and same_digits and
+                ((abs(len(key)-len(other))<=max(len(key),len(other))*.06 and similarity>=.94)
+                 or (bank_match and similarity>=.72))):
+                matches.append(index)
+        if len(matches) == 1:
+            combined[matches[0]].extend(group)
+        else:
+            combined.append(list(group))
+    # Display a stable, commonly used spelling, without changing saved bank profiles.
+    for group in combined:
+        counts = defaultdict(int)
+        for item in group:
+            counts[item['name']] += 1
+        name = max(counts,key=lambda n:(counts[n],len(n),n))
+        for item in group:
+            item['search_name'] = item['name']
+            item['name'] = name
+    return combined
 
 
-def pending_summary(trips, balance_requests, upi_requests):
+def pending_summary(trips, balance_requests, upi_requests, balance_trips=None):
     """Overall unsent trip totals, independent of filters and bank readiness."""
     totals = {}
     for kind, queued in [('balance', balance_requests), ('upi', upi_requests)]:
-        entries = [item for group in payment_groups(trips, kind, queued, {})
+        entries = [item for group in payment_groups(balance_trips if kind == 'balance' and balance_trips is not None else trips, kind, queued, {})
                    for item in group if item['status'] == 'Pending']
         totals[kind] = {'count':len(entries),
                         'amount':sum((Decimal(str(item['amount'])) for item in entries), Decimal('0'))}
@@ -105,7 +125,7 @@ def summary_cards(totals):
     wallet = '<path d="M3 6h17v14H3zM3 6V4l13-2v4M15 11h6v5h-6z"/><circle cx="17.5" cy="13.5" r=".7"/>'
     car = '<path d="M4 10l2-6h12l2 6M3 10h18v9H3zM5 19v2M19 19v2M6 14h2M16 14h2"/>'
     cards = [
-        ('green', truck, 'Pending Balance Payment Trips', str(totals['balance']['count']), 'Trips not yet sent to RTGS report'),
+        ('green', truck, 'Pending Balance Payment Requests', str(totals['balance']['count']), 'Trips / confirmed balances not yet sent to RTGS'),
         ('green', wallet, 'Pending Balance Payment Amount To Clear', format_inr(totals['balance']['amount']), 'Total balance payment pending'),
         ('red', car, 'Pending UPI Requests', str(totals['upi']['count']), 'Trip reimbursements not yet sent to RTGS'),
         ('red', wallet, 'Pending UPI Amount To Clear', format_inr(totals['upi']['amount']), 'Total UPI amount pending'),
@@ -136,7 +156,7 @@ def send_reviewed_group(selected, kind, user, store):
 
 @st.dialog('Print Bill', width='large')
 def view_balance_bills(bills, store, user):
-    from .balance_bill import render_bill_html, export_bill
+    from .balance_bill_v2 import render_bill_html, export_bill
     choices = {row['id']:f"BP-{row['id']:06d} · {row['transporter_name']} · {row['trip_count']} trips · {format_inr(row['amount'])}" for row in bills}
     chosen = st.selectbox('Bill', list(choices), format_func=choices.get)
     if chosen is None:
@@ -200,11 +220,14 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
     [class*="st-key-pending_card_"] [data-testid="stForm"]{border:0;padding:0}
     [class*="st-key-pending_card_"] [data-testid="stDataFrame"]{box-shadow:none!important;border-radius:10px!important}
     </style><div class="pp-intro"><div class="pp-icon">₹</div><div><h2>Pending Payments</h2><p>Review and send pending Balance Payments, UPI or Billtee payments.</p></div></div>''', unsafe_allow_html=True)
-    summary_cards(pending_summary(trips, balance_requests, upi_requests))
+    from .balance_reconciliation import balance_view
+    closing = store.list_balance_reconciliations() if hasattr(store, 'list_balance_reconciliations') else []
+    balance_trips, credits = balance_view(trips, balance_requests, closing)
+    summary_cards(pending_summary(trips, balance_requests, upi_requests, balance_trips))
     kind = st.session_state.get('pending_kind_card', 'balance')
     profiles = store.pending_upi_profiles(user) if kind in ('upi', 'billtee') else {}
     queued = store.list_billtee_payments() if kind == 'billtee' else balance_requests if kind == 'balance' else upi_requests
-    groups = payment_groups(trips, kind, queued, profiles)
+    groups = payment_groups(balance_trips if kind == 'balance' else trips, kind, queued, profiles)
     with st.container(key='pending_toolbar'):
         balance_col, upi_col, billtee_col, search_col, branch_col, sort_col = st.columns([1.5,.75,.85,2.1,1.5,2.2], gap='small')
         balance_col.button('Balance Payment', icon=':material/local_shipping:',
@@ -242,6 +265,11 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
             selected_bill = st.selectbox('Saved bill', list(bill_options), format_func=bill_options.get)
             if st.button('Print Bill', key='pending_bill_history', icon=':material/print:'):
                 view_balance_bills([row for row in bills if row['id'] == selected_bill], store, user)
+    if kind == 'balance' and credits:
+        with st.expander('Transporter credits carried forward'):
+            st.dataframe(pd.DataFrame([{'Transporter':c['name'], 'Credit available':c['amount'],
+                                       'Confirmed as at':c['cutoff']} for c in credits]), hide_index=True)
+            st.caption('Credits offset later pending balances. They are not payments to send to RTGS.')
     filtered = []
     for group in groups:
         matching = [item for item in group
@@ -250,10 +278,10 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
                     and parse_dtr_date(item['trip'].get('trip_date')) is not None
                     and start <= parse_dtr_date(item['trip'].get('trip_date')) <= end]
         matching.sort(key=lambda item:(str(item['trip'].get('trip_date')), item['trip']['request_number']))
-        if matching and (not search or transporter_key(search) in transporter_key(matching[0]['name'] + ' ' + str(matching[0]['profile'].get('BNF_NAME','')))):
+        if matching and (not search or transporter_key(search) in transporter_key(' '.join(str(i.get('search_name',''))+' '+i['name']+' '+str(i['profile'].get('BNF_NAME','')) for i in matching))):
             filtered.append(matching)
     filtered.sort(key=lambda group: -sum(item['amount'] for item in group) if sort.startswith('Total') else group[0]['name'].casefold())
-    st.caption(f"{sum(len(group) for group in filtered)} trips · {len(filtered)} groups · {format_inr(sum(item['amount'] for group in filtered for item in group))}")
+    st.caption(f"{sum(len(group) for group in filtered)} requests · {len(filtered)} groups · {format_inr(sum(item['amount'] for group in filtered for item in group))}")
     if not filtered:
         st.info('No payments match these filters.')
     page_size = 20
@@ -288,7 +316,7 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
                 last_trip = pd.Timestamp(last_trip).strftime('%d %b %Y')
             except (ValueError, TypeError):
                 last_trip = 'Not specified'
-            identity.markdown(f'<div class="pp-identity"><div class="pp-avatar">{html.escape(first["name"][:1].upper())}</div><div><div class="pp-name">{html.escape(first["name"])}</div><div class="pp-meta">{len(group)} trips · Last trip: {html.escape(last_trip)}</div></div></div>', unsafe_allow_html=True)
+            identity.markdown(f'<div class="pp-identity"><div class="pp-avatar">{html.escape(first["name"][:1].upper())}</div><div><div class="pp-name">{html.escape(first["name"])}</div><div class="pp-meta">{len(group)} requests · Last entry: {html.escape(last_trip)}</div></div></div>', unsafe_allow_html=True)
             figure.markdown(f'<div class="pp-total"><span>Total {dict(balance="Balance", upi="UPI", billtee="Billtee")[kind]} Amount</span><strong>{format_inr(total)}</strong></div>', unsafe_allow_html=True)
             if missing:
                 figure.markdown(f'<div class="pp-missing">{missing_count} trips need {html.escape(", ".join(missing))}</div>', unsafe_allow_html=True)
@@ -305,7 +333,7 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
                     view_balance_bills(matching_bills, store, user)
             if not expanded:
                 continue
-            st.caption('Each trip is sent to its own saved beneficiary. Trips missing bank details remain pending.')
+            st.caption('Each trip uses its saved beneficiary. Confirmed balances replace the covered historical trips only in this tab; they are not individual trips. Missing bank details remain pending.')
             if missing_count:
                 st.warning(f'{missing_count} trips have incomplete bank details. Complete those trip records before sending them.')
             rows = []
@@ -318,7 +346,7 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
                     'Beneficiary':item['profile'].get('BNF_NAME',''), 'Account':item['profile'].get('BENE_ACC_NO',''),
                     'IFSC':item['profile'].get('BENE_IFSC',''), 'Bank details':'Complete' if bank_ready(item) else 'Missing',
                     'Invoice No.':trip.get('invoice_number'), 'Freight':amount(trip.get('transporter_freight')),
-                    'Paid':amount(trip.get('total_advance')), dict(balance='Balance', upi='UPI', billtee='Billtee')[kind]:item['amount'], 'Status':item['status']})
+                    'Paid':amount(trip.get('total_advance')), dict(balance='Balance', upi='UPI', billtee='Billtee')[kind]:item['amount'], 'Status':item['status'], 'Details':trip.get('notes','') if trip.get('_confirmed_balance') else (f"Credit applied: {format_inr(trip['_balance_credit_applied'])}" if trip.get('_balance_credit_applied') else '')})
             with st.form(f'pending_group_{key}'):
                 frame = pd.DataFrame(rows)
                 edited = st.data_editor(frame, hide_index=True, width='stretch',
@@ -326,7 +354,7 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
                 with st.container(key=f'pending_submit_{key}'):
                     send = st.form_submit_button('Send selected for RTGS', type='primary', disabled=not configured)
             if send:
-                selected = {row['Record']:by_number[row['Record']].get('updated_at')
+                selected = {row['Record']:({'updated_at':by_number[row['Record']].get('updated_at'), 'amount':row['Balance']} if kind == 'balance' else by_number[row['Record']].get('updated_at'))
                             for row in edited.to_dict('records') if row['Select'] and row['Status'] == 'Pending' and row['Bank details'] == 'Complete'}
                 send_reviewed_group(selected, kind, user, store)
     if pages > 1:

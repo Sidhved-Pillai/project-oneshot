@@ -76,6 +76,16 @@ balance_payments = Table(
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
 )
 
+balance_reconciliations = Table(
+    'pending_balance_reconciliations', metadata,
+    Column('request_number', String(40), primary_key=True),
+    Column('transporter_name', String(200), nullable=False),
+    Column('cutoff', Date, nullable=False),
+    Column('amount', Numeric(14,2), nullable=False),
+    Column('snapshot', Text, nullable=False),
+    Column('updated_at', DateTime, nullable=False),
+)
+
 balance_bills = Table(
     'balance_payment_bills', metadata,
     Column('id', Integer, primary_key=True, autoincrement=True),
@@ -469,13 +479,23 @@ class RequestStore:
             conn.execute(delete(record_revisions).where(record_revisions.c.request_number == request_number))
             return conn.execute(delete(requests).where(requests.c.request_number == request_number)).rowcount
 
-    def send_balance_payment(self, request_number, user, _conn=None):
+    def send_balance_payment(self, request_number, user, _conn=None, expected_amount=None):
         """Queue one balance payment per trip, atomically, without copying the trip."""
         from contextlib import nullcontext
         with (nullcontext(_conn) if _conn is not None else self.engine.begin()) as conn:
-            row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
-                requests.c.request_number == request_number,
-            ).with_for_update()).mappings().first()
+            from .balance_reconciliation import balance_view
+            closing = [dict(r) for r in conn.execute(select(balance_reconciliations).order_by(
+                balance_reconciliations.c.request_number).with_for_update()).mappings()]
+            if closing:
+                source = [dict(r) for r in conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
+                    requests.c.is_archived.is_(False), requests.c.status != 'Cancelled')).mappings()]
+                queued = {p['request_number']:dict(p) for p in conn.execute(select(balance_payments)).mappings()}
+                view, _ = balance_view(source, queued, closing)
+                row = next((r for r in view if r['request_number'] == request_number), None)
+            else:
+                row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
+                    requests.c.request_number == request_number,
+                ).with_for_update()).mappings().first()
             if not row or not (can_send_balance(user, row) or (user in PENDING_PAYMENT_USERS and row.get('report_scope') != 'Expense' and not row.get('is_archived') and row.get('status') != 'Cancelled')):
                 raise ValueError("You cannot request a balance payment for this record.")
             existing = conn.execute(select(balance_payments.c.request_number).where(
@@ -486,8 +506,16 @@ class RequestStore:
             amount = row.get("balance_amount") or 0
             if amount <= 0:
                 raise ValueError("This trip has no positive balance payable.")
-            data = json.loads(row.get("rtgs_data") or "{}")
+            if expected_amount is not None:
+                from .balance_reconciliation import money
+                if money(amount) != money(expected_amount):
+                    raise ValueError('The pending balance changed. Refresh and review before sending. No payments were sent.')
+            data = row.get("rtgs_data") or {}
+            data = json.loads(data) if isinstance(data, str) else dict(data)
             data.update(AMOUNT=float(amount), BNF_NAME=data.get("BNF_NAME") or row.get("beneficiary_name", ""))
+            if row.get('_balance_credit_applied'):
+                data['_balance_credit_applied'] = row['_balance_credit_applied']
+                data['_balance_reconciliation_id'] = row['_balance_reconciliation_id']
             data["REMARK"] = str(data.get("REMARK") or row.get("notes") or "") + " Balance Payment"
             data["Origin Area"] = row.get("branch", "")
             data["_payment_kind"] = "balance"
@@ -501,6 +529,10 @@ class RequestStore:
                 details=f"Balance RTGS requested: {amount}",
             ))
         return True
+
+    def list_balance_reconciliations(self):
+        with self.engine.connect() as conn:
+            return [dict(r) for r in conn.execute(select(balance_reconciliations)).mappings()]
 
     def list_balance_payments(self):
         with self.engine.connect() as conn:
@@ -549,26 +581,41 @@ class RequestStore:
         if user not in PENDING_PAYMENT_USERS or kind not in ('balance', 'upi', 'billtee'):
             raise ValueError('You do not have access to Pending Payments.')
         with self.engine.begin() as conn:
+            if kind == 'balance':
+                # Lock all closing balances first in a stable order, including when
+                # a batch contains multiple opening balances, to avoid lock inversions.
+                conn.execute(select(balance_reconciliations.c.request_number).order_by(
+                    balance_reconciliations.c.request_number).with_for_update()).all()
             sent = 0
             bill_rows = {}
             for number, version in sorted(selected.items()):
-                row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
-                    requests.c.request_number == number).with_for_update()).mappings().first()
+                expected_amount = version.get('amount') if isinstance(version, dict) else None
+                version = version['updated_at'] if isinstance(version, dict) else version
+                if kind == 'balance' and number.startswith('BALREC-'):
+                    from .balance_reconciliation import reconciliation_row
+                    closing = conn.execute(select(balance_reconciliations).where(
+                        balance_reconciliations.c.request_number == number).with_for_update()).mappings().first()
+                    row = reconciliation_row(dict(closing)) if closing else None
+                else:
+                    row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
+                        requests.c.request_number == number).with_for_update()).mappings().first()
                 if not row or str(row.get('updated_at')) != str(version):
                     raise ValueError('A selected trip changed. Refresh and review before sending. No payments were sent.')
                 if kind == 'balance':
                     if str(row.get('ownership_type') or '').lower().startswith('own'):
                         raise ValueError('Own-vehicle profit is not a transporter balance payment.')
-                    data = json.loads(row.get('rtgs_data') or '{}')
+                    raw = row.get('rtgs_data') or {}
+                    data = json.loads(raw) if isinstance(raw, str) else dict(raw)
                     if not all(str(data.get(key) or (row.get('beneficiary_name') if key == 'BNF_NAME' else '') or '').strip()
                                for key in ('BNF_NAME','BENE_ACC_NO','BENE_IFSC')):
                         raise ValueError('Complete the transporter beneficiary bank details before sending.')
-                    newly_sent = self.send_balance_payment(number, user, _conn=conn)
+                    newly_sent = self.send_balance_payment(number, user, _conn=conn, expected_amount=expected_amount)
                     sent += newly_sent
                     if newly_sent:
-                        from .balance_bill import bill_group_key
+                        from .balance_bill_v2 import bill_group_key
                         key = bill_group_key(row)
-                        bill_rows.setdefault(key, []).append((dict(row), row.get('balance_amount') or 0))
+                        queued_amount = conn.execute(select(balance_payments.c.amount).where(balance_payments.c.request_number == number)).scalar_one()
+                        bill_rows.setdefault(key, []).append((dict(row), queued_amount))
                 elif kind == 'billtee':
                     if row.get('report_scope') == 'Expense' or row.get('is_archived') or row.get('status') == 'Cancelled':
                         raise ValueError('Choose an active trip record.')
@@ -600,7 +647,7 @@ class RequestStore:
                 else:
                     sent += self.send_upi_payment(number, user, _conn=conn)
             if bill_rows:
-                from .balance_bill import make_bill, totals
+                from .balance_bill_v2 import make_bill, totals
                 from zoneinfo import ZoneInfo
                 for rows in bill_rows.values():
                     snapshot = make_bill(rows, user)

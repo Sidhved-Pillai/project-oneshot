@@ -104,7 +104,7 @@ render_pending_payments('Sid',trips,{}, {},Store())
     next(button for button in app.button if button.label == 'Send selected for RTGS').click().run()
     assert not app.exception
     selected,kind,user = app.session_state['sent_test']
-    assert selected == {'REQ-0':'version'}
+    assert selected == {'REQ-0':{'updated_at':'version','amount':100.0}}
     assert kind == 'balance' and user == 'Sid'
 
 
@@ -125,7 +125,7 @@ render_pending_payments('Sid',trips,{'REQ-0':{'rtgs_done':False},'REQ-1':{'rtgs_
     assert {'Balance Payment','UPI'} <= {button.label for button in app.button}
     assert not any(widget.label in ('Status','Payment groups page') for widget in app.selectbox)
     assert len([button for button in app.button if str(button.key).startswith('pending_expand_')]) == 20
-    assert any('22 trips' in caption.value for caption in app.caption)
+    assert any('22 requests' in caption.value for caption in app.caption)
     next(button for button in app.button if button.label == 'Next →').click().run()
     assert not app.exception
     assert len([button for button in app.button if str(button.key).startswith('pending_expand_')]) == 2

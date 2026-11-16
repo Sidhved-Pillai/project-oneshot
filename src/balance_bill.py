@@ -47,7 +47,7 @@ def bill_trip(row, queued_amount):
             'Vehicle No.':row.get('vehicle_number') or '', 'MT':row.get('vehicle_type') or '',
             'Plant':row.get('from_location') or '', 'LR No.':raw.get('LR No.',''),
             'Invoice No.':dtr_invoice_text(raw.get('Invoice No.') or row.get('invoice_number')),
-            'Customer Name':raw.get('Customer Name',''), 'Location':row.get('to_location') or '',
+            'Customer Name':('Confirmed opening balance — not an individual trip' if row.get('_confirmed_balance') else raw.get('Customer Name','')), 'Location':row.get('to_location') or '',
             'Freight Amt.':str(money(row.get('transporter_freight'))),
             'Cash Adv.':str(cash), 'RTGS Adv.':str(rtgs), 'UPI Adv.':str(upi),
             'Diesel Qty':str(money(raw.get('Diesel Qty') or row.get('diesel_quantity'))),

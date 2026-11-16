@@ -50,7 +50,7 @@ from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report_v6 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.payment_access_v2 import PENDING_PAYMENT_USERS
-from src.records_store_v32 import RequestStore
+from src.records_store_v33 import RequestStore
 from src.sid_dashboard import switch_to_reports
 from src.pnl_dashboard_v3 import render_pnl_dashboard as render_dashboard
 from src.dashboard_duplicate_review_v3 import review_duplicates
@@ -58,12 +58,13 @@ from src.audit_ui import render_logs
 from src.diesel_inputs import update_diesel
 from src.expense_date import seed_expense_date, remember_expense_date
 from src.expense_review import apply_evidence_date, mark_expense_date_manual
-from src.pending_payments_v12 import render_pending_payments
+from src.pending_payments_v13 import render_pending_payments
 from src.billtee_payments import billtee_rtgs_rows
 from src.invoice_viewer import invoice_viewer_html
 from src.expense_duplicates import expense_duplicate_signature
 from src.expense_autofill import expense_identity_inputs
 from src.upi_payments import can_send_upi, upi_rtgs_rows
+from src.balance_reconciliation import reconciliation_row
 from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, balance_rtgs_rows, can_send_balance
 from src.report_scroll import latest_rows_scroll_script
 from src.dtr_review import render_dtr_review
@@ -86,7 +87,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 hide_manage_app()
-STORE_INTERFACE_VERSION = 30
+STORE_INTERFACE_VERSION = 33
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = [name for name in DIRECT_EXPENSE_COLUMNS if name != "Route expense"]
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*STANDARD_DIRECT_EXPENSE_COLUMNS, "Debit"]
@@ -623,6 +624,8 @@ def user_lr_duplicates(records, user_name, lr_value):
 
 def request_label(row_or_number, date=None):
     prefix = "Request"
+    if isinstance(row_or_number, dict) and row_or_number.get("_confirmed_balance"):
+        return "Confirmed Balance · " + clean_text(row_or_number.get("transporter_name"))
     if isinstance(row_or_number, dict):
         if row_or_number.get("report_scope") == "Expense":
             prefix = "Expense Request"
@@ -2544,7 +2547,8 @@ with reports_tab:
             key="rtgs_balance_payable_only",
         )
         balance_candidates = balance_rtgs_rows(
-            [row for row in balance_report_rows if row.get("report_scope") != "Expense"],
+            [row for row in balance_report_rows if row.get("report_scope") != "Expense"]
+            + [reconciliation_row(r) for r in store.list_balance_reconciliations()],
             balance_requests,
         )
         upi_candidates = upi_rtgs_rows(
