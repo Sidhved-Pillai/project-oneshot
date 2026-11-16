@@ -28,7 +28,9 @@ def balance_rtgs_rows(trips, payments):
         payments.values(), key=lambda row: str(row.get("created_at") or ""), reverse=True,
     ):
         number = payment.get("request_number")
-        trip = trips_by_number.get(number)
+        saved = payment.get("rtgs_data") or "{}"
+        saved = json.loads(saved) if isinstance(saved, str) else dict(saved)
+        trip = trips_by_number.get(saved.get("_source_request_number", number))
         if not trip:
             continue
         raw = payment.get("rtgs_data") or "{}"
@@ -41,13 +43,17 @@ def balance_rtgs_rows(trips, payments):
                 requested_date = dt.date.fromisoformat(str(created_at)[:10])
             except (TypeError, ValueError):
                 requested_date = trip.get("trip_date")
+        settled = payment.get('_settled_amount', 0)
+        remaining = payment.get('_awaiting_amount', payment.get('amount'))
+        report_amount = remaining if settled and remaining else payment.get('amount')
+        data['AMOUNT'] = float(report_amount or 0)
         rows.append({
             **trip,
             "request_number": BALANCE_PREFIX + number,
             "trip_date": requested_date,
-            "rtgs_advance": payment.get("amount"),
-            "rtgs_done": payment.get("rtgs_done"),
-            "rtgs_data": payment.get("rtgs_data"),
+            "rtgs_advance": report_amount,
+            "rtgs_done": (not bool(remaining)) if settled else payment.get("rtgs_done"),
+            "rtgs_data": json.dumps(data, default=str),
             "_balance_payment": True,
             "beneficiary_name": data.get("BNF_NAME", ""),
         })

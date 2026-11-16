@@ -50,7 +50,7 @@ from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report_v6 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.payment_access_v2 import PENDING_PAYMENT_USERS
-from src.records_store_v33 import RequestStore
+from src.records_store_v34 import RequestStore
 from src.sid_dashboard import switch_to_reports
 from src.pnl_dashboard_v3 import render_pnl_dashboard as render_dashboard
 from src.dashboard_duplicate_review_v3 import review_duplicates
@@ -58,7 +58,7 @@ from src.audit_ui import render_logs
 from src.diesel_inputs import update_diesel
 from src.expense_date import seed_expense_date, remember_expense_date
 from src.expense_review import apply_evidence_date, mark_expense_date_manual
-from src.pending_payments_v14 import render_pending_payments
+from src.pending_payments_v15 import render_pending_payments
 from src.billtee_payments import billtee_rtgs_rows
 from src.invoice_viewer import invoice_viewer_html
 from src.expense_duplicates import expense_duplicate_signature
@@ -87,7 +87,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 hide_manage_app()
-STORE_INTERFACE_VERSION = 33
+STORE_INTERFACE_VERSION = 34
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = [name for name in DIRECT_EXPENSE_COLUMNS if name != "Route expense"]
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*STANDARD_DIRECT_EXPENSE_COLUMNS, "Debit"]

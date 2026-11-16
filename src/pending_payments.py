@@ -156,7 +156,7 @@ def send_reviewed_group(selected, kind, user, store):
 
 @st.dialog('Print Bill', width='large')
 def view_balance_bills(bills, store, user):
-    from .balance_bill_v2 import render_bill_html, export_bill
+    from .balance_bill_v3 import render_bill_html, export_bill
     choices = {row['id']:f"BP-{row['id']:06d} · {row['transporter_name']} · {row['trip_count']} trips · {format_inr(row['amount'])}" for row in bills}
     chosen = st.selectbox('Bill', list(choices), format_func=choices.get)
     if chosen is None:
@@ -178,6 +178,10 @@ def view_balance_bills(bills, store, user):
 @st.fragment
 def render_pending_payments(user, trips, balance_requests, upi_requests, store):
     if user not in PENDING_PAYMENT_USERS:
+        return
+    if st.session_state.get('pending_kind_card', 'balance') == 'balance' and hasattr(store, 'settlement_snapshot'):
+        from .balance_workspace import render_balance_workspace
+        render_balance_workspace(user, store)
         return
     st.markdown('''<style>
     .st-key-pending_payments_surface{color:#101a32}

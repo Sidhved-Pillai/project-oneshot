@@ -103,6 +103,9 @@ def date_text(value):
 
 
 def payment_status(bill):
+    if bill.get('settlement_tracking'):
+        paid=money(bill.get('confirmed_paid_amount')); requested=totals(bill)['grand_total']
+        return 'Payment confirmed' if paid>=requested else 'Sent to RTGS — awaiting payment confirmation' if not paid else f'Partially paid — {format_inr(paid)} of {format_inr(requested)} confirmed'
     statuses = bill.get('payment_status', {})
     paid = sum(statuses.get(row['request_number']) is True for row in bill['rows'])
     return 'Paid / RTGS Done' if paid == len(bill['rows']) else 'Sent to RTGS — payment pending' if not paid else f'Partly paid — {paid} of {len(bill["rows"])} trips marked RTGS Done'
@@ -125,7 +128,7 @@ def render_bill_html(bill):
     <h2>{esc(bill['transporter'])}</h2><div class="head"><div>To,<br><b>Ubiquity Transtech Pvt Ltd.</b></div><div><b>Bill No.: {esc(bill['bill_number'])}</b><br>Date: {esc(date_text(bill['created_at']))}<br>{esc(payment_status(bill))}</div></div>
     <table><colgroup>{''.join(f'<col style="width:{width/sum(WIDTHS)*100:.2f}%">' for width in WIDTHS)}</colgroup><thead><tr>{''.join('<th>'+esc(col)+'</th>' for col in COLUMNS)}</tr></thead><tbody>{''.join(cells)}{sums}</tbody></table>
     <div class="footer"><div class="bank"><b>Bank Detail :- NEFT/RTGS</b><br>Name: {esc(profile.get('BNF_NAME'))}<br>A/c No.: {esc(profile.get('BENE_ACC_NO'))}<br>IFSC: {esc(profile.get('BENE_IFSC'))}<br>Bank Name: {esc(profile.get('Bank Name'))}</div><div>Transporter Adv. for Billtee paid: <b>{esc(format_inr(total['billtee']))}</b><h3>Grand Total: {esc(format_inr(total['grand_total']))}</h3></div></div>
-    {adjustment}<p><b>Rupees in Words: {esc(words(total['grand_total']))}</b></p><p>RTGS submission statement. Payment status reflects the app's RTGS Done marking.</p><div class="signature">Authorised Signature</div></body></html>'''
+    {adjustment}<p><b>Rupees in Words: {esc(words(total['grand_total']))}</b></p><p>RTGS submission statement. Payment status reflects the recorded settlement for tracked batches; legacy statements retain their RTGS Done marking.</p><div class="signature">Authorised Signature</div></body></html>'''
 
 
 def export_bill(bill):
@@ -161,7 +164,7 @@ def export_bill(bill):
     ws.cell(last+2,17,float(total['billtee'])).number_format='#,##0.00'
     merged(last+7,1,13,'Rupees in Words: '+words(total['grand_total']),True)
     merged(last+7,14,16,'Grand Total:',True);ws.cell(last+7,17,float(total['grand_total'])).number_format='#,##0.00'
-    merged(last+9,1,18,'RTGS submission statement. Payment status reflects the app RTGS Done marking.')
+    merged(last+9,1,18,'RTGS submission statement. Payment status reflects recorded settlement for tracked batches; legacy statements retain RTGS Done marking.')
     if total['adjustment']:merged(last+10,1,18,'Saved-record reconciliation difference: '+format_inr(total['adjustment'])+'; grand total matches submitted RTGS amounts.')
     merged(last+12,13,18,'Authorised Signature')
     thin=Side(style='thin',color='333333')

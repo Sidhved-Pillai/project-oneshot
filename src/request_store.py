@@ -205,7 +205,10 @@ def engine_options(url):
     return options
 
 
-class RequestStore:
+from .payment_settlement import SettlementStore, metadata as settlement_metadata
+
+
+class RequestStore(SettlementStore):
     def __init__(self, url=None):
         url = url or database_url()
         if url.startswith("postgres://"):
@@ -215,6 +218,7 @@ class RequestStore:
         self.url = url
         self.engine = create_engine(url, **engine_options(url))
         metadata.create_all(self.engine)
+        settlement_metadata.create_all(self.engine)
         self._migrate_existing_database()
 
     def _migrate_existing_database(self):
@@ -537,7 +541,9 @@ class RequestStore:
     def list_balance_payments(self):
         with self.engine.connect() as conn:
             payments = conn.execute(select(balance_payments)).mappings().all()
-        return {row["request_number"]: dict(row) for row in payments}
+            from .payment_settlement import payment_records,annotate_queues
+            settlements=[dict(r) for r in conn.execute(select(payment_records)).mappings()]
+        return annotate_queues({row["request_number"]:dict(row) for row in payments},settlements)
 
     def send_upi_payment(self, request_number, user, _conn=None):
         from contextlib import nullcontext
@@ -612,7 +618,7 @@ class RequestStore:
                     newly_sent = self.send_balance_payment(number, user, _conn=conn, expected_amount=expected_amount)
                     sent += newly_sent
                     if newly_sent:
-                        from .balance_bill_v2 import bill_group_key
+                        from .balance_bill_v3 import bill_group_key
                         key = bill_group_key(row)
                         queued_amount = conn.execute(select(balance_payments.c.amount).where(balance_payments.c.request_number == number)).scalar_one()
                         bill_rows.setdefault(key, []).append((dict(row), queued_amount))
@@ -647,7 +653,7 @@ class RequestStore:
                 else:
                     sent += self.send_upi_payment(number, user, _conn=conn)
             if bill_rows:
-                from .balance_bill_v2 import make_bill, totals
+                from .balance_bill_v3 import make_bill, totals
                 from zoneinfo import ZoneInfo
                 for rows in bill_rows.values():
                     snapshot = make_bill(rows, user)
@@ -676,6 +682,13 @@ class RequestStore:
             if not row:
                 raise ValueError('This transporter bill was not found.')
             snapshot = json.loads(row['snapshot'])
+            if snapshot.get('settlement_tracking'):
+                from .payment_settlement import payment_records,settlement_view,money
+                records=[dict(r) for r in conn.execute(select(payment_records)).mappings()]
+                _,confirmed=settlement_view([],[],records)
+                snapshot['confirmed_paid_amount']=str(sum((confirmed.get(item['balance_queue_id'],money(0)) for item in snapshot['rows']),money(0)))
+                statuses={item['request_number']:confirmed.get(item['balance_queue_id'],money(0))>=money(item['queued_amount']) for item in snapshot['rows']}
+                return {**snapshot,'bill_number':f'BP-{row["id"]:06d}','created_at':str(row['created_at']),'payment_status':statuses}
             statuses = dict(conn.execute(select(balance_payments.c.request_number, balance_payments.c.rtgs_done).where(
                 balance_payments.c.request_number.in_([item['request_number'] for item in snapshot['rows']]),
             )).all())
@@ -784,6 +797,14 @@ class RequestStore:
                 balance_payments.c.request_number == payment_id.removeprefix(BALANCE_PREFIX)).with_for_update()).scalar_one_or_none()
             if original is None:
                 raise ValueError('Payment no longer exists.')
+            preserved=json.loads(original) if isinstance(original,str) else dict(original)
+            if preserved.get('_settlement_batch'):
+                from .payment_settlement import money
+                if money(data['AMOUNT']) != money(preserved.get('AMOUNT')):
+                    raise ValueError('This is a tracked balance batch. Record actual paid amounts in Pending Payments; its requested amount cannot be rewritten.')
+            data={**{k:v for k,v in preserved.items() if k.startswith('_')},**data}
+            for key in ('_source_request_number','_settlement_batch'):
+                if key in preserved: data[key]=preserved[key]
             conn.execute(update(balance_payments).where(
                 balance_payments.c.request_number == number,
             ).values(amount=data["AMOUNT"], rtgs_data=json.dumps(data, default=str)))
@@ -1024,17 +1045,26 @@ class RequestStore:
                 requests.c.status != 'Cancelled', requests.c.is_archived.is_(False),
             ).order_by(requests.c.trip_date.desc(), requests.c.id.desc())).mappings()]
             if include_payments:
+                from .payment_settlement import payment_records,annotate_queues
+                settlements=[]
                 query = union_all(
                     select(literal('balance').label('_kind'), *balance_payments.c),
                     select(literal('upi').label('_kind'), *upi_payments.c),
+                    select(literal('settlement').label('_kind'), payment_records.c.id, payment_records.c.amount,
+                           payment_records.c.snapshot, literal(False), payment_records.c.user_name, payment_records.c.created_at),
                 )
                 for result in conn.execute(query).mappings():
                     payment = dict(result)
                     kind = payment.pop('_kind')
-                    (balances if kind == 'balance' else upi)[payment['request_number']] = payment
+                    if kind == 'settlement':
+                        settlements.append({'snapshot':payment['rtgs_data']})
+                    else:
+                        (balances if kind == 'balance' else upi)[payment['request_number']] = payment
             if include_logs:
                 logs = [dict(row) for row in conn.execute(select(activity_logs).order_by(
                     activity_logs.c.id.desc()).limit(500)).mappings()]
+            if include_payments:
+                balances=annotate_queues(balances,settlements)
         return rows, balances, upi, logs
 
     def repair_company_brands(self):

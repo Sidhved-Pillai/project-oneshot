@@ -58,6 +58,8 @@ def balance_view(trips, payments, reconciliations):
                 if snapshot.get('approved_payment_profile'):
                     profile = dict(snapshot['approved_payment_profile'])
                     rows[number].update(rtgs_data=profile, beneficiary_name=profile['BNF_NAME'])
+        if snapshot.get('retired'):
+            continue
         # Payments requested after the closing-balance date reduce the carry-forward.
         later_paid = sum((money(p['amount']) for number,p in payments.items()
                           if number in covered and day(p['created_at']) > cutoff), Decimal(0))
