@@ -59,6 +59,7 @@ from src.diesel_inputs import update_diesel
 from src.expense_date import seed_expense_date, remember_expense_date
 from src.expense_review import apply_evidence_date, mark_expense_date_manual
 from src.pending_payments_v18 import render_pending_payments
+from src.report_filters import render_report_filters
 from src.billtee_payments import billtee_rtgs_rows
 from src.invoice_viewer import invoice_viewer_html
 from src.expense_duplicates import expense_duplicate_signature
@@ -164,6 +165,44 @@ def cached_expenses_excel(rows):
 def cached_dtr_excel(frame):
     # Layout revision 3: comma-separated invoices in one trip cell.
     return export_operational_dtr(frame)
+
+
+@st.cache_data(show_spinner=False, max_entries=12)
+def cached_report_dtr_frame(ordered_trips, known_companies, known_locations):
+    records = []
+    for i, row in enumerate(ordered_trips, 1):
+        data = dict(unpack(row.get("dtr_data")))
+        # Scalar record fields are the authoritative values used by Records.
+        for column, field in {
+            "Date": "trip_date", "Branch": "branch", "Vehicle No.": "vehicle_number",
+            "Revenue": "revenue", "Transporter Freight": "transporter_freight",
+            "RTGS ADVANCE": "rtgs_advance", "Cash Adv.": "cash_advance", "UPI": "upi",
+            "Diesel Adv.": "diesel_advance", "Total Adv.": "total_advance",
+            "Balance Amt.": "balance_amount", "Payment": "payment",
+            "Invoice No.": "invoice_number",
+        }.items():
+            if row.get(field) is not None:
+                data[column] = row[field]
+        data["Compnay Name"] = canonical_company(data.get("Compnay Name") or row.get("company_name"), known_companies)
+        data["Vehicle No."] = canonical_vehicle_number(data.get("Vehicle No.") or row.get("vehicle_number"))
+        data["Vehicle Type"] = canonical_vehicle_capacity(data.get("Vehicle Type") or row.get("vehicle_type"))
+        data["Own/Outside Veh."] = canonical_ownership(data.get("Own/Outside Veh.") or row.get("ownership_type"))
+        data["From"] = canonical_location(data.get("From") or row.get("from_location"), known_locations)
+        data["To"] = canonical_location(data.get("To") or row.get("to_location"), known_locations)
+        data["Veh Placed by"] = canonical_vehicle_placer(data.get("Veh Placed by"))
+        data["Transporter Name"] = canonical_transporter_name(
+            data.get("Transporter Name") or row.get("transporter_name"), row.get("created_by"),
+        )
+        data["Toll Expense"] = data.get("Toll Expense", "")
+        data["Repairs & Maintenance"] = data.get("Repairs & Maintenance", "")
+        data["Remark"] = trip_auto_remark(
+            data.get("Vehicle No.") or row.get("vehicle_number"), data["From"], data["To"],
+            data["Vehicle Type"], data.get("Date") or row.get("trip_date"),
+        )
+        records.append({column: data.get(column, "") for column in DTR_REVIEW_COLUMNS} | {"Sr No.": i})
+    frame = pd.DataFrame(records, columns=DTR_REVIEW_COLUMNS)
+    frame['Invoice No.'] = frame['Invoice No.'].map(dtr_invoice_text)
+    return frame
 
 
 @st.cache_data(show_spinner=False, max_entries=12)
@@ -1500,6 +1539,7 @@ def confirm_record_delete(record):
 
 def complete_rtgs_download(request_numbers, start, end):
     updated = store.mark_rtgs_done(request_numbers, edited_by=current_user)
+    st.session_state['_report_refresh_source'] = True
     audit_action(
         "Downloaded RTGS report", "",
         f"{start:%d/%m/%Y} to {end:%d/%m/%Y} · {updated} record(s)",
@@ -1837,6 +1877,7 @@ if current_user == 'Sid' and (pnl_request := st.session_state.pop('dashboard_pnl
     st.session_state['pnl_ownership_filter'] = 'Both'
     st.session_state['pnl_vehicle_filter'] = 'All'
     st.session_state['dashboard_pnl_jump'] = True
+    st.session_state['report_apply_requested'] = True
 hidden_tabs = []
 if not can_use_direct_expenses:
     hidden_tabs.append(2)
@@ -2401,26 +2442,31 @@ if current_user in PENDING_PAYMENT_USERS:
         with st.container(key='pending_payments_surface'):
             render_pending_payments(current_user, normalization_rows, balance_requests, upi_requests, store)
 
-with reports_tab:
+@st.fragment
+def render_generate_reports():
     if not can_generate_reports:
         st.warning("Generate Reports is not available for your account.")
+        return
     page_intro("Report studio", "Generate reports", "Choose a period and create a ready-to-use DTR, RTGS, or P&L workbook.", "↗")
     workflow_steps(["Choose dates", "Select format", "Download"], 0)
-    c1, c2 = st.columns(2)
-    today = dt.date.today()
-    start = c1.date_input("Records from", value=today.replace(day=1), format="DD/MM/YYYY", key="report_from_v2", min_value=OPERATIONS_START)
-    end = c2.date_input("Records to", value=today, format="DD/MM/YYYY", key="report_to_v2", min_value=OPERATIONS_START)
     report_options = ["DTR"] if current_user == "Ashok" else ["DTR", "RTGS", *(["P&L"] if can_generate_pnl else [])]
-    if st.session_state.get("report_type") not in (None, *report_options):
-        st.session_state["report_type"] = "DTR"
-    report_type = st.segmented_control("Report type", report_options, default="DTR", key="report_type") or "DTR"
-    pnl_ownership_filter = "Both"
-    pnl_vehicle_filter = "All"
-    if report_type == "P&L":
-        pnl_ownership_filter = st.segmented_control(
-            "Own or outside vehicle", ["Both", "Own", "Outside", "Vehicle No. Wise"], default="Both", key="pnl_ownership_filter",
-        ) or "Both"
-    balance_report_rows = scope_report_rows(current_user, normalization_rows) if can_generate_reports else []
+    source_rows, balance_requests, upi_requests = st.session_state['_report_source']
+    downloaded = st.session_state.pop('_report_refresh_source', False)
+    if st.session_state.get('apply_report_filters') or st.session_state.get('report_apply_requested') or downloaded:
+        # One fresh read per Apply; checkbox/editor changes reuse this snapshot.
+        fresh_rows, balance_requests, upi_requests, _ = store.dashboard_snapshot(
+            include_payments=downloaded or st.session_state.get('report_type') == 'RTGS', include_logs=False)
+        source_rows = project_vijay_records(fresh_rows)
+        st.session_state['_report_source'] = (source_rows, balance_requests, upi_requests)
+        st.session_state['_report_refresh_metadata'] = True
+    scoped_rows = scope_report_rows(current_user, source_rows)
+    vehicles = sorted({canonical_vehicle_number(row.get('vehicle_number')) for row in scoped_rows if row.get('report_scope') != 'Expense'} - {''}, key=str.casefold)
+    filters, submitted = render_report_filters(current_user, report_options, vehicles)
+    if filters is None:
+        return
+    start, end, report_type = filters['start'], filters['end'], filters['kind']
+    pnl_ownership_filter, pnl_vehicle_filter = filters['ownership'], filters['vehicle']
+    balance_report_rows = scope_report_rows(current_user, source_rows) if can_generate_reports else []
     report_rows = balance_report_rows if start <= end else []
     selected_rows = [
         row for row in report_rows if start <= as_date(row.get("trip_date")) <= end
@@ -2430,9 +2476,6 @@ with reports_tab:
     if report_type == "P&L":
         if pnl_ownership_filter != "Vehicle No. Wise":
             trips = [row for row in trips if ownership_matches(row.get("ownership_type"), pnl_ownership_filter)]
-        pnl_vehicle_options = sorted({canonical_vehicle_number(row.get("vehicle_number")) for row in trips} - {""}, key=str.casefold)
-        reset_invalid_widget_choice("pnl_vehicle_filter", ["All", *pnl_vehicle_options], "All")
-        pnl_vehicle_filter = st.selectbox("Vehicle no.", ["All", *pnl_vehicle_options], key="pnl_vehicle_filter")
         if pnl_vehicle_filter != "All":
             trips = [row for row in trips if canonical_vehicle_number(row.get("vehicle_number")) == pnl_vehicle_filter]
     expenses = link_expenses_to_trips([
@@ -2457,40 +2500,8 @@ with reports_tab:
         expenses = expense_data
     st.caption(f"{len(trips)} trip record(s) and {len(expenses)} direct expense record(s) selected.")
     if report_type == "DTR":
-        records = []
         ordered_trips = list(reversed(trips))
-        for i, row in enumerate(ordered_trips, 1):
-            data = unpack(row.get("dtr_data"))
-            # Scalar record fields are the authoritative values used by Records.
-            for column, field in {
-                "Date": "trip_date", "Branch": "branch", "Vehicle No.": "vehicle_number",
-                "Revenue": "revenue", "Transporter Freight": "transporter_freight",
-                "RTGS ADVANCE": "rtgs_advance", "Cash Adv.": "cash_advance", "UPI": "upi",
-                "Diesel Adv.": "diesel_advance", "Total Adv.": "total_advance",
-                "Balance Amt.": "balance_amount", "Payment": "payment",
-                "Invoice No.": "invoice_number",
-            }.items():
-                if row.get(field) is not None:
-                    data[column] = row[field]
-            data["Compnay Name"] = canonical_company(data.get("Compnay Name") or row.get("company_name"), KNOWN_COMPANIES)
-            data["Vehicle No."] = canonical_vehicle_number(data.get("Vehicle No.") or row.get("vehicle_number"))
-            data["Vehicle Type"] = canonical_vehicle_capacity(data.get("Vehicle Type") or row.get("vehicle_type"))
-            data["Own/Outside Veh."] = canonical_ownership(data.get("Own/Outside Veh.") or row.get("ownership_type"))
-            data["From"] = canonical_location(data.get("From") or row.get("from_location"), KNOWN_LOCATIONS)
-            data["To"] = canonical_location(data.get("To") or row.get("to_location"), KNOWN_LOCATIONS)
-            data["Veh Placed by"] = canonical_vehicle_placer(data.get("Veh Placed by"))
-            data["Transporter Name"] = canonical_transporter_name(
-                data.get("Transporter Name") or row.get("transporter_name"), row.get("created_by"),
-            )
-            data["Toll Expense"] = data.get("Toll Expense", "")
-            data["Repairs & Maintenance"] = data.get("Repairs & Maintenance", "")
-            data["Remark"] = trip_auto_remark(
-                data.get("Vehicle No.") or row.get("vehicle_number"), data["From"], data["To"],
-                data["Vehicle Type"], data.get("Date") or row.get("trip_date"),
-            )
-            records.append({column: data.get(column, "") for column in DTR_REVIEW_COLUMNS} | {"Sr No.": i})
-        frame = pd.DataFrame(records, columns=DTR_REVIEW_COLUMNS)
-        frame['Invoice No.'] = frame['Invoice No.'].map(dtr_invoice_text)
+        frame = cached_report_dtr_frame(ordered_trips, KNOWN_COMPANIES, KNOWN_LOCATIONS)
         display_frame = frame.rename(columns={"Compnay Name": "Company Name"})
         editor_key = dtr_editor_key(ordered_trips, start.isoformat(), end.isoformat())
         with st.container(key="report_dtr_grid"):
@@ -2546,15 +2557,18 @@ with reports_tab:
             value=False,
             key="rtgs_balance_payable_only",
         )
+        if st.session_state.pop('_report_refresh_metadata', False) or '_report_payment_metadata' not in st.session_state:
+            st.session_state['_report_payment_metadata'] = (store.list_balance_reconciliations(), store.list_billtee_payments())
+        reconciliations, billtee_requests = st.session_state['_report_payment_metadata']
         balance_candidates = balance_rtgs_rows(
             [row for row in balance_report_rows if row.get("report_scope") != "Expense"]
-            + [reconciliation_row(r) for r in store.list_balance_reconciliations()],
+            + [reconciliation_row(r) for r in reconciliations],
             balance_requests,
         )
         upi_candidates = upi_rtgs_rows(
             [row for row in balance_report_rows if row.get('report_scope') != 'Expense'], upi_requests)
         billtee_candidates = billtee_rtgs_rows(
-            [row for row in balance_report_rows if row.get('report_scope') != 'Expense'], store.list_billtee_payments())
+            [row for row in balance_report_rows if row.get('report_scope') != 'Expense'], billtee_requests)
         rtgs_candidates = balance_candidates + ([] if show_only_balance_payable else billtee_candidates + upi_candidates + list(reversed([
             item for item in trips if number(item.get("rtgs_advance")) > 0
         ])))
@@ -2746,6 +2760,13 @@ with reports_tab:
             pnl_display[column] = pnl_display[column].map(format_inr)
         st.dataframe(pnl_display, hide_index=True, width="stretch")
         st.download_button("Download P&L report", cached_pnl_excel(trips, expense_data, start, end, pnl_ownership_filter), f"PNL-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=not can_generate_pnl, on_click=audit_action, args=("Downloaded P&L report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
+
+with reports_tab:
+    # This runs on full app refreshes; fragment-only report actions reuse the
+    # current snapshot and do not rebuild New Entry, Records or the dashboard.
+    st.session_state['_report_source'] = (normalization_rows, balance_requests, upi_requests)
+    st.session_state['_report_refresh_metadata'] = True
+    render_generate_reports()
 
 with logs_tab:
     if not is_special_member:
