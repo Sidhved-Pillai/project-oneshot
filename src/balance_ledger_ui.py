@@ -142,18 +142,16 @@ def render_balance_cards(user,trips,upi_requests,store):
       .st-key-ledger_modes [data-testid="stColumn"]:first-child{flex:1.8 1 0!important}
       .st-key-ledger_modes button{padding:6px!important;font-size:12px!important}
       .st-key-ledger_modes button p{font-size:12px!important}
-      [class*="st-key-ledger_card_"]>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]{display:grid!important;grid-template-columns:34px minmax(0,1fr)!important;gap:9px!important}
+      [class*="st-key-ledger_card_"]>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:9px!important}
       [class*="st-key-ledger_card_"]>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"]{width:100%!important;min-width:0!important}
       [class*="st-key-ledger_card_"]>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(3){grid-column:1/-1!important}
       [class*="st-key-ledger_card_"]>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(4){grid-column:1/-1!important}
-      [class*="st-key-ledger_card_"]>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(5){grid-column:1/-1!important}
     }
     .st-key-ledger_modes button{border-radius:24px!important;min-height:43px!important;border:1px solid #dce6f5!important;background:white!important;box-shadow:none!important}
     .st-key-ledger_modes button[kind="primary"]{background:linear-gradient(120deg,#e4faed,#d2f3e3)!important;color:#0b6930!important;border-color:#80d7a5!important}
     [class*="st-key-ledger_card_"]{border:1px solid #dbe5f8!important;border-radius:17px!important;padding:9px 14px!important;margin-bottom:5px!important;background:linear-gradient(125deg,#fff,#f8faff)!important;box-shadow:0 3px 9px #174cc90a!important}
     [class*="st-key-ledger_update_"] button{background:linear-gradient(110deg,#178b25,#006c19)!important;color:white!important;border:0!important;border-radius:11px!important;min-height:42px!important;box-shadow:0 3px 5px #006b1720!important;white-space:nowrap!important}
     [class*="st-key-ledger_print_"] button{background:#fff!important;border:1px solid #d4def0!important;color:#101b3c!important;border-radius:11px!important;min-height:42px!important;white-space:nowrap!important}
-    [class*="st-key-ledger_expand_"] button{border:0!important;border-radius:50%!important;min-height:31px!important;min-width:31px!important;width:31px!important;padding:0!important;background:#f1f5fc!important;box-shadow:none!important}
     .st-key-ledger_apply button{background:linear-gradient(110deg,#2289ff,#0055ff)!important;color:white!important;border:0!important;min-height:43px!important;border-radius:11px!important}
     @media(max-width:700px){.pp-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}.pp-summary-card{padding:12px!important;min-height:140px!important}.pp-summary-card .pp-summary-icon{display:none!important}.pp-summary-copy strong{font-size:21px!important}.pp-summary-label{font-size:11px!important}}
     </style>''',unsafe_allow_html=True)
@@ -199,9 +197,7 @@ def render_balance_cards(user,trips,upi_requests,store):
         name=group[0]['name'];key=hashlib.sha256(name.encode()).hexdigest()[:14]
         total=sum(i['trip']['_outstanding'] for i in matching);last=max(i['trip']['trip_date'] for i in matching)
         with st.container(key='ledger_card_'+key):
-            arrow,identity,amount,print_col,update_col=st.columns([.3,4,2.1,1.45,1.9],gap='small',vertical_alignment='center')
-            opened=st.session_state.get('ledger_open_'+key,False)
-            arrow.button('',icon=':material/expand_more:' if opened else ':material/chevron_right:',help='View associated trips',key='ledger_expand_'+key,on_click=st.session_state.update,args=({'ledger_open_'+key:not opened},))
+            identity,amount,print_col,update_col=st.columns([4,2.1,1.45,1.9],gap='small',vertical_alignment='center')
             identity.markdown(f'<div class="pp-identity"><div class="pp-avatar">{html.escape(name[:1].upper())}</div><div><div class="pp-name">{html.escape(name)}</div><div class="pp-meta">{len(matching)} trips · Last entry: {last:%d %b %Y}</div></div></div>',unsafe_allow_html=True)
             amount.markdown(f'<div class="pp-total"><span>Total Balance Amount</span><strong>{currency(total)}</strong></div>',unsafe_allow_html=True)
             matching_bills=[bill for bill in bills if transporter_key(bill['transporter_name']) in {transporter_key(name),*(transporter_key(i.get('search_name','')) for i in group)}]
@@ -210,9 +206,6 @@ def render_balance_cards(user,trips,upi_requests,store):
             with update_col,st.container(key='ledger_update_'+key):
                 if st.button('Update in Ledger',icon=':material/edit:',use_container_width=True,key='ledger_update_button_'+key):
                     update_in_ledger(name,[i['trip'] for i in group],queues,records,user,store,uuid.uuid4().hex)
-            if opened:
-                from .balance_workspace import trip_frame,styled_trips,number_columns
-                st.dataframe(styled_trips(trip_frame([i['trip'] for i in matching])),hide_index=True,width='stretch',column_config=number_columns())
     if pages>1:
         numbers=sorted({1,pages,*range(max(1,page-2),min(pages,page+2)+1)})
         with st.container(key='pending_pagination'):
