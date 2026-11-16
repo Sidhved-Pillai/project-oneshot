@@ -149,7 +149,8 @@ def render_balance_cards(user,trips,upi_requests,store):
     }
     .st-key-ledger_modes button{border-radius:24px!important;min-height:43px!important;border:1px solid #dce6f5!important;background:white!important;box-shadow:none!important}
     .st-key-ledger_modes button[kind="primary"]{background:linear-gradient(120deg,#e4faed,#d2f3e3)!important;color:#0b6930!important;border-color:#80d7a5!important}
-    [class*="st-key-ledger_card_"]{border:1px solid #dbe5f8!important;border-radius:17px!important;padding:9px 14px!important;margin-bottom:5px!important;background:linear-gradient(125deg,#fff,#f8faff)!important;box-shadow:0 3px 9px #174cc90a!important}
+    [class*="st-key-ledger_card_"]{border:1px solid #dbe5f8!important;border-radius:17px!important;padding:12px 14px!important;margin-bottom:5px!important;background:linear-gradient(125deg,#fff,#f8faff)!important;box-shadow:0 3px 9px #174cc90a!important}
+    [class*="st-key-ledger_card_"] [data-testid="stMarkdownContainer"]{margin-bottom:0!important}
     [class*="st-key-ledger_update_"] button{background:linear-gradient(110deg,#178b25,#006c19)!important;color:white!important;border:0!important;border-radius:11px!important;min-height:42px!important;box-shadow:0 3px 5px #006b1720!important;white-space:nowrap!important}
     [class*="st-key-ledger_print_"] button{background:#fff!important;border:1px solid #d4def0!important;color:#101b3c!important;border-radius:11px!important;min-height:42px!important;white-space:nowrap!important}
     .st-key-ledger_apply button{background:linear-gradient(110deg,#2289ff,#0055ff)!important;color:white!important;border:0!important;min-height:43px!important;border-radius:11px!important}
