@@ -81,7 +81,7 @@ def test_printable_and_excel_match_snapshot_and_keep_bank_account_text(tmp_path)
     assert words(10700)=='Ten Thousand Seven Hundred Rupees Only'
 
 
-def test_bill_history_remains_available_after_all_pending_trips_sent(tmp_path):
+def test_bill_history_dropdown_hidden_after_all_pending_trips_sent(tmp_path):
     from streamlit.testing.v1 import AppTest
     app=AppTest.from_string(f'''
 import streamlit as st
@@ -98,9 +98,8 @@ render_pending_payments('Sid',trips,balances,upi,store)
 ''').run()
     assert not app.exception
     assert any('No payments match' in info.value for info in app.info)
-    next(button for button in app.button if button.key=='pending_bill_history').click().run()
-    assert not app.exception
-    assert any(w.label=='Bill' for w in app.selectbox)
+    assert not any(button.key=='pending_bill_history' for button in app.button)
+    assert not any(e.label in ('Balance Payment Bills', 'Transporter credits carried forward') for e in app.expander)
 
 
 def test_upi_submissions_do_not_create_transporter_bills(tmp_path):

@@ -124,3 +124,14 @@ def test_used_credit_is_not_released_if_source_trip_is_no_longer_in_active_view(
     payments={'already-sent':{'amount':1500,'rtgs_data':{'_balance_reconciliation_id':'BALREC-test','_balance_credit_applied':1000}}}
     viewed,credits=balance_view([],payments,[rec])
     assert not viewed and credits[0]['amount']==1500
+
+
+def test_explicitly_approved_pending_profile_does_not_modify_source():
+    record=closing([], 100)
+    snapshot=json.loads(record['snapshot'])
+    snapshot['approved_payment_profile']={'BNF_NAME':'Approved', 'BENE_ACC_NO':'0001','BENE_IFSC':'TEST0000001'}
+    record['snapshot']=json.dumps(snapshot)
+    source={'request_number':'later','transporter_name':'Sai Transporter','trip_date':'2026-11-10','rtgs_data':{'BNF_NAME':'Old'}}
+    viewed,_=balance_view([source],{},[record])
+    assert viewed[0]['rtgs_data']==snapshot['approved_payment_profile']
+    assert source['rtgs_data']=={'BNF_NAME':'Old'}

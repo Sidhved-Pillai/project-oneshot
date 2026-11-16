@@ -257,19 +257,6 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
         st.error('Choose an end date on or after the start date.')
         return
     bills = store.list_balance_bills(user) if kind == 'balance' and hasattr(store, 'list_balance_bills') else []
-    if kind == 'balance' and bills:
-        # Keep issued statements available even after every trip was sent.
-        with st.expander('Balance Payment Bills', expanded=st.session_state.get('pending_bill_history_open', False)):
-            st.caption('Saved selections sent to RTGS. Open a bill to see the current paid/pending status, print it or download Excel.')
-            bill_options = {row['id']:f"BP-{row['id']:06d} · {row['transporter_name']} · {row['trip_count']} trips · {format_inr(row['amount'])}" for row in bills}
-            selected_bill = st.selectbox('Saved bill', list(bill_options), format_func=bill_options.get)
-            if st.button('Print Bill', key='pending_bill_history', icon=':material/print:'):
-                view_balance_bills([row for row in bills if row['id'] == selected_bill], store, user)
-    if kind == 'balance' and credits:
-        with st.expander('Transporter credits carried forward'):
-            st.dataframe(pd.DataFrame([{'Transporter':c['name'], 'Credit available':c['amount'],
-                                       'Confirmed as at':c['cutoff']} for c in credits]), hide_index=True)
-            st.caption('Credits offset later pending balances. They are not payments to send to RTGS.')
     filtered = []
     for group in groups:
         matching = [item for item in group
