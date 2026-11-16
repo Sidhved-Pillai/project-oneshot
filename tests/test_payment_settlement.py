@@ -141,14 +141,16 @@ trips,balances,upi,_=store.dashboard_snapshot()
 render_pending_payments('Sid',trips,balances,upi,store)
 ''').run()
     assert not app.exception
-    next(b for b in app.button if b.key=='bw_match').click().run()
+    next(b for b in app.button if (b.key or '').startswith('ledger_update_button_')).click().run()
     assert not app.exception
-    assert any(i.label=='Payment Amount (₹)' for i in app.number_input)
-    next(b for b in app.button if b.label=='Cancel').click().run()
+    component=app.get('component_instance')[0]
+    payload=json.loads(component.proto.json_args)
+    assert payload['name']=='Sai Transporter'
+    assert payload['rows'][0]['outstanding']==200000
+    assert payload['history']==[]
+    # Switching modes still uses the original UPI / Billtee rendering.
+    next(b for b in app.button if b.key=='ledger_kind_upi').click().run()
     assert not app.exception
-    next(b for b in app.button if b.key=='bw_history').click().run()
-    assert not app.exception
-    assert any(b.key=='bw_history_close' for b in app.button)
 
 
 def test_tracked_print_bill_uses_actual_settlement_not_download_flag(tmp_path):
@@ -190,3 +192,52 @@ def test_transporter_with_two_bank_profiles_gets_separate_print_bills(tmp_path):
     bills=store.list_balance_bills('Sid')
     assert len(bills)==2
     assert {store.get_balance_bill(b['id'],'Sid')['profile']['BENE_ACC_NO'] for b in bills}=={'001234','000222'}
+
+
+def test_ledger_correction_preserves_original_and_reopens_rtgs(tmp_path):
+    store,n=setup(tmp_path);source=store.get(n)
+    store.queue_settlement_rtgs('Sid',{n:2000},'queued')
+    qid=next(iter(store.list_balance_payments()))
+    store.mark_rtgs_done(['BALANCE:'+qid],edited_by='Sid')
+    store.save_matched_payment('Nikhat',2000,dt.date(2026,11,10),{n:2000},'original',queue_only={qid})
+    _,_,records=store.settlement_snapshot('Sid');original=next(r for r in records if r['id']=='original')
+    assert store.reverse_matched_payment('Shyam','original','correction','Wrong payment reference')
+    assert store.reverse_matched_payment('Shyam','original','correction','Retry') is False
+    with pytest.raises(ValueError,match='already been reversed'):
+        store.reverse_matched_payment('Sid','original','another','Retry with another ID')
+    row=current(store,n)
+    assert (row['_paid'],row['_outstanding'],row['_awaiting'],row['_sendable'])==(0,2000,2000,0)
+    assert not balance_rtgs_rows([store.get(n)],store.list_balance_payments())[0]['rtgs_done']
+    _,_,records=store.settlement_snapshot('Sid')
+    assert next(r for r in records if r['id']=='original')==original
+    assert next(r for r in records if r['id']=='correction')['amount']==-2000
+    assert store.get(n)==source
+    assert any(r['action']=='Corrected balance payment' for r in store.list_activity_logs())
+    store.save_matched_payment('Nikhat',2000,dt.date(2026,11,10),{n:2000},'correct-payment',queue_only={qid})
+    assert current(store,n)['_settlement_status']=='Cleared'
+
+
+def test_ledger_reversal_requires_access_and_reason(tmp_path):
+    store,n=setup(tmp_path)
+    store.save_matched_payment('Sid',500,dt.date(2026,11,10),{n:500},'payment')
+    with pytest.raises(ValueError):store.reverse_matched_payment('Vijay','payment','bad','Wrong reference')
+    with pytest.raises(ValueError):store.reverse_matched_payment('Sid','payment','bad',' ')
+    assert current(store,n)['_paid']==500
+
+
+def test_popup_actions_are_scoped_and_use_actual_payment_confirmation(tmp_path):
+    from src.balance_ledger_ui import ledger_action,history_payload
+    store,n=setup(tmp_path);other=trip(store,transporter_name='Other Carrier')
+    rows,queues,records=store.settlement_snapshot('Sid');rows=[r for r in rows if r['request_number']==n]
+    with pytest.raises(ValueError):ledger_action(store,'Sid',{'action':'save','payments':{other:50},'paymentDate':'2026-11-10'},rows,records,queues,'bad')
+    with pytest.raises(ValueError):ledger_action(store,'Sid',{'action':'send','numbers':[other]},rows,records,queues,'bad')
+    ledger_action(store,'Sid',{'action':'save','payments':{n:500},'paymentDate':'2026-11-10'},rows,records,queues,'payment')
+    rows,queues,records=store.settlement_snapshot('Sid');rows=[r for r in rows if r['request_number']==n]
+    ledger_action(store,'Sid',{'action':'send','numbers':[n]},rows,records,queues,'queued')
+    rows,queues,records=store.settlement_snapshot('Sid');rows=[r for r in rows if r['request_number']==n]
+    history,batches=history_payload(rows,queues,records)
+    assert history[0]['amount']==50000 and batches[0]['rows'][0]['amount']==150000
+    action={'action':'confirm','batchId':'queued','paymentDate':'2026-11-10'}
+    with pytest.raises(ValueError):ledger_action(store,'Sid',action,rows,records,queues,'confirmed')
+    ledger_action(store,'Sid',{**action,'actuallyPaid':True},rows,records,queues,'confirmed')
+    assert current(store,n)['_settlement_status']=='Cleared'

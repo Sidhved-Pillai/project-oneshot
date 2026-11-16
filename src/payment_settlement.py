@@ -148,6 +148,32 @@ class SettlementStore:
                 details=json.dumps({'payment_date':str(date),'amount':str(value),'allocations':saved,'reference':reference})))
         return True
 
+    def reverse_matched_payment(self,user,payment_id,token,reason):
+        """Correct a mistaken ledger payment with a reversible, audited entry."""
+        self._settlement_access(user)
+        from .request_store import activity_logs
+        if not str(reason or '').strip(): raise ValueError('Enter a reason for the correction.')
+        if not token or len(token)>40: raise ValueError('Invalid correction identifier.')
+        with self.engine.begin() as c:
+            original=c.execute(select(payment_records).where(payment_records.c.id==payment_id)).mappings().first()
+            if not original or money(original['amount'])<=0: raise ValueError('Select an original payment to reverse.')
+            allocations=obj(original['snapshot'])['allocations']
+            self._locked_settlement(c,sorted(a['record'] for a in allocations))
+            records=[dict(r) for r in c.execute(select(payment_records)).mappings()]
+            if any(r['id']==token for r in records): return False
+            if any(obj(r['snapshot']).get('reversal_of')==payment_id for r in records):
+                raise ValueError('This payment has already been reversed.')
+            reversed_allocations=[{**a,'amount':str(-money(a['amount'])),
+                'queues':{q:str(-money(value)) for q,value in a.get('queues',{}).items()}} for a in allocations]
+            snapshot={'reversal_of':payment_id,'reference':str(reason).strip(),'allocations':reversed_allocations}
+            c.execute(insert(payment_records).values(id=token,user_name=user,
+                payment_date=dt.datetime.now(ZoneInfo('Asia/Kolkata')).date(),amount=-money(original['amount']),
+                created_at=dt.datetime.now(ZoneInfo('Asia/Kolkata')).replace(tzinfo=None),snapshot=json.dumps(snapshot)))
+            c.execute(insert(activity_logs).values(user_name=user,action='Corrected balance payment',request_number=token,
+                details=json.dumps({'original_payment':payment_id,'reason':str(reason).strip(),
+                    'amount':str(-money(original['amount'])),'allocations':reversed_allocations})))
+        return True
+
     def queue_settlement_rtgs(self,user,selected,token):
         self._settlement_access(user)
         from .request_store import balance_payments,activity_logs,balance_bills
@@ -193,6 +219,7 @@ class SettlementStore:
 def annotate_queues(payments,records):
     """Report outstanding requests without changing their original batch amount."""
     _,confirmed=settlement_view([],list(payments.values()),records)
-    return {n:{**q,'_settled_amount':confirmed.get(n,Decimal(0)),
+    touched={q for r in records for a in obj(r['snapshot']).get('allocations',[]) for q in a.get('queues',{})}
+    return {n:{**q,'_has_settlement_activity':n in touched,'_settled_amount':confirmed.get(n,Decimal(0)),
                '_awaiting_amount':max(Decimal(0),money(q['amount'])-confirmed.get(n,Decimal(0)))}
             for n,q in payments.items()}

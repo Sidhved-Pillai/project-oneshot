@@ -125,7 +125,7 @@ def summary_cards(totals):
     wallet = '<path d="M3 6h17v14H3zM3 6V4l13-2v4M15 11h6v5h-6z"/><circle cx="17.5" cy="13.5" r=".7"/>'
     car = '<path d="M4 10l2-6h12l2 6M3 10h18v9H3zM5 19v2M19 19v2M6 14h2M16 14h2"/>'
     cards = [
-        ('green', truck, 'Pending Balance Payment Requests', str(totals['balance']['count']), 'Trips / confirmed balances not yet sent to RTGS'),
+        ('green', truck, 'Pending Balance Payment Requests', str(totals['balance']['count']), 'Trips not yet sent to RTGS'),
         ('green', wallet, 'Pending Balance Payment Amount To Clear', format_inr(totals['balance']['amount']), 'Total balance payment pending'),
         ('red', car, 'Pending UPI Requests', str(totals['upi']['count']), 'Trip reimbursements not yet sent to RTGS'),
         ('red', wallet, 'Pending UPI Amount To Clear', format_inr(totals['upi']['amount']), 'Total UPI amount pending'),
@@ -175,14 +175,7 @@ def view_balance_bills(bills, store, user):
     components.html(content, height=650, scrolling=True)
 
 
-@st.fragment
-def render_pending_payments(user, trips, balance_requests, upi_requests, store):
-    if user not in PENDING_PAYMENT_USERS:
-        return
-    if st.session_state.get('pending_kind_card', 'balance') == 'balance' and hasattr(store, 'settlement_snapshot'):
-        from .balance_workspace import render_balance_workspace
-        render_balance_workspace(user, store)
-        return
+def render_payment_styles():
     st.markdown('''<style>
     .st-key-pending_payments_surface{color:#101a32}
     .pp-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:0 0 26px}
@@ -224,6 +217,17 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
     [class*="st-key-pending_card_"] [data-testid="stForm"]{border:0;padding:0}
     [class*="st-key-pending_card_"] [data-testid="stDataFrame"]{box-shadow:none!important;border-radius:10px!important}
     </style><div class="pp-intro"><div class="pp-icon">₹</div><div><h2>Pending Payments</h2><p>Review and send pending Balance Payments, UPI or Billtee payments.</p></div></div>''', unsafe_allow_html=True)
+
+
+@st.fragment
+def render_pending_payments(user, trips, balance_requests, upi_requests, store):
+    if user not in PENDING_PAYMENT_USERS:
+        return
+    if st.session_state.get('pending_kind_card', 'balance') == 'balance' and hasattr(store, 'settlement_snapshot'):
+        from .balance_ledger_ui import render_balance_cards
+        render_balance_cards(user, trips, upi_requests, store)
+        return
+    render_payment_styles()
     from .balance_reconciliation import balance_view
     closing = store.list_balance_reconciliations() if hasattr(store, 'list_balance_reconciliations') else []
     balance_trips, credits = balance_view(trips, balance_requests, closing)

@@ -97,7 +97,8 @@ trips,balances,upi,_=store.dashboard_snapshot()
 render_pending_payments('Sid',trips,balances,upi,store)
 ''').run()
     assert not app.exception
-    assert any('Awaiting' in str(df.value) for df in app.dataframe) or any('Awaiting' in str(m.value) for m in app.markdown)
+    assert any(b.label=='Update in Ledger' for b in app.button)
+    assert any('₹1,000.00' in str(m.value) for m in app.markdown)
     assert not any(button.key=='pending_bill_history' for button in app.button)
     assert not any(e.label in ('Balance Payment Bills', 'Transporter credits carried forward') for e in app.expander)
 
