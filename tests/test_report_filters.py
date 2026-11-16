@@ -30,6 +30,7 @@ def test_dates_type_and_pnl_filters_apply_together():
     app.date_input(key='report_from_v2').set_value(dt.date(2026,10,1))
     app.date_input(key='report_to_v2').set_value(dt.date(2026,10,31))
     app.get('button_group')[0].set_value(['P&L'])
+    run(app)
     app.get('button_group')[1].set_value(['Vehicle No. Wise'])
     app.selectbox(key='pnl_vehicle_filter').select('MH02TEST')
     app.button(key='apply_report_filters').click();run(app)
@@ -62,3 +63,29 @@ def test_dashboard_jump_applies_requested_pnl_and_refresh_is_fragment_only():
     tree=ast.parse(Path('app.py').read_text())
     renderer=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='render_generate_reports')
     assert any(isinstance(d,ast.Attribute) and d.attr=='fragment' for d in renderer.decorator_list)
+
+
+def test_switching_formats_reuses_shared_dates_and_committed_pnl_choices():
+    app=filter_app()
+    app.date_input(key='report_from_v2').set_value(dt.date(2026,10,1))
+    app.date_input(key='report_to_v2').set_value(dt.date(2026,10,31))
+    app.button(key='apply_report_filters').click();run(app)
+    for kind in ['RTGS','P&L']:
+        app.get('button_group')[0].set_value([kind]);run(app)
+        assert not app.exception
+        filters=app.session_state['report_applied_filters']
+        assert (filters['kind'],filters['start'],filters['end'])==(kind,dt.date(2026,10,1),dt.date(2026,10,31))
+    assert app.session_state['loads']==1
+    assert filters['ownership']=='Both' and filters['vehicle']=='All'
+    app.get('button_group')[1].set_value(['Own'])
+    app.selectbox(key='pnl_vehicle_filter').select('MH01TEST')
+    app.date_input(key='report_to_v2').set_value(dt.date(2026,11,17))
+    app.button(key='apply_report_filters').click();run(app)
+    for kind in ['DTR','RTGS','P&L']:
+        app.get('button_group')[0].set_value([kind]);run(app)
+        assert not app.exception
+        filters=app.session_state['report_applied_filters']
+        assert filters['end']==dt.date(2026,11,17)
+        assert filters['ownership']==('Own' if kind=='P&L' else 'Both')
+        assert filters['vehicle']==('MH01TEST' if kind=='P&L' else 'All')
+    assert app.session_state['loads']==2

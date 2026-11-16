@@ -10,7 +10,7 @@ def report_source(db_path):
     tree=ast.parse(Path('app.py').read_text())
     modules={'src.expense_linking','src.invoice_display','src.number_format','src.expense_periods',
         'src.trip_dtr_report_v3','src.rtgs_report_v3','src.text_normalization_v2','src.transporter_profiles',
-        'src.vehicle_normalization','src.vehicle_placer','src.current_pnl_report_v6','src.report_filters',
+        'src.vehicle_normalization','src.vehicle_placer','src.current_pnl_report_v6','src.report_filters_v2',
         'src.billtee_payments','src.upi_payments','src.balance_reconciliation','src.balance_payments',
         'src.report_scroll','src.dtr_dates','src.ashok_dates','src.vijay_finance'}
     helpers={'scope_report_rows','clean_text','number','as_date','unpack','ownership_matches','request_label',
@@ -99,3 +99,22 @@ def test_rtgs_download_requests_a_fresh_fragment_snapshot():
     exec(compile(ast.Module(body=[callback],type_ignores=[]),'callback','exec'),namespace)
     namespace['complete_rtgs_download'](['REQ-1'],dt.date(2026,11,1),dt.date(2026,11,17))
     assert calls==[(['REQ-1'],'Nikhat')] and state['_report_refresh_source'] is True
+
+
+def test_report_switches_render_immediately_without_reapplying_dates(tmp_path):
+    app=AppTest.from_string(report_source(tmp_path/'switch.db')).run()
+    app.date_input(key='report_from_v2').set_value(dt.date(2026,11,10))
+    app.date_input(key='report_to_v2').set_value(dt.date(2026,11,10))
+    apply(app,'DTR')
+    for kind,column in [('RTGS','Amount'),('P&L','Profit'),('DTR','Invoice No.')]:
+        app.get('button_group')[0].set_value([kind]);run(app)
+        assert not app.exception
+        assert column in app.dataframe[0].value.columns
+        assert app.session_state['report_applied_filters']['start']==dt.date(2026,11,10)
+        assert app.session_state['report_applied_filters']['end']==dt.date(2026,11,10)
+    app.date_input(key='report_from_v2').set_value(dt.date(2026,11,11))
+    app.date_input(key='report_to_v2').set_value(dt.date(2026,11,12))
+    apply(app,'DTR')
+    app.get('button_group')[0].set_value(['RTGS']);run(app)
+    assert not app.exception
+    assert app.dataframe[0].value.empty

@@ -59,7 +59,7 @@ from src.diesel_inputs import update_diesel
 from src.expense_date import seed_expense_date, remember_expense_date
 from src.expense_review import apply_evidence_date, mark_expense_date_manual
 from src.pending_payments_v18 import render_pending_payments
-from src.report_filters import render_report_filters
+from src.report_filters_v2 import render_report_filters
 from src.billtee_payments import billtee_rtgs_rows
 from src.invoice_viewer import invoice_viewer_html
 from src.expense_duplicates import expense_duplicate_signature
@@ -2448,12 +2448,15 @@ def render_generate_reports():
         st.warning("Generate Reports is not available for your account.")
         return
     page_intro("Report studio", "Generate reports", "Choose a period and create a ready-to-use DTR, RTGS, or P&L workbook.", "↗")
-    workflow_steps(["Choose dates", "Select format", "Download"], 0)
+    workflow_steps(["Select format", "Choose dates", "Download"], 0)
     report_options = ["DTR"] if current_user == "Ashok" else ["DTR", "RTGS", *(["P&L"] if can_generate_pnl else [])]
     source_rows, balance_requests, upi_requests = st.session_state['_report_source']
     downloaded = st.session_state.pop('_report_refresh_source', False)
-    if st.session_state.get('apply_report_filters') or st.session_state.get('report_apply_requested') or downloaded:
-        # One fresh read per Apply; checkbox/editor changes reuse this snapshot.
+    switching_to_rtgs = (st.session_state.get('report_type') == 'RTGS'
+        and st.session_state.get('_report_active_type') != 'RTGS'
+        and st.session_state.get('report_applied_filters', {}).get('user') == current_user)
+    if st.session_state.get('apply_report_filters') or st.session_state.get('report_apply_requested') or downloaded or switching_to_rtgs:
+        # Refresh on Apply and when opening RTGS; ordinary editor changes reuse it.
         fresh_rows, balance_requests, upi_requests, _ = store.dashboard_snapshot(
             include_payments=downloaded or st.session_state.get('report_type') == 'RTGS', include_logs=False)
         source_rows = project_vijay_records(fresh_rows)
@@ -2465,6 +2468,7 @@ def render_generate_reports():
     if filters is None:
         return
     start, end, report_type = filters['start'], filters['end'], filters['kind']
+    st.session_state['_report_active_type'] = report_type
     pnl_ownership_filter, pnl_vehicle_filter = filters['ownership'], filters['vehicle']
     balance_report_rows = scope_report_rows(current_user, source_rows) if can_generate_reports else []
     report_rows = balance_report_rows if start <= end else []
@@ -2572,6 +2576,7 @@ def render_generate_reports():
         rtgs_candidates = balance_candidates + ([] if show_only_balance_payable else billtee_candidates + upi_candidates + list(reversed([
             item for item in trips if number(item.get("rtgs_advance")) > 0
         ])))
+        rtgs_candidates = [row for row in rtgs_candidates if start <= as_date(row.get('trip_date')) <= end]
         select_all_rtgs = st.checkbox("Select all", key="rtgs_select_all")
         selection_frame = pd.DataFrame([
             {
