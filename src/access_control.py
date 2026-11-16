@@ -1,5 +1,5 @@
 PRIVATE_RECORD_USERS = {"Manish", "Vijay"}
-FULL_DELETE_USERS = {"Sid", "Ajit"}
+FULL_DELETE_USERS = {"Sid", "Ajit", "Shyam"}
 SELF_DELETE_USERS = {"Ashok", "Manish", "Nikhat", "Nitish", "Vijay"}
 HIDDEN_LEADERBOARD_USERS = {"Ashok"}
 OWN_REPORT_USERS = {"Ashok"}
@@ -20,7 +20,7 @@ def scope_report_rows(user_name, records):
 
 
 def can_delete_record(user_name, record):
-    """Sid may delete any visible record; approved users may delete only their own."""
+    """Full-access users may delete any record; other approved users only their own."""
     if user_name in FULL_DELETE_USERS:
         return True
     return user_name in SELF_DELETE_USERS and str(record.get("created_by") or "").strip() == user_name

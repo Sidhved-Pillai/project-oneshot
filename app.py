@@ -20,7 +20,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
-from src.access_control import PRIVATE_RECORD_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record, can_view_trip_leaderboard
+from src.access_control import PRIVATE_RECORD_USERS, FULL_DELETE_USERS, SELF_DELETE_USERS, can_delete_record, can_view_record, can_view_trip_leaderboard
 from src.ai_intake_v6 import extract_intake, merge_same_trip_intake_rows, should_autofill_field
 from src.case_jar import case_jar_totals
 from src.invoice_recovery_v4 import PRIORITY_FIELDS, scan_context, recover_entry_fields
@@ -2326,7 +2326,7 @@ with records_tab:
         page_start = (record_page - 1) * records_per_page
         visible_rows = rows[page_start:page_start + records_per_page]
         with st.container(height=420, border=True):
-            has_delete_column = current_user in {"Sid", "Ajit"} or current_user in SELF_DELETE_USERS
+            has_delete_column = current_user in FULL_DELETE_USERS or current_user in SELF_DELETE_USERS
             action_names = ['edit']
             if current_user == 'Shyam':
                 action_names.append('received')

@@ -125,7 +125,10 @@ def test_record_delete_permissions_are_owner_scoped_for_manish():
     ajit_record = {"created_by": "Ajit"}
     assert can_delete_record("Sid", manish_record)
     assert can_delete_record("Sid", ajit_record)
-    assert FULL_DELETE_USERS == {"Sid", "Ajit"}
+    assert FULL_DELETE_USERS == {"Sid", "Ajit", "Shyam"}
+    for owner in ("Shyam", "Nikhat", "Vijay", "Ajit", "Ashok", "Manish", "Nitish"):
+        for scope in ("Expense", "Both"):
+            assert can_delete_record("Shyam", {"created_by": owner, "report_scope": scope})
     assert can_delete_record("Ajit", manish_record)
     assert can_delete_record("Ajit", {"created_by": "Nikhat"})
     assert can_delete_record("Manish", manish_record)
