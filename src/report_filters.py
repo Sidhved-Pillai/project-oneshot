@@ -45,14 +45,19 @@ def render_report_filters(user, report_options, vehicles, today=None, rows=()):
     if applied:applied['details']={k:v for k,v in applied.get('details',{}).items() if k!='capacity'}
     with st.container(key='report_filters'),st.form('report_filter_form',border=False):
         if kind=='P&L':
-            c1,c2=st.columns(2)
-            start=c1.date_input('Records from',value=None,format='DD/MM/YYYY',key='report_from_v2',min_value=OPERATIONS_START)
-            end=c2.date_input('Records to',value=None,format='DD/MM/YYYY',key='report_to_v2',min_value=OPERATIONS_START)
+            dates_col, ownership_col, vehicle_col, apply_col=st.columns([1.8,2.2,1.6,1],vertical_alignment='bottom')
+            with dates_col:
+                c1,c2=st.columns(2,gap='small')
+                start=c1.date_input('Records from',value=None,format='DD/MM/YYYY',key='report_from_v2',min_value=OPERATIONS_START)
+                end=c2.date_input('Records to',value=None,format='DD/MM/YYYY',key='report_to_v2',min_value=OPERATIONS_START)
             st.session_state.setdefault('pnl_ownership_filter',pnl['ownership'])
             if st.session_state.get('pnl_vehicle_filter') not in vehicle_options:st.session_state['pnl_vehicle_filter']=pnl['vehicle']
-            ownership=st.segmented_control('Own or outside vehicle',['Both','Own','Outside','Vehicle No. Wise'],default='Both',key='pnl_ownership_filter') or 'Both'
-            vehicle=st.selectbox('Vehicle no.',vehicle_options,key='pnl_vehicle_filter')
-            submitted=st.form_submit_button('Apply Filter',type='primary',key='apply_report_filters')
+            with ownership_col:
+                ownership=st.segmented_control('Vehicle Type',['Both','Own','Outside','Vehicle No. Wise'],default='Both',key='pnl_ownership_filter') or 'Both'
+            with vehicle_col:
+                vehicle=st.selectbox('Vehicle No.',vehicle_options,key='pnl_vehicle_filter')
+            with apply_col:
+                submitted=st.form_submit_button('Apply Filter',type='primary',key='apply_report_filters',icon=':material/filter_alt:',use_container_width=True)
         else:
             specs=[('branch','Branch',_options(rows,'branch'))]
             if kind=='DTR':

@@ -103,7 +103,7 @@ def test_all_report_formats_keep_working_and_apply_refreshes_saved_entries(tmp_p
     run(app)
     assert not app.exception and app.session_state['snapshot_reads']==reads
     apply(app,'P&L')
-    assert 'Profit' in app.dataframe[0].value.columns
+    assert any('<th>Profit</th>' in item.value for item in app.markdown)
 
 
 def test_rtgs_download_requests_a_fresh_fragment_snapshot():
@@ -125,8 +125,11 @@ def test_report_switches_render_immediately_without_reapplying_dates(tmp_path):
     for kind,column in [('RTGS','Amount'),('P&L','Profit'),('DTR','Invoice No.')]:
         app.get('button_group')[0].set_value([kind]);run(app)
         assert not app.exception
-        frame=app.session_state['_rtgs_badge_table']['frame'] if kind=='RTGS' else app.dataframe[0].value
-        assert column in frame.columns
+        if kind == 'P&L':
+            assert any('<th>Profit</th>' in item.value for item in app.markdown)
+        else:
+            frame=app.session_state['_rtgs_badge_table']['frame'] if kind=='RTGS' else app.dataframe[0].value
+            assert column in frame.columns
         assert app.session_state['report_applied_filters']['start']==dt.date(2026,11,10)
         assert app.session_state['report_applied_filters']['end']==dt.date(2026,11,10)
     app.date_input[0].set_value((dt.date(2026,11,11),dt.date(2026,11,12)))

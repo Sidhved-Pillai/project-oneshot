@@ -13,14 +13,14 @@ def icon(name):
     return f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{ICONS[name]}</svg>'
 
 
-def report_heading():
-    st.markdown(f'<div class="report-heading"><span>{icon("bars")}</span><div><h2>Generate Reports</h2><p>Create DTR, RTGS, or P&amp;L reports based on your entries.</p></div></div>',unsafe_allow_html=True)
+def report_heading(kind="DTR", ownership="Both"):
+    from html import escape
+    title = f"P&L Report ({ownership})" if kind == 'P&L' else 'Generate Reports'
+    subtitle = "Review revenue, expenses and profit / loss for the selected period." if kind == 'P&L' else 'Create DTR, RTGS, or P&L reports based on your entries.'
+    st.markdown(f'<div class="report-heading"><span>{icon("bars")}</span><div><h2>{escape(title)}</h2><p>{escape(subtitle)}</p></div></div>',unsafe_allow_html=True)
 
 
 def report_styles(kind):
-    if kind=='P&L':
-        st.markdown('<style>.st-key-report_type [role="group"]{gap:14px!important}</style>',unsafe_allow_html=True)
-        return
     st.markdown('''<style>
     .st-key-report_studio {width:calc(100% + 7vw)!important;max-width:calc(100vw - 40px)!important;margin-left:-3.5vw!important;color:#080f42;gap:14px!important}
     .st-key-report_studio [data-testid="stVerticalBlock"] {gap:12px}
@@ -54,6 +54,18 @@ def report_styles(kind):
     .st-key-report_studio .st-key-report_download button {border-radius:14px!important;background:linear-gradient(110deg,#18c52c,#008b0a)!important;color:white!important;border:1px solid #12a324!important;box-shadow:0 2px 5px #00880020;padding:9px 16px!important;min-height:42px!important}
     .st-key-report_studio .st-key-report_download_rtgs button {background:linear-gradient(110deg,#18c52c,#008b0a)!important;border:1px solid #12a324!important;color:white!important;border-radius:14px!important;padding:9px 18px!important;min-height:42px!important}
     .st-key-report_studio .st-key-report_download button p,.st-key-report_studio .st-key-report_download_rtgs button p {font-size:15px!important;font-weight:700!important;white-space:nowrap}
+    .pnl-report-table {overflow:auto;max-height:480px;border:1px solid #dce5ff;border-radius:15px;background:white;scrollbar-color:#2875ff #e6edff;scrollbar-width:auto}
+    .pnl-report-table table {border-collapse:separate;border-spacing:0;min-width:100%;font-size:13px;color:#101740;white-space:nowrap}
+    .pnl-report-table th {position:sticky;top:0;background:#e9edfc;font-size:12px;font-weight:750;z-index:1}
+    .pnl-report-table th,.pnl-report-table td {padding:13px 14px;text-align:left;border-bottom:1px solid #edf0f9;border-right:1px solid #f1f3fb}
+    .pnl-report-table tr:nth-child(even) {background:#f7f9ff}
+    .pnl-report-table td:first-child {font-weight:700}
+    .pnl-report-table tr.pnl-total {background:linear-gradient(100deg,#e4edff,#d4e4ff);color:#001ac7;font-weight:800}
+    .pnl-report-table tr.pnl-total td {border-bottom:0;font-weight:800}
+    .st-key-report_results [data-testid="stDownloadButton"] button {border-radius:18px;background:linear-gradient(110deg,#168eff,#0055ff);color:white;border:1px solid #86b1ff;box-shadow:0 3px 7px #0055ff25}
+    .st-key-report_studio .st-key-pnl_ownership_filter [role="group"] {gap:4px!important;flex-wrap:wrap}
+    .st-key-report_studio .st-key-report_filters .st-key-pnl_ownership_filter button {border-radius:11px!important;border:1px solid #dce5ff!important;background:#fff!important;color:#101740!important;padding:7px 10px!important;min-height:40px!important}
+    .st-key-report_studio .st-key-report_filters .st-key-pnl_ownership_filter button[kind="segmented_controlActive"] {background:linear-gradient(110deg,#329cff,#0065ff)!important;color:white!important}
     .st-key-report_tools {padding:0 0 2px}
     .st-key-report_tools label p {font-size:13px!important}
     .st-key-report_studio .st-key-report_actions button {min-height:35px!important;padding:5px 14px!important;font-size:13px!important;border-radius:10px!important}
@@ -87,3 +99,34 @@ def rtgs_summary(rows):
     st.markdown('<div class="report-summary">'+''.join(
         f'<div><span class="summary-icon">{icon(symbol)}</span><div>{label}<strong>{value}</strong></div></div>' for symbol,label,value in [
             ('layers','Total Records',len(rows)),('send','RTGS Done',done),('clock','Pending',len(rows)-done),('wallet','Total Amount',format_inr(total))])+ '</div>',unsafe_allow_html=True)
+
+
+def rtgs_search_options(rows):
+    """Suggestions are drawn from report data; typed queries remain supported."""
+    from .invoice_display import dtr_invoice_text
+    values=set()
+    for row in rows:
+        for field in ('transporter_name','vehicle_number','beneficiary_name'):
+            value=str(row.get(field) or '').strip()
+            if value:values.add(value)
+        invoices=dtr_invoice_text(row.get('invoice_number'))
+        values.update(v.strip() for v in invoices.split(',') if v.strip())
+    return sorted(values,key=str.casefold)
+
+
+def pnl_table_html(frame):
+    """Render the existing P&L columns/values without modifying export data."""
+    from html import escape
+    from numbers import Number
+    columns=list(frame.columns)
+    header=''.join(f'<th>{escape(str(c))}</th>' for c in columns)
+    rows=[]
+    for values in frame.itertuples(index=False,name=None):
+        total=any(str(v).strip().casefold()=='total' for v in values if not isinstance(v,Number))
+        cells=''.join(f'<td>{escape(format_inr(v) if isinstance(v,Number) else str(v or ""))}</td>' for v in values)
+        rows.append(f'<tr class="{"pnl-total" if total else ""}">{cells}</tr>')
+    return '<div class="pnl-report-table" tabindex="0" role="region" aria-label="P&L report"><table><thead><tr>'+header+'</tr></thead><tbody>'+''.join(rows)+'</tbody></table></div>'
+
+
+def pnl_table(frame):
+    st.markdown(pnl_table_html(frame),unsafe_allow_html=True)

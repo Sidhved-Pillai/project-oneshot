@@ -64,7 +64,7 @@ from src.report_status import persist_status_edits
 from src.rtgs_preview import preview_rtgs_report
 from src.report_filters import filter_report_rows
 from src.report_grid import report_editor
-from src.report_design import report_styles, report_heading, rtgs_summary
+from src.report_design import report_styles, report_heading, rtgs_summary, pnl_table, rtgs_search_options
 from src.billtee_payments import billtee_rtgs_rows
 from src.invoice_viewer import invoice_viewer_html
 from src.expense_duplicates import expense_duplicate_signature
@@ -2453,15 +2453,10 @@ def render_generate_reports():
     if not can_generate_reports:
         st.warning("Generate Reports is not available for your account.")
         return
-    with st.container(key='report_studio') if st.session_state.get('report_type') != 'P&L' else nullcontext():
+    with st.container(key='report_studio'):
         visual_kind = st.session_state.get('report_type') or 'DTR'
         report_styles(visual_kind)
-        if visual_kind == 'P&L':
-            page_intro("", "Generate Reports", "Create DTR, RTGS, or P&L reports based on your entries.", "▥")
-        else:
-            report_heading()
-        if visual_kind == 'P&L':
-            workflow_steps(["Select format", "Choose dates", "Download"], 0)
+        report_heading(visual_kind, st.session_state.get('report_applied_pnl', {}).get('ownership', 'Both'))
         report_options = ["DTR"] if current_user == "Ashok" else ["DTR", "RTGS", *(["P&L"] if can_generate_pnl else [])]
         source_rows, balance_requests, upi_requests = st.session_state['_report_source']
         downloaded = st.session_state.pop('_report_refresh_source', False)
@@ -2518,7 +2513,7 @@ def render_generate_reports():
             expenses = expense_data
         if report_type == 'P&L':
             st.caption(f"{len(trips)} trip record(s) and {len(expenses)} direct expense record(s) selected.")
-        with st.container(key='report_results') if report_type != 'P&L' else nullcontext():
+        with st.container(key='report_results'):
             if report_type == "DTR":
                 ordered_trips = list(reversed(filter_report_rows(trips, filters)))
                 frame = cached_report_dtr_frame(ordered_trips, KNOWN_COMPANIES, KNOWN_LOCATIONS)
@@ -2579,8 +2574,6 @@ def render_generate_reports():
                 with title_col:
                     st.subheader("RTGS Report")
                     count_slot = st.empty()
-                with search_col:
-                    search = st.text_input("Search RTGS",placeholder="Search by Transporter, Vehicle No., Invoice No., Beneficiary…",label_visibility="collapsed",key="report_rtgs_search_v4",icon=":material/search:")
                 with st.container(key='report_tools'):
                     balance_tool, _ = st.columns([3,4],vertical_alignment='center')
                 show_only_balance_payable = balance_tool.toggle(
@@ -2606,6 +2599,10 @@ def render_generate_reports():
                 rtgs_candidates = filter_report_rows([row for row in rtgs_candidates if start <= as_date(row.get('trip_date')) <= end], filters)
                 rtgs_candidates.sort(key=lambda row: not bool(row.get('rtgs_done')))
                 count_slot.caption(f"{len(rtgs_candidates)} record(s) found")
+                with search_col:
+                    search = st.selectbox("Search RTGS", rtgs_search_options(rtgs_candidates), index=None,
+                        accept_new_options=True, placeholder="Search transporter, vehicle, invoice or beneficiary…",
+                        label_visibility="collapsed", key="report_rtgs_search_suggestions") or ""
                 selection_frame = pd.DataFrame([
                     {
                         "Sr. No.": index + 1,
@@ -2689,11 +2686,9 @@ def render_generate_reports():
                 else:
                     pnl_rows = pnl_reporting.branch_vehicle_pnl_summary(trips, expense_data, pnl_ownership_filter)
                 frame = pd.DataFrame(pnl_rows)
-                pnl_display = frame.copy()
-                for column in pnl_display.select_dtypes(include="number").columns:
-                    pnl_display[column] = pnl_display[column].map(format_inr)
-                st.dataframe(pnl_display, hide_index=True, width="stretch")
-                st.download_button("Download P&L report", cached_pnl_excel(trips, expense_data, start, end, pnl_ownership_filter), f"PNL-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=not can_generate_pnl, on_click=audit_action, args=("Downloaded P&L report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
+                st.subheader(f"P&L Report ({pnl_ownership_filter})")
+                pnl_table(frame)
+                st.download_button("Download P&L Report", cached_pnl_excel(trips, expense_data, start, end, pnl_ownership_filter), f"PNL-{start}-{end}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", disabled=not can_generate_pnl, on_click=audit_action, args=("Downloaded P&L report", "", f"{start:%d/%m/%Y} to {end:%d/%m/%Y}"))
 with reports_tab:
     # This runs on full app refreshes; fragment-only report actions reuse the
     # current snapshot and do not rebuild New Entry, Records or the dashboard.
