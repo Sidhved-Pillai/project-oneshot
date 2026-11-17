@@ -43,9 +43,9 @@ def rtgs_editor(frame, key, search, disabled, column_order):
     full = state['frame'].copy(deep=True) if state.get('revision') == key else frame.copy(deep=True)
     previous = state.get('frame')
     if (previous is not None and state.get('revision') != key
-            and 'Record' in frame and previous['Record'].tolist() == frame['Record'].tolist()
+            and 'Record' in frame and set(previous['Record']) == set(frame['Record'])
             and str(state.get('revision')).endswith('True') == str(key).endswith('True')):
-        full['Select'] = previous['Select'].to_numpy()
+        full['Select'] = frame['Record'].map(dict(zip(previous['Record'], previous['Select']))).to_numpy()
     # JSON conversion preserves bank account strings and excludes NaN values.
     import json
     rows = json.loads(full.to_json(orient='records'))

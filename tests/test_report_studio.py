@@ -27,6 +27,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from src import current_pnl_report_v6 as pnl_reporting
 from src.request_store import RequestStore
+from src.rtgs_preview import preview_rtgs_report
 from tests.test_pending_payments import trip
 from src.operational_dates import OPERATIONS_START
 current_user='Sid'

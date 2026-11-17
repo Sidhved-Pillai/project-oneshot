@@ -61,6 +61,7 @@ from src.expense_review import apply_evidence_date, mark_expense_date_manual
 from src.pending_payments_v18 import render_pending_payments
 from src.report_filters_v5 import render_report_filters
 from src.report_status import persist_status_edits
+from src.rtgs_preview import preview_rtgs_report
 from src.report_filters import filter_report_rows
 from src.report_grid import report_editor
 from src.report_design import report_styles, report_heading, rtgs_summary
@@ -2602,6 +2603,7 @@ def render_generate_reports():
                     item for item in trips if number(item.get("rtgs_advance")) > 0
                 ])))
                 rtgs_candidates = filter_report_rows([row for row in rtgs_candidates if start <= as_date(row.get('trip_date')) <= end], filters)
+                rtgs_candidates.sort(key=lambda row: not bool(row.get('rtgs_done')))
                 count_slot.caption(f"{len(rtgs_candidates)} record(s) found")
                 select_all_rtgs = select_tool.checkbox("Select all", key="rtgs_select_all")
                 selection_frame = pd.DataFrame([
@@ -2688,63 +2690,58 @@ def render_generate_reports():
                         selection_frame.iloc[index]["_request_number"]
                         for index, selected in enumerate(edited_selection["Select"].tolist()) if selected
                     ]
-                    if current_user == "Nikhat":
-                        if st.session_state.pop("nikhat_rtgs_saved_notice", None):
-                            st.success("RTGS corrections were saved to Records.", icon="✅")
-                        if st.button(
-                            "Save RTGS changes to Records", type="primary",
-                            disabled=not changed_rtgs_rows, key="save_nikhat_rtgs_changes",
-                        ):
-                            for saved_row, effective_row in changed_rtgs_rows:
-                                if saved_row.get('_billtee_payment'):
-                                    store.update_billtee_payment(saved_row['request_number'], effective_row['rtgs_data'], current_user)
-                                    continue
-                                if saved_row.get("_upi_payment"):
-                                    store.update_upi_payment(saved_row["request_number"], effective_row["rtgs_data"], current_user)
-                                    continue
-                                if saved_row.get("_balance_payment"):
-                                    store.update_balance_payment(saved_row["request_number"], effective_row["rtgs_data"], current_user)
-                                    continue
-                                old_rtgs = number(saved_row.get("rtgs_advance"))
-                                new_rtgs = number(effective_row.get("rtgs_advance"))
-                                new_total = number(saved_row.get("total_advance")) - old_rtgs + new_rtgs
-                                new_balance = number(saved_row.get("balance_amount")) - (new_rtgs - old_rtgs)
-                                updated_dtr = unpack(saved_row.get("dtr_data"))
-                                updated_dtr.update({
-                                    "Benificiary Name": effective_row["beneficiary_name"],
-                                    "RTGS ADVANCE": new_rtgs,
-                                    "Total Adv.": new_total,
-                                    "Balance Amt.": new_balance,
-                                    "Remark": effective_row["notes"],
-                                })
-                                store.update(
-                                    saved_row["request_number"],
-                                    {
-                                        "beneficiary_name": effective_row["beneficiary_name"],
-                                        "rtgs_advance": new_rtgs,
-                                        "total_advance": new_total, "amount": new_total,
-                                        "balance_amount": new_balance,
-                                        "payment_mode": ", ".join(
-                                            name for name, value in (
-                                                ("RTGS", new_rtgs),
-                                                ("Cash", saved_row.get("cash_advance")),
-                                                ("UPI", saved_row.get("upi")),
-                                                ("Diesel", saved_row.get("diesel_advance")),
-                                            ) if number(value)
-                                        ),
-                                        "notes": effective_row["notes"],
-                                        "dtr_data": updated_dtr,
-                                        "rtgs_data": effective_row["rtgs_data"],
-                                    },
-                                    "rtgs_report_editor", current_user,
-                                )
-                                store.log_action(
-                                    current_user, "Updated RTGS record",
-                                    saved_row["request_number"], request_label(saved_row),
-                                )
-                            st.session_state.pop(rtgs_editor_key, None)
-                            st.session_state["nikhat_rtgs_saved_notice"] = len(changed_rtgs_rows)
-                            st.rerun()
+                    if current_user == "Nikhat" and changed_rtgs_rows:
+                        for saved_row, effective_row in changed_rtgs_rows:
+                            if saved_row.get('_billtee_payment'):
+                                store.update_billtee_payment(saved_row['request_number'], effective_row['rtgs_data'], current_user)
+                                continue
+                            if saved_row.get("_upi_payment"):
+                                store.update_upi_payment(saved_row["request_number"], effective_row["rtgs_data"], current_user)
+                                continue
+                            if saved_row.get("_balance_payment"):
+                                store.update_balance_payment(saved_row["request_number"], effective_row["rtgs_data"], current_user)
+                                continue
+                            old_rtgs = number(saved_row.get("rtgs_advance"))
+                            new_rtgs = number(effective_row.get("rtgs_advance"))
+                            new_total = number(saved_row.get("total_advance")) - old_rtgs + new_rtgs
+                            new_balance = number(saved_row.get("balance_amount")) - (new_rtgs - old_rtgs)
+                            updated_dtr = unpack(saved_row.get("dtr_data"))
+                            updated_dtr.update({
+                                "Benificiary Name": effective_row["beneficiary_name"],
+                                "RTGS ADVANCE": new_rtgs,
+                                "Total Adv.": new_total,
+                                "Balance Amt.": new_balance,
+                                "Remark": effective_row["notes"],
+                            })
+                            store.update(
+                                saved_row["request_number"],
+                                {
+                                    "beneficiary_name": effective_row["beneficiary_name"],
+                                    "rtgs_advance": new_rtgs,
+                                    "total_advance": new_total, "amount": new_total,
+                                    "balance_amount": new_balance,
+                                    "payment_mode": ", ".join(
+                                        name for name, value in (
+                                            ("RTGS", new_rtgs),
+                                            ("Cash", saved_row.get("cash_advance")),
+                                            ("UPI", saved_row.get("upi")),
+                                            ("Diesel", saved_row.get("diesel_advance")),
+                                        ) if number(value)
+                                    ),
+                                    "notes": effective_row["notes"],
+                                    "dtr_data": updated_dtr,
+                                    "rtgs_data": effective_row["rtgs_data"],
+                                },
+                                "rtgs_report_editor", current_user,
+                            )
+                            store.log_action(
+                                current_user, "Updated RTGS record",
+                                saved_row["request_number"], request_label(saved_row),
+                            )
+                        st.session_state.pop(rtgs_editor_key, None)
+                        st.session_state["_report_refresh_source"] = True
+                        st.toast("Saved RTGS corrections to Records.")
+                        st.rerun()
                 selected_rtgs_rows = [
                     row for row in effective_rtgs_rows if row.get("request_number") in selected_request_numbers
                 ]
@@ -2759,13 +2756,13 @@ def render_generate_reports():
                 records = normalize_rtgs_records(records, dt.date.today())
                 frame = pd.DataFrame(records, columns=[*RTGS_REVIEW_COLUMNS, "_payment_kind", "_payment_id"])
                 with download_col, st.container(key="report_download_rtgs"):
-                    st.download_button(
-                        "Create RTGS Report", cached_rtgs_excel(frame, dt.date.today()),
-                        f"RTGS-{start}-{end}.xls", "application/vnd.ms-excel", type="primary",
-                        icon=":material/file_download:", disabled=frame.empty or not can_generate_reports,
-                        on_click=complete_rtgs_download,
-                        args=(selected_request_numbers, start, end),
-                    )
+                    report_file = cached_rtgs_excel(frame, dt.date.today())
+                    if st.button("Create RTGS Report", type="primary", icon=":material/file_download:",
+                                 disabled=frame.empty or not can_generate_reports, key="create_rtgs_preview"):
+                        preview_frame = edited_selection.loc[edited_selection['Select']].copy(deep=True)
+                        preview_rtgs_report(preview_frame, report_file, selected_request_numbers, start, end,
+                                            complete_rtgs_download)
+
             else:
                 if pnl_ownership_filter == "Both":
                     pnl_rows = pnl_reporting.branch_pnl_summary(trips, expense_data)

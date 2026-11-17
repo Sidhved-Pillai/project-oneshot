@@ -18,7 +18,9 @@ def report_heading():
 
 
 def report_styles(kind):
-    if kind=='P&L':return
+    if kind=='P&L':
+        st.markdown('<style>.st-key-report_type [role="group"]{gap:14px!important}</style>',unsafe_allow_html=True)
+        return
     st.markdown('''<style>
     .st-key-report_studio {width:calc(100% + 7vw)!important;max-width:calc(100vw - 40px)!important;margin-left:-3.5vw!important;color:#080f42;gap:14px!important}
     .st-key-report_studio [data-testid="stVerticalBlock"] {gap:12px}
@@ -28,9 +30,9 @@ def report_styles(kind):
     .report-heading h2 {font-size:30px!important;font-weight:800!important;margin:0!important;padding:0!important;color:#080f42!important;line-height:1.25!important}
     .report-heading p {font-size:16px;color:#263978;margin:4px 0 0}
     .st-key-report_studio .st-key-report_type [data-testid="stWidgetLabel"] {display:none}
-    .st-key-report_studio .st-key-report_type [role="group"] {gap:6px!important}
+    .st-key-report_studio .st-key-report_type [role="group"] {gap:14px!important}
     .st-key-report_studio .st-key-report_type button {border:1px solid #dce5ff!important;border-radius:15px!important;
-      padding:10px 26px!important;min-width:200px;min-height:50px!important;box-shadow:0 3px 5px #154fff18;
+      padding:10px 26px!important;margin-right:8px!important;min-width:200px;min-height:50px!important;box-shadow:0 3px 5px #154fff18;
       color:#080f42!important;background:#ffffff!important;font-weight:750!important}
     .st-key-report_studio .st-key-report_type button p {font-weight:750!important;font-size:17px!important;white-space:nowrap}
     .st-key-report_studio .st-key-report_type button[kind="segmented_controlActive"] {color:white!important;background:linear-gradient(110deg,#329cff,#0065ff)!important;border:2px solid white!important;box-shadow:0 2px 6px #0055ff60}
