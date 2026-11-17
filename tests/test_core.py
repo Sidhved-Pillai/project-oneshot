@@ -1014,14 +1014,15 @@ def test_rtgs_export_reuses_styles_when_selecting_many_records():
     assert payload.startswith(bytes.fromhex("D0CF11E0"))
 
 
-def test_rtgs_business_rules_group_trips_and_select_email_and_mode():
+def test_rtgs_business_rules_preserve_trips_and_select_email_and_mode():
     rows = [{"BNF_NAME": "Demo & Co.", "BENE_ACC_NO": "00-123", "BENE_IFSC": "ICIC0000258",
              "AMOUNT": 4500, "Transporter Freight": 6000,
              "REMARK": f"7872 Talegaon to Pune 10MT 0{day} 08 2026 TA"} for day in (2, 3)]
     result = normalize_rtgs_records(rows, dt.date(2026, 8, 8))
-    assert len(result) == 1
-    assert result[0]["AMOUNT"] == 9000 and result[0]["Transporter Freight"] == 12000
-    assert result[0]["REMARK"] == "7872 02 08 2026 to 03 08 2026 2Trp TA"
+    assert len(result) == 2
+    assert [r["AMOUNT"] for r in result] == [4500, 4500]
+    assert result[0]["Transporter Freight"] == 6000
+    assert result[0]["REMARK"] == "7872 Talegaon to Pune 10MT 02 08 2026 TA"
     assert result[0]["PYMT_MODE"] == "FT" and result[0]["EMAIL_ID"] == "jhanitish942@gmail.com"
     assert result[0]["MOBILE_NUM"] == "9028703567"
     assert result[0]["BNF_NAME"] == "Demo Co" and result[0]["BENE_ACC_NO"] == "00123"

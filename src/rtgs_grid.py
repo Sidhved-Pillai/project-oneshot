@@ -16,7 +16,7 @@ def apply_grid_event(frame, event, revision, editable):
         if not isinstance(patch, dict):
             continue
         index, column, value = patch.get('row'), patch.get('column'), patch.get('value')
-        if not isinstance(index, int) or not 0 <= index < len(frame) or column not in editable:
+        if not isinstance(index, int) or not 0 <= index < len(frame) or column not in editable or column not in ('Select', 'RTGS Status'):
             continue
         if column == 'RTGS Status' and value not in ('Pending', 'RTGS Done'):
             continue
@@ -37,7 +37,7 @@ def apply_grid_event(frame, event, revision, editable):
 
 
 def rtgs_editor(frame, key, search, disabled, column_order):
-    editable = [c for c in frame.columns if disabled is not True and (disabled is False or c not in disabled)]
+    editable = [c for c in ('Select', 'RTGS Status') if c in frame.columns and disabled is not True and (disabled is False or c not in disabled)]
     state_key = '_rtgs_badge_table'
     state = st.session_state.get(state_key, {})
     full = state['frame'].copy(deep=True) if state.get('revision') == key else frame.copy(deep=True)

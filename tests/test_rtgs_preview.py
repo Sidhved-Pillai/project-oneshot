@@ -55,7 +55,7 @@ def test_nikhat_no_longer_has_an_extra_save_button(tmp_path):
     assert not any('Save RTGS changes' in b.label for b in app.button)
 
 
-def test_nikhat_inline_correction_saves_without_extra_button(tmp_path):
+def test_nikhat_financial_edits_are_ignored(tmp_path):
     from tests.test_report_filters import run
     from src.request_store import RequestStore
     path=tmp_path/'autosave.db'
@@ -75,4 +75,4 @@ render_generate_reports()
     run(app)
     assert not app.exception
     row=RequestStore('sqlite:///'+str(path)).dashboard_snapshot()[0][0]
-    assert row['rtgs_advance']==1200 and row['beneficiary_name']=='Corrected beneficiary'
+    assert row['rtgs_advance']==1000 and row['beneficiary_name']!='Corrected beneficiary'

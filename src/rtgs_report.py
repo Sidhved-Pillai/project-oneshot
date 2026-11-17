@@ -110,35 +110,8 @@ def normalize_rtgs_record(record, payment_date=None):
 
 
 def normalize_rtgs_records(records, payment_date=None):
-    grouped, positions = [], {}
-    for record in records:
-        remark = str(record.get("REMARK", ""))
-        vehicle_match = re.search(r"\b(\d{4})\b", remark)
-        vehicle = vehicle_match.group(1) if vehicle_match else ""
-        key = (str(record.get("BNF_NAME", "")).strip().lower(), _digits(record.get("BENE_ACC_NO", "")),
-               _clean_alphanumeric(record.get("BENE_IFSC", ""), spaces=False).upper(), vehicle)
-        dates = re.findall(r"\b(\d{2})[\s/-](\d{2})[\s/-](\d{4})\b", remark)
-        can_group = bool(all(key)) and "trp" not in remark.lower() and bool(dates) and record.get("_payment_kind") not in {"balance", "upi", "billtee"} and "balance payment" not in remark.lower()
-        if can_group and key in positions:
-            target = grouped[positions[key]]
-            target["AMOUNT"] = _amount(target.get("AMOUNT")) + _amount(record.get("AMOUNT"))
-            target["Transporter Freight"] = _amount(target.get("Transporter Freight")) + _amount(record.get("Transporter Freight"))
-            target["_trip_dates"].extend(dates)
-            target["_trip_count"] += 1
-            continue
-        copy = dict(record)
-        if not copy.get("Origin Area"):
-            copy["Origin Area"] = _infer_area(remark)
-        if can_group:
-            positions[key] = len(grouped)
-            copy["_trip_dates"], copy["_trip_count"] = list(dates), 1
-        grouped.append(copy)
-    for record in grouped:
-        if record.get("_trip_count", 1) > 1:
-            first, last = record["_trip_dates"][0], record["_trip_dates"][-1]
-            vehicle = re.search(r"\b(\d{4})\b", str(record.get("REMARK", ""))).group(1)
-            record["REMARK"] = f"{vehicle} {' '.join(first)} to {' '.join(last)} {record['_trip_count']}Trp TA"
-    return [normalize_rtgs_record(record, payment_date) for record in grouped]
+    """Keep one bank row per selected payment; never merge separate trips."""
+    return [normalize_rtgs_record(record, payment_date) for record in records]
 
 
 def rows_to_rtgs(rows):

@@ -49,9 +49,11 @@ def preview_rtgs_report(frame, report_file, request_numbers, start, end, on_conf
     with cancel, st.container(key='rtgs_preview_cancel'):
         st.markdown('<button type="button" class="rtgs-preview-dismiss">Cancel</button>', unsafe_allow_html=True)
     with confirm, st.container(key='rtgs_preview_confirm'):
-        st.download_button('Confirm', report_file, f'RTGS-{start}-{end}.xls', 'application/vnd.ms-excel',
+        confirmed = st.download_button('Confirm', report_file, f'RTGS-{start}-{end}.xls', 'application/vnd.ms-excel',
                            type='primary', icon=':material/check:', use_container_width=True,
                            on_click=on_confirm, args=(list(request_numbers), start, end), key='confirm_rtgs_preview')
+        if confirmed:
+            st.rerun(scope='app')
 
     components.html(explicit_close_script() + preview_dismiss_script(), height=0, scrolling=False)
 
