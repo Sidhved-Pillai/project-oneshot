@@ -24,8 +24,9 @@ def test_create_opens_preview_and_cancel_does_not_confirm(tmp_path):
     assert app.get('dialog')
     assert any(b.label=='Confirm' for b in app.get('download_button'))
     assert 'confirmed' not in app.session_state
-    app.button(key='rtgs_preview_cancel_button').click();run(app)
-    assert not app.exception and not app.get('dialog')
+    # Cancel and X are browser-only controls; neither registers a server widget.
+    assert not any(b.label in ('Cancel','✕') for b in app.button)
+    assert any('rtgs-preview-dismiss' in m.value for m in app.markdown)
     assert 'confirmed' not in app.session_state
 
 

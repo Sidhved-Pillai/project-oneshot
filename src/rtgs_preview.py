@@ -1,6 +1,8 @@
 """Read-only confirmation of exactly the rows included in a bank workbook."""
 import html
 import streamlit as st
+import streamlit.components.v1 as components
+from .dialog_browser import explicit_close_script
 from .number_format import format_inr
 
 PREVIEW_COLUMNS = ['Sr. No.', 'Branch', 'Transporter Name', 'Vehicle No.', 'Invoice No.', 'Beneficiary', 'Amount']
@@ -16,12 +18,13 @@ def preview_table(frame):
     return f'<div class="rtgs-preview-table" tabindex="0" aria-label="Selected RTGS records"><table><thead><tr>{header}</tr></thead><tbody>{body}</tbody></table></div>'
 
 
-@st.dialog('Create RTGS Report', width='large', dismissible=False)
+@st.dialog('Create RTGS Report', width='large', dismissible=True, on_dismiss='ignore')
 def preview_rtgs_report(frame, report_file, request_numbers, start, end, on_confirm):
     st.markdown('''<style>
     [role="dialog"]:has(.rtgs-preview-marker){width:min(1150px,96vw)!important;max-width:96vw!important;border-radius:24px;background:linear-gradient(120deg,#fff,#f5f8ff);color:#080f42;padding:8px;max-height:94dvh;overflow-y:auto}
     [role="dialog"]:has(.rtgs-preview-marker)>div:first-child{display:none!important}
     .rtgs-preview-title{font-size:30px!important;line-height:1.2!important;color:#080f42!important;font-weight:800!important;margin:8px 0 10px!important;padding:0!important}
+    .rtgs-preview-dismiss{width:100%;font:inherit;cursor:pointer;padding:10px 15px;box-sizing:border-box}
     .st-key-rtgs_preview_close button{border:0!important;background:transparent!important;color:#080f42!important;font-size:26px;min-height:35px;padding:0!important}
     .rtgs-preview-marker{color:#334575;margin:0 0 12px;font-size:14px}
     .rtgs-preview-panel{padding:12px;border:1px solid #d5e1ff;border-radius:16px;background:#fbfdff;box-shadow:0 2px 5px #234fff10}
@@ -37,16 +40,40 @@ def preview_rtgs_report(frame, report_file, request_numbers, start, end, on_conf
     title, close = st.columns([12, 1], vertical_alignment='center')
     title.markdown('<h2 class="rtgs-preview-title">Create RTGS Report</h2>', unsafe_allow_html=True)
     with close, st.container(key='rtgs_preview_close'):
-        if st.button('✕', key='close_rtgs_preview', help='Cancel and close preview'):
-            st.rerun()
+        st.markdown('<button type="button" class="rtgs-preview-dismiss" aria-label="Close preview">✕</button>', unsafe_allow_html=True)
     st.markdown(f'<p class="rtgs-preview-marker">Review {len(frame)} selected record(s) · Total: {html.escape(format_inr(frame["Amount"].sum()))}</p>', unsafe_allow_html=True)
     st.markdown('<div class="rtgs-preview-panel">'+preview_table(frame)+'</div>', unsafe_allow_html=True)
     st.markdown('<div style="height:12px"></div>', unsafe_allow_html=True)
     _, cancel, confirm = st.columns([5, 1.2, 1.4], vertical_alignment='center')
     with cancel, st.container(key='rtgs_preview_cancel'):
-        if st.button('Cancel', key='rtgs_preview_cancel_button', use_container_width=True):
-            st.rerun()
+        st.markdown('<button type="button" class="rtgs-preview-dismiss">Cancel</button>', unsafe_allow_html=True)
     with confirm, st.container(key='rtgs_preview_confirm'):
         st.download_button('Confirm', report_file, f'RTGS-{start}-{end}.xls', 'application/vnd.ms-excel',
                            type='primary', icon=':material/check:', use_container_width=True,
                            on_click=on_confirm, args=(list(request_numbers), start, end), key='confirm_rtgs_preview')
+
+    components.html(explicit_close_script() + preview_dismiss_script(), height=0, scrolling=False)
+
+
+def preview_dismiss_script():
+    """Use Streamlit's native local dismissal; never send Cancel to the server."""
+    return '''<script>
+(() => {
+  const doc=window.parent.document;
+  const bind=()=>{
+    const dialog=doc.querySelector('[role="dialog"]:has(.rtgs-preview-marker)');
+    if(!dialog)return false;
+    const close=dialog.querySelector('button[aria-label="Close"]');
+    if(!close)return false;
+    for(const button of dialog.querySelectorAll('.rtgs-preview-dismiss')){
+      button.onclick=event=>{event.preventDefault();event.stopPropagation();close.click()};
+    }
+    return true;
+  };
+  if(!bind()){
+    const observer=new MutationObserver(()=>{if(bind())observer.disconnect()});
+    observer.observe(doc.body,{childList:true,subtree:true});
+    setTimeout(()=>observer.disconnect(),3000);
+  }
+})();
+</script>'''
