@@ -24,3 +24,28 @@ def test_financial_edits_are_rejected_even_if_client_claims_editable():
     assert edited.iloc[0]['Account Number']=='001234'
     assert edited.iloc[0]['Amount']==100
     assert not bool(edited.iloc[0]['Select'])
+
+
+def test_inflight_status_click_survives_revision_and_row_reordering():
+    frame=pd.DataFrame([{'Record':'B','RTGS Status':'RTGS Done'},
+                        {'Record':'A','RTGS Status':'Pending'}])
+    event={'revision':'old','patches':[{'record':'B','column':'RTGS Status','value':'Pending'},
+                                     {'record':'missing','column':'RTGS Status','value':'Pending'}]}
+    result=apply_grid_event(frame,event,'new',['RTGS Status'])
+    assert result['RTGS Status'].tolist()==['Pending','Pending']
+
+
+def test_client_retains_second_click_until_server_acknowledges_it():
+    import subprocess
+    from pathlib import Path
+    source=Path('src/rtgs_grid_component/index.html').read_text()
+    function=source[source.index('function reconcileRows('):source.index('let menuAnchor=null;')]
+    script='const patches=new Map();\n'+function+'''
+patches.set('A|RTGS Status',{record:'A',column:'RTGS Status',value:'Pending'});
+patches.set('B|RTGS Status',{record:'B',column:'RTGS Status',value:'Pending'});
+let rows=reconcileRows([{Record:'B','RTGS Status':'RTGS Done'},{Record:'A','RTGS Status':'Pending'}]);
+if(rows[0]['RTGS Status']!=='Pending'||patches.size!==1)throw Error('Lost second click');
+rows=reconcileRows([{Record:'A','RTGS Status':'Pending'},{Record:'B','RTGS Status':'Pending'}]);
+if(patches.size!==0)throw Error('Acknowledged clicks retained');
+'''
+    subprocess.run(['node','-e',script],check=True,capture_output=True)

@@ -9,12 +9,22 @@ _grid = components.declare_component('oneshot_rtgs_status_grid', path=str(Path(_
 def apply_grid_event(frame, event, revision, editable):
     """Accept only allowed cell edits from the currently displayed report."""
     result = frame.copy(deep=True)
-    if not isinstance(event, dict) or event.get('revision') != revision:
+    if not isinstance(event, dict):
         return result
     for patch in event.get('patches', [])[:len(frame)*8]:
         if not isinstance(patch, dict):
             continue
         index, column, value = patch.get('row'), patch.get('column'), patch.get('value')
+        record = patch.get('record')
+        if record is not None:
+            # Status saves reorder rows and change the report revision. Resolve
+            # in-flight clicks by stable identity, never by the old row index.
+            matches = [i for i, item in enumerate(frame.get('Record', [])) if item == record]
+            if len(matches) != 1:
+                continue
+            index = matches[0]
+        elif event.get('revision') != revision:
+            continue
         if not isinstance(index, int) or not 0 <= index < len(frame) or column not in editable or column != 'RTGS Status':
             continue
         if column == 'RTGS Status' and value not in ('Pending', 'RTGS Done'):

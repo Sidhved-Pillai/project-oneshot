@@ -6,7 +6,18 @@ let args={},rows=[],revision=null,patches=new Map(),sort=null,identity=null;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const label=c=>({'RTGS Status':'Status','Amount':'Amount (₹)','Select':''}[c]??c);
 function emit(){send('streamlit:setComponentValue',{dataType:'json',value:{revision,nonce:crypto.randomUUID(),patches:[...patches.values()]}})}
-function update(row,column,value){rows[row][column]=value;patches.set(row+'|'+column,{row,column,value});emit()}
+function update(row,column,value){const record=rows[row].Record;rows[row][column]=value;patches.set(record+'|'+column,{record,column,value});emit()}
+// Keep unacknowledged clicks across server renders, including status-driven
+// reordering. A response to the previous click must not erase the next click.
+function reconcileRows(incoming){
+ const next=incoming.map(r=>({...r}));
+ for(const [key,p] of patches){
+  const row=next.find(r=>r.Record===p.record);
+  if(!row||row[p.column]===p.value)patches.delete(key);
+  else row[p.column]=p.value;
+ }
+ return next;
+}
 let menuAnchor=null;
 function closeMenu(){document.querySelector('.menu')?.remove();menuAnchor=null}
 function positionMenu(){
@@ -38,5 +49,5 @@ function render(){const box=document.getElementById('scroll'),top=box.scrollTop,
 document.querySelector('thead').innerHTML='<tr>'+columns.map(c=>'<th data-column="'+esc(c)+'">'+esc(label(c))+'</th>').join('')+'</tr>';
 document.querySelector('tbody').innerHTML=indices.map(i=>'<tr>'+columns.map(c=>{const v=rows[i][c];let content=esc(v);if(c==='RTGS Status')content='<button aria-label="Change status" aria-haspopup="menu" class="badge '+(v==='RTGS Done'?'sent':'pending')+'" data-row="'+i+'" data-status '+(!editable.has(c)?'disabled':'')+'>'+(v==='RTGS Done'?'Sent':'Pending')+'</button>';else if(c==='Amount')content='₹'+Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});return '<td class="'+(c==='Amount'?'amount':c==='Remarks'?'remarks':'')+'">'+content+'</td>'}).join('')+'</tr>').join('')||'<tr><td colspan="'+columns.length+'" class="empty">No matching records.</td></tr>';
 document.querySelectorAll('[data-status]').forEach(b=>b.onclick=e=>{e.stopPropagation();menu(b,Number(b.dataset.row))});document.querySelectorAll('th[data-column]').forEach(th=>{if(th.dataset.column!=='Select')th.onclick=()=>{sort={column:th.dataset.column,direction:sort?.column===th.dataset.column?-sort.direction:1};render()}});box.scrollTop=top;box.scrollLeft=left;send('streamlit:setFrameHeight',{height:380})}
-window.addEventListener('message',e=>{if(e.source!==parent||e.data.type!=='streamlit:render')return;args=e.data.args;const fresh=revision!==args.revision;const nextIdentity=JSON.stringify(args.rows.map(r=>r.Record));const newRows=identity!==nextIdentity;identity=nextIdentity;if(fresh){revision=args.revision;patches.clear();sort=null}rows=args.rows.map(r=>({...r}));if(!fresh)for(const p of patches.values())if(rows[p.row])rows[p.row][p.column]=p.value;render();if(newRows)document.getElementById('scroll').scrollTop=1e9});document.addEventListener('click',e=>{if(!e.target.closest('.menu'))closeMenu()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu()});document.getElementById('scroll').addEventListener('scroll',positionMenu);window.addEventListener('resize',positionMenu);installReportScrollbars(document.getElementById('grid-shell'),document.getElementById('scroll'));send('streamlit:componentReady',{apiVersion:1});
+window.addEventListener('message',e=>{if(e.source!==parent||e.data.type!=='streamlit:render')return;args=e.data.args;const fresh=revision!==args.revision;const nextIdentity=JSON.stringify(args.rows.map(r=>r.Record));const newRows=identity!==nextIdentity;identity=nextIdentity;revision=args.revision;rows=reconcileRows(args.rows);if(fresh&&patches.size)emit();render();if(newRows)document.getElementById('scroll').scrollTop=1e9});document.addEventListener('click',e=>{if(!e.target.closest('.menu'))closeMenu()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu()});document.getElementById('scroll').addEventListener('scroll',positionMenu);window.addEventListener('resize',positionMenu);installReportScrollbars(document.getElementById('grid-shell'),document.getElementById('scroll'));send('streamlit:componentReady',{apiVersion:1});
 </script></body></html>
