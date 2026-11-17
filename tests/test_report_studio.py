@@ -10,7 +10,7 @@ def report_source(db_path):
     tree=ast.parse(Path('app.py').read_text())
     modules={'src.expense_linking','src.invoice_display','src.number_format','src.expense_periods',
         'src.trip_dtr_report_v3','src.rtgs_report_v3','src.text_normalization_v2','src.transporter_profiles',
-        'src.vehicle_normalization','src.vehicle_placer','src.current_pnl_report_v6','src.report_filters_v3','src.report_design',
+        'src.vehicle_normalization','src.vehicle_placer','src.current_pnl_report_v6','src.report_filters_v4','src.report_filters','src.report_grid','src.report_design',
         'src.billtee_payments','src.upi_payments','src.balance_reconciliation','src.balance_payments',
         'src.report_scroll','src.dtr_dates','src.ashok_dates','src.vijay_finance'}
     helpers={'scope_report_rows','clean_text','number','as_date','unpack','ownership_matches','request_label',
@@ -65,12 +65,12 @@ def apply(app,kind):
 def test_all_report_formats_keep_working_and_apply_refreshes_saved_entries(tmp_path):
     path=tmp_path/'reports.db'
     app=AppTest.from_string(report_source(path)).run()
-    assert not app.exception and not app.dataframe
+    assert not app.exception and app.dataframe
     apply(app,'DTR')
     assert len(app.dataframe[0].value)==1
     assert app.dataframe[0].value.iloc[0]['Invoice No.']=='TEST-INV'
     reads=app.session_state['snapshot_reads']
-    app.date_input(key='report_to_v2').set_value(dt.date(2026,11,16))
+    app.date_input[0].set_value((dt.date(2026,11,1),dt.date(2026,11,16)))
     run(app)
     assert app.session_state['snapshot_reads']==reads
     assert len(app.dataframe[0].value)==1
@@ -110,8 +110,7 @@ def test_rtgs_download_requests_a_fresh_fragment_snapshot():
 
 def test_report_switches_render_immediately_without_reapplying_dates(tmp_path):
     app=AppTest.from_string(report_source(tmp_path/'switch.db')).run()
-    app.date_input(key='report_from_v2').set_value(dt.date(2026,11,10))
-    app.date_input(key='report_to_v2').set_value(dt.date(2026,11,10))
+    app.date_input[0].set_value((dt.date(2026,11,10),dt.date(2026,11,10)))
     apply(app,'DTR')
     for kind,column in [('RTGS','Amount'),('P&L','Profit'),('DTR','Invoice No.')]:
         app.get('button_group')[0].set_value([kind]);run(app)
@@ -119,8 +118,7 @@ def test_report_switches_render_immediately_without_reapplying_dates(tmp_path):
         assert column in app.dataframe[0].value.columns
         assert app.session_state['report_applied_filters']['start']==dt.date(2026,11,10)
         assert app.session_state['report_applied_filters']['end']==dt.date(2026,11,10)
-    app.date_input(key='report_from_v2').set_value(dt.date(2026,11,11))
-    app.date_input(key='report_to_v2').set_value(dt.date(2026,11,12))
+    app.date_input[0].set_value((dt.date(2026,11,11),dt.date(2026,11,12)))
     apply(app,'DTR')
     app.get('button_group')[0].set_value(['RTGS']);run(app)
     assert not app.exception

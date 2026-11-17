@@ -26,11 +26,13 @@ def run(app):
 
 def test_dates_type_and_pnl_filters_apply_together():
     app=filter_app();assert not app.exception
-    assert not app.json
-    app.date_input(key='report_from_v2').set_value(dt.date(2026,10,1))
-    app.date_input(key='report_to_v2').set_value(dt.date(2026,10,31))
+    assert app.json
+    assert app.session_state["report_applied_filters"]["start"]==dt.date(2026,11,1)
+    app.date_input[0].set_value((dt.date(2026,10,1),dt.date(2026,10,31)))
     app.get('button_group')[0].set_value(['P&L'])
     run(app)
+    app.date_input(key='report_from_v2').set_value(dt.date(2026,10,1))
+    app.date_input(key='report_to_v2').set_value(dt.date(2026,10,31))
     app.get('button_group')[1].set_value(['Vehicle No. Wise'])
     app.selectbox(key='pnl_vehicle_filter').select('MH02TEST')
     app.button(key='apply_report_filters').click();run(app)
@@ -47,11 +49,11 @@ def test_invalid_range_keeps_last_report_and_ashok_is_dtr_only():
     app=filter_app('Ashok',['DTR'])
     app.button(key='apply_report_filters').click();run(app)
     saved=app.session_state['report_applied_filters'].copy()
-    app.date_input(key='report_from_v2').set_value(dt.date(2026,12,1))
+    app.date_input[0].set_value((dt.date(2026,12,1),))
     app.button(key='apply_report_filters').click();run(app)
     assert app.error and app.session_state['report_applied_filters']==saved
-    assert not app.selectbox
-    assert [o.content.strip() for o in app.get('button_group')[0].options]==['DTR Report']
+    assert len(app.selectbox)==4
+    assert len(app.get('button_group')[0].options)==1
 
 
 def test_dashboard_jump_applies_requested_pnl_and_refresh_is_fragment_only():
@@ -67,8 +69,7 @@ def test_dashboard_jump_applies_requested_pnl_and_refresh_is_fragment_only():
 
 def test_switching_formats_reuses_shared_dates_and_committed_pnl_choices():
     app=filter_app()
-    app.date_input(key='report_from_v2').set_value(dt.date(2026,10,1))
-    app.date_input(key='report_to_v2').set_value(dt.date(2026,10,31))
+    app.date_input[0].set_value((dt.date(2026,10,1),dt.date(2026,10,31)))
     app.button(key='apply_report_filters').click();run(app)
     for kind in ['RTGS','P&L']:
         app.get('button_group')[0].set_value([kind]);run(app)
@@ -89,3 +90,25 @@ def test_switching_formats_reuses_shared_dates_and_committed_pnl_choices():
         assert filters['ownership']==('Own' if kind=='P&L' else 'Both')
         assert filters['vehicle']==('MH01TEST' if kind=='P&L' else 'All')
     assert app.session_state['loads']==2
+
+
+def test_report_specific_filters_batch_and_keep_other_formats_independent():
+    app=filter_app()
+    assert app.session_state['report_applied_filters']['end']==dt.date(2026,11,17)
+    app.selectbox(key='report_DTR_ownership_v4').select('Own');run(app)
+    assert app.session_state['report_applied_filters'].get('details',{}).get('ownership','All')=='All'
+    app.button(key='apply_report_filters').click();run(app)
+    assert app.session_state['report_applied_filters']['details']['ownership']=='Own'
+    app.get('button_group')[0].set_value(['RTGS']);run(app)
+    assert app.session_state['report_applied_filters']['details']=={}
+    app.get('button_group')[0].set_value(['DTR']);run(app)
+    assert app.session_state['report_applied_filters']['details']['ownership']=='Own'
+
+
+def test_report_row_filters_do_not_change_source_or_mix_paid_and_pending():
+    from src.report_filters import filter_report_rows
+    rows=[{'branch':'Pune','company_name':'Test','rtgs_done':False},
+          {'branch':'Wada','company_name':'Test','rtgs_done':True}]
+    assert filter_report_rows(rows,{'details':{'branch':'Pune','status':'Pending'}})==[rows[0]]
+    assert filter_report_rows(rows,{'details':{'status':'RTGS Done'}})==[rows[1]]
+    assert len(rows)==2
