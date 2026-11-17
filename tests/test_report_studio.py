@@ -10,7 +10,7 @@ def report_source(db_path):
     tree=ast.parse(Path('app.py').read_text())
     modules={'src.expense_linking','src.invoice_display','src.number_format','src.expense_periods',
         'src.trip_dtr_report_v3','src.rtgs_report_v3','src.text_normalization_v2','src.transporter_profiles',
-        'src.vehicle_normalization','src.vehicle_placer','src.current_pnl_report_v6','src.report_filters_v2',
+        'src.vehicle_normalization','src.vehicle_placer','src.current_pnl_report_v6','src.report_filters_v3','src.report_design',
         'src.billtee_payments','src.upi_payments','src.balance_reconciliation','src.balance_payments',
         'src.report_scroll','src.dtr_dates','src.ashok_dates','src.vijay_finance'}
     helpers={'scope_report_rows','clean_text','number','as_date','unpack','ownership_matches','request_label',
@@ -19,6 +19,7 @@ def report_source(db_path):
     nodes=[n for n in tree.body if isinstance(n,ast.ImportFrom) and n.module in modules or isinstance(n,ast.FunctionDef) and n.name in helpers]
     prefix='''
 import datetime as dt
+from contextlib import nullcontext
 import hashlib,json,re
 from numbers import Number
 import pandas as pd
@@ -81,6 +82,12 @@ def test_all_report_formats_keep_working_and_apply_refreshes_saved_entries(tmp_p
     apply(app,'RTGS')
     assert len(app.dataframe[0].value)==1
     assert app.dataframe[0].value.iloc[0]['Amount']==1000
+    assert app.dataframe[0].value.iloc[0]['Invoice No.']=='TEST-INV'
+    assert app.dataframe[0].value.iloc[0]['Account Number']=='001234'
+    from src.rtgs_report_v3 import RTGS_REVIEW_COLUMNS
+    assert app.dataframe[1].value.columns.tolist()==RTGS_REVIEW_COLUMNS
+    assert 'Branch' not in app.dataframe[1].value.columns
+    assert app.dataframe[1].value.iloc[0]['BENE_ACC_NO']=='001234'
     reads=app.session_state['snapshot_reads']
     app.checkbox(key='rtgs_select_all').check()
     run(app)

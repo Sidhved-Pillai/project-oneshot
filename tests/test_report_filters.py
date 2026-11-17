@@ -51,7 +51,7 @@ def test_invalid_range_keeps_last_report_and_ashok_is_dtr_only():
     app.button(key='apply_report_filters').click();run(app)
     assert app.error and app.session_state['report_applied_filters']==saved
     assert not app.selectbox
-    assert [o.content for o in app.get('button_group')[0].options]==['DTR']
+    assert [o.content.strip() for o in app.get('button_group')[0].options]==['DTR Report']
 
 
 def test_dashboard_jump_applies_requested_pnl_and_refresh_is_fragment_only():

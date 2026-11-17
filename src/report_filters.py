@@ -9,7 +9,7 @@ def render_report_filters(user, report_options, vehicles, today=None):
     today=today or dt.date.today()
     if st.session_state.get('report_type') not in (None,*report_options):
         st.session_state['report_type']='DTR'
-    kind=st.segmented_control('Report type',report_options,default='DTR',key='report_type') or 'DTR'
+    kind=st.segmented_control('Report type',report_options,default='DTR',key='report_type',format_func=lambda value: {'DTR':'🚚  DTR Report','RTGS':'₹  RTGS Report','P&L':'↗  P&L Report'}[value]) or 'DTR'
     # Retire the previous client-only visibility observer on hot deployment.
     components.html('<script>parent.__oneshotReportFilters?.disconnect();</script>',height=0)
     requested=st.session_state.pop('report_apply_requested',False)
@@ -37,16 +37,26 @@ def render_report_filters(user, report_options, vehicles, today=None):
             st.session_state['pnl_vehicle_filter']='All'
         elif 'pnl_vehicle_filter' not in st.session_state:
             st.session_state['pnl_vehicle_filter']=pnl['vehicle']
+    st.session_state.setdefault('report_from_v2',today.replace(day=1))
+    st.session_state.setdefault('report_to_v2',today)
     with st.container(key='report_filters'),st.form('report_filter_form',border=False):
-        c1,c2=st.columns(2)
-        start=c1.date_input('Records from',value=today.replace(day=1),format='DD/MM/YYYY',key='report_from_v2',min_value=OPERATIONS_START)
-        end=c2.date_input('Records to',value=today,format='DD/MM/YYYY',key='report_to_v2',min_value=OPERATIONS_START)
+        if kind == 'P&L':
+            c1,c2=st.columns(2)
+            apply_column=None
+        else:
+            c1,c2,apply_column=st.columns([2,2,1],vertical_alignment='bottom')
+        start=c1.date_input('Records from',value=None,format='DD/MM/YYYY',key='report_from_v2',min_value=OPERATIONS_START)
+        end=c2.date_input('Records to',value=None,format='DD/MM/YYYY',key='report_to_v2',min_value=OPERATIONS_START)
         ownership,vehicle='Both','All'
         if kind=='P&L':
             with st.container(key='report_pnl_filters'):
                 ownership=st.segmented_control('Own or outside vehicle',['Both','Own','Outside','Vehicle No. Wise'],default='Both',key='pnl_ownership_filter') or 'Both'
                 vehicle=st.selectbox('Vehicle no.',vehicle_options,key='pnl_vehicle_filter')
-        submitted=st.form_submit_button('Apply Filter',type='primary',key='apply_report_filters')
+        if apply_column is None:
+            submitted=st.form_submit_button('Apply Filter',type='primary',key='apply_report_filters')
+        else:
+            with apply_column:
+                submitted=st.form_submit_button('Apply Filter',type='primary',key='apply_report_filters',use_container_width=True)
     if submitted or requested:
         if start>end:
             st.error('Records to must be on or after Records from. Your previous report is still shown.')
