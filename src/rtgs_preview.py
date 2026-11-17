@@ -23,6 +23,7 @@ def preview_rtgs_report(frame, report_file, request_numbers, start, end, on_conf
     st.markdown('''<style>
     [role="dialog"]:has(.rtgs-preview-marker){width:min(1150px,96vw)!important;max-width:96vw!important;border-radius:24px;background:linear-gradient(120deg,#fff,#f5f8ff);color:#080f42;padding:8px;max-height:94dvh;overflow-y:auto}
     [role="dialog"]:has(.rtgs-preview-marker)>div:first-child{display:none!important}
+    [role="dialog"]:has(.rtgs-preview-marker) button[aria-label="Close"]{display:none!important}
     .rtgs-preview-title{font-size:30px!important;line-height:1.2!important;color:#080f42!important;font-weight:800!important;margin:8px 0 10px!important;padding:0!important}
     .rtgs-preview-dismiss{width:100%;font:inherit;cursor:pointer;padding:10px 15px;box-sizing:border-box}
     .st-key-rtgs_preview_close button{border:0!important;background:transparent!important;color:#080f42!important;font-size:26px;min-height:35px;padding:0!important}
