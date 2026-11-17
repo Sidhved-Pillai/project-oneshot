@@ -10,7 +10,7 @@ def report_source(db_path):
     tree=ast.parse(Path('app.py').read_text())
     modules={'src.expense_linking','src.invoice_display','src.number_format','src.expense_periods',
         'src.trip_dtr_report_v3','src.rtgs_report_v3','src.text_normalization_v2','src.transporter_profiles',
-        'src.vehicle_normalization','src.vehicle_placer','src.current_pnl_report_v6','src.report_filters_v4','src.report_filters','src.report_grid','src.report_design',
+        'src.vehicle_normalization','src.vehicle_placer','src.current_pnl_report_v6','src.report_filters_v5','src.report_status','src.report_filters','src.report_grid','src.report_design','src.report_status',
         'src.billtee_payments','src.upi_payments','src.balance_reconciliation','src.balance_payments',
         'src.report_scroll','src.dtr_dates','src.ashok_dates','src.vijay_finance'}
     helpers={'scope_report_rows','clean_text','number','as_date','unpack','ownership_matches','request_label',
@@ -50,6 +50,11 @@ if 'fixture' not in st.session_state:
     st.session_state['_report_source']=store.dashboard_snapshot()[:3]
     st.session_state['_report_refresh_metadata']=True
     st.session_state['fixture']=True
+original_export=cached_rtgs_excel
+def capture_export(frame,date):
+    st.session_state['rtgs_export_frame']=frame.copy()
+    return original_export(frame,date)
+cached_rtgs_excel=capture_export
 render_generate_reports()
 '''
     return prefix+ast.unparse(ast.Module(body=nodes,type_ignores=[]))+setup
@@ -85,9 +90,12 @@ def test_all_report_formats_keep_working_and_apply_refreshes_saved_entries(tmp_p
     assert app.dataframe[0].value.iloc[0]['Invoice No.']=='TEST-INV'
     assert app.dataframe[0].value.iloc[0]['Account Number']=='001234'
     from src.rtgs_report_v3 import RTGS_REVIEW_COLUMNS
-    assert app.dataframe[1].value.columns.tolist()==RTGS_REVIEW_COLUMNS
-    assert 'Branch' not in app.dataframe[1].value.columns
-    assert app.dataframe[1].value.iloc[0]['BENE_ACC_NO']=='001234'
+    exported=app.session_state['rtgs_export_frame']
+    assert exported.columns.tolist()==[*RTGS_REVIEW_COLUMNS,'_payment_kind','_payment_id']
+    assert 'Branch' not in exported.columns
+    assert exported.iloc[0]['BENE_ACC_NO']=='001234'
+    assert not app.expander
+    assert not any('Mark selected' in b.label or 'Mark Selected' in b.label for b in app.button)
     reads=app.session_state['snapshot_reads']
     app.checkbox(key='rtgs_select_all').check()
     run(app)
@@ -122,4 +130,16 @@ def test_report_switches_render_immediately_without_reapplying_dates(tmp_path):
     apply(app,'DTR')
     app.get('button_group')[0].set_value(['RTGS']);run(app)
     assert not app.exception
-    assert app.dataframe[0].value.empty
+    assert not app.dataframe and app.info
+
+
+def test_rtgs_return_uses_loaded_snapshot_and_removed_actions_stay_removed(tmp_path):
+    app=AppTest.from_string(report_source(tmp_path/'reuse.db')).run()
+    apply(app,'RTGS')
+    reads=app.session_state['snapshot_reads']
+    for kind in ['DTR','RTGS']:
+        app.get('button_group')[0].set_value([kind]);run(app)
+        assert not app.exception
+    assert app.session_state['snapshot_reads']==reads
+    assert not app.expander
+    assert not any('Mark selected' in button.label or 'Mark Selected' in button.label for button in app.button)

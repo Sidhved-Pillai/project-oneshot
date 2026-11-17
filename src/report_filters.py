@@ -42,6 +42,7 @@ def render_report_filters(user, report_options, vehicles, today=None, rows=()):
     st.session_state.setdefault('report_to_v2',today)
     ownership,vehicle='Both','All'
     chosen={}
+    if applied:applied['details']={k:v for k,v in applied.get('details',{}).items() if k!='capacity'}
     with st.container(key='report_filters'),st.form('report_filter_form',border=False):
         if kind=='P&L':
             c1,c2=st.columns(2)
@@ -56,7 +57,6 @@ def render_report_filters(user, report_options, vehicles, today=None, rows=()):
             specs=[('branch','Branch',_options(rows,'branch'))]
             if kind=='DTR':
                 specs += [('company','Company Name',_options(rows,'company_name')),
-                    ('capacity','Vehicle Type',_options(rows,'vehicle_capacity')),
                     ('ownership','Ownership',['All','Own','Outside'])]
             else:
                 specs += [('transporter','Transporter',_options(rows,'transporter_name')),
@@ -88,7 +88,7 @@ def render_report_filters(user, report_options, vehicles, today=None, rows=()):
 
 def filter_report_rows(rows, filters):
     fields={'branch':'branch','company':'company_name','capacity':'vehicle_capacity','transporter':'transporter_name','ownership':'ownership_type'}
-    details=filters.get('details',{})
+    details={k:v for k,v in filters.get('details',{}).items() if k!='capacity'}
     result=list(rows)
     for choice,field in fields.items():
         value=details.get(choice,'All')

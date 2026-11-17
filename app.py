@@ -59,7 +59,8 @@ from src.diesel_inputs import update_diesel
 from src.expense_date import seed_expense_date, remember_expense_date
 from src.expense_review import apply_evidence_date, mark_expense_date_manual
 from src.pending_payments_v18 import render_pending_payments
-from src.report_filters_v4 import render_report_filters
+from src.report_filters_v5 import render_report_filters
+from src.report_status import persist_status_edits
 from src.report_filters import filter_report_rows
 from src.report_grid import report_editor
 from src.report_design import report_styles, report_heading, rtgs_summary
@@ -2464,13 +2465,14 @@ def render_generate_reports():
         downloaded = st.session_state.pop('_report_refresh_source', False)
         switching_to_rtgs = (st.session_state.get('report_type') == 'RTGS'
             and st.session_state.get('_report_active_type') != 'RTGS'
-            and st.session_state.get('report_applied_filters', {}).get('user') == current_user)
+            and not st.session_state.get('_report_snapshot_has_payments',False))
         if st.session_state.get('apply_report_filters') or st.session_state.get('report_apply_requested') or downloaded or switching_to_rtgs:
             # Refresh on Apply and when opening RTGS; ordinary editor changes reuse it.
             fresh_rows, balance_requests, upi_requests, _ = store.dashboard_snapshot(
-                include_payments=downloaded or st.session_state.get('report_type') == 'RTGS', include_logs=False)
+                include_payments=downloaded or st.session_state.get('_report_snapshot_has_payments',False) or st.session_state.get('report_type') == 'RTGS', include_logs=False)
             source_rows = project_vijay_records(fresh_rows)
             st.session_state['_report_source'] = (source_rows, balance_requests, upi_requests)
+            st.session_state['_report_snapshot_has_payments'] = downloaded or st.session_state.get('_report_snapshot_has_payments',False) or st.session_state.get('report_type') == 'RTGS'
             st.session_state['_report_refresh_metadata'] = True
         scoped_rows = scope_report_rows(current_user, source_rows)
         vehicles = sorted({canonical_vehicle_number(row.get('vehicle_number')) for row in scoped_rows if row.get('report_scope') != 'Expense'} - {''}, key=str.casefold)
@@ -2480,7 +2482,7 @@ def render_generate_reports():
         start, end, report_type = filters['start'], filters['end'], filters['kind']
         st.session_state['_report_active_type'] = report_type
         pnl_ownership_filter, pnl_vehicle_filter = filters['ownership'], filters['vehicle']
-        balance_report_rows = scope_report_rows(current_user, source_rows) if can_generate_reports else []
+        balance_report_rows = scoped_rows
         report_rows = balance_report_rows if start <= end else []
         selected_rows = [
             row for row in report_rows if start <= as_date(row.get("trip_date")) <= end
@@ -2578,7 +2580,7 @@ def render_generate_reports():
                 with search_col:
                     search = st.text_input("Search RTGS",placeholder="Search by Transporter, Vehicle No., Invoice No., Beneficiary…",label_visibility="collapsed",key="report_rtgs_search_v4",icon=":material/search:")
                 with st.container(key='report_tools'):
-                    balance_tool, select_tool, _ = st.columns([2,1,4],vertical_alignment='center')
+                    select_tool, balance_tool, _ = st.columns([1,2,4],vertical_alignment='center')
                 show_only_balance_payable = balance_tool.toggle(
                     "Show only Balance Payable records",
                     value=False,
@@ -2629,7 +2631,7 @@ def render_generate_reports():
                     selected_request_numbers = []
                 else:
                     selection_display = selection_frame.drop(columns=["_request_number"])
-                    locked_rtgs_columns = ["Sr. No.", "Record", "Date", "Branch", "Transporter Name", "Vehicle No.", "Invoice No.", "RTGS Status"]
+                    locked_rtgs_columns = ["Sr. No.", "Record", "Date", "Branch", "Transporter Name", "Vehicle No.", "Invoice No."]
                     if current_user != "Nikhat":
                         locked_rtgs_columns.extend([
                             "Beneficiary", "Account Number", "IFSC", "Amount", "Remarks",
@@ -2645,7 +2647,7 @@ def render_generate_reports():
                             "Select":st.column_config.CheckboxColumn("",required=True,width=42),
                             "Sr. No.":st.column_config.NumberColumn(width=65),
                             "Amount":st.column_config.NumberColumn("Amount (₹)",min_value=0.0,format="₹%.2f",width=120),
-                            "RTGS Status":st.column_config.TextColumn("Status",width=105),
+                            "RTGS Status":st.column_config.SelectboxColumn("Status",options=["Pending","RTGS Done"],required=True,width=110),
                             "Branch":st.column_config.TextColumn(width=100),
                             "Date":st.column_config.TextColumn(width=105),
                             "Transporter Name":st.column_config.TextColumn(width=190),
@@ -2654,6 +2656,9 @@ def render_generate_reports():
                             "IFSC":st.column_config.TextColumn(width=130),
                             "Remarks":st.column_config.TextColumn(width=300),
                         })
+                    status_count=persist_status_edits(store,rtgs_candidates,edited_selection,current_user,
+                        st.session_state['_report_source'],st.session_state['_report_payment_metadata'])
+                    if status_count:st.toast(f"Saved RTGS status for {status_count} record(s).")
                     components.html(latest_rows_scroll_script(
                         "report_rtgs_grid", repr([row.get("request_number") for row in rtgs_candidates]),
                     ), height=0)
@@ -2747,26 +2752,6 @@ def render_generate_reports():
                     row for row in effective_rtgs_rows if row.get("request_number") in selected_request_numbers
                 ]
                 rtgs_summary(effective_rtgs_rows or rtgs_candidates)
-                with st.container(key='report_actions'):
-                    mark_col, unmark_col, _ = st.columns([1, 1, 3])
-                if mark_col.button(
-                    "Mark selected as RTGS Done",
-                    disabled=not selected_request_numbers or bool(current_user == "Nikhat" and changed_rtgs_rows),
-                    key="mark_selected_rtgs_done", use_container_width=True,
-                ):
-                    updated = store.mark_rtgs_done(selected_request_numbers, edited_by=current_user)
-                    audit_action("Marked RTGS Done", "", f"{updated} record(s)")
-                    st.toast(f"Marked {updated} record(s) as RTGS Done.", icon="✅")
-                    st.rerun()
-                if unmark_col.button(
-                    "Mark Selected As Not Done",
-                    disabled=not selected_request_numbers or bool(current_user == "Nikhat" and changed_rtgs_rows),
-                    key="mark_selected_rtgs_not_done", use_container_width=True,
-                ):
-                    updated = store.mark_rtgs_done(selected_request_numbers, done=False, edited_by=current_user)
-                    audit_action("Marked RTGS Not Done", "", f"{updated} record(s)")
-                    st.toast(f"Marked {updated} record(s) as Not Done.", icon="✅")
-                    st.rerun()
                 records = []
                 for row in selected_rtgs_rows:
                     data = unpack(row.get("rtgs_data"))
@@ -2776,12 +2761,6 @@ def render_generate_reports():
                     records.append(data)
                 records = normalize_rtgs_records(records, dt.date.today())
                 frame = pd.DataFrame(records, columns=[*RTGS_REVIEW_COLUMNS, "_payment_kind", "_payment_id"])
-                rtgs_display = frame[RTGS_REVIEW_COLUMNS].copy()
-                for column in ("AMOUNT", "Transporter Freight"):
-                    if column in rtgs_display:
-                        rtgs_display[column] = rtgs_display[column].map(format_inr)
-                with st.expander("Bank file preview", expanded=False):
-                    st.dataframe(rtgs_display, hide_index=True, width="stretch")
                 with download_col, st.container(key="report_download_rtgs"):
                     st.download_button(
                         "Create RTGS Report", cached_rtgs_excel(frame, dt.date.today()),
@@ -2807,6 +2786,7 @@ with reports_tab:
     # This runs on full app refreshes; fragment-only report actions reuse the
     # current snapshot and do not rebuild New Entry, Records or the dashboard.
     st.session_state['_report_source'] = (normalization_rows, balance_requests, upi_requests)
+    st.session_state['_report_snapshot_has_payments'] = current_user in BALANCE_PAYMENT_USERS or current_user in SPECIAL_MEMBERS
     st.session_state['_report_refresh_metadata'] = True
     render_generate_reports()
 

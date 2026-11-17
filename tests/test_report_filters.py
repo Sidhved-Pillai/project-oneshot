@@ -52,7 +52,7 @@ def test_invalid_range_keeps_last_report_and_ashok_is_dtr_only():
     app.date_input[0].set_value((dt.date(2026,12,1),))
     app.button(key='apply_report_filters').click();run(app)
     assert app.error and app.session_state['report_applied_filters']==saved
-    assert len(app.selectbox)==4
+    assert len(app.selectbox)==3
     assert len(app.get('button_group')[0].options)==1
 
 

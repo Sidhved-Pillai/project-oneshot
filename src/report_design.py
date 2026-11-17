@@ -49,7 +49,7 @@ def report_styles(kind):
     .st-key-report_results h3 {font-size:25px!important;font-weight:800!important;color:#080f42!important;padding:0!important;margin:0!important;line-height:1.15!important}
     .st-key-report_results [data-testid="stCaptionContainer"] p {font-size:14px!important;color:#33437a!important;margin:0!important}
     .st-key-report_results [data-testid="stDataFrame"] {border-radius:13px;border:1px solid #dce4fb;overflow:hidden;box-shadow:0 2px 5px #174cff0d}
-    .st-key-report_studio .st-key-report_download button {border-radius:14px!important;background:white!important;color:#080f42!important;border:1px solid #d8e3ff!important;box-shadow:0 2px 5px #0055ff20;padding:9px 16px!important;min-height:42px!important}
+    .st-key-report_studio .st-key-report_download button {border-radius:14px!important;background:linear-gradient(110deg,#18c52c,#008b0a)!important;color:white!important;border:1px solid #12a324!important;box-shadow:0 2px 5px #00880020;padding:9px 16px!important;min-height:42px!important}
     .st-key-report_studio .st-key-report_download_rtgs button {background:linear-gradient(110deg,#18c52c,#008b0a)!important;border:1px solid #12a324!important;color:white!important;border-radius:14px!important;padding:9px 18px!important;min-height:42px!important}
     .st-key-report_studio .st-key-report_download button p,.st-key-report_studio .st-key-report_download_rtgs button p {font-size:15px!important;font-weight:700!important;white-space:nowrap}
     .st-key-report_tools {padding:0 0 2px}

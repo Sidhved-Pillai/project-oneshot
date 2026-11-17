@@ -5,9 +5,8 @@ import streamlit as st
 
 def merge_visible_edits(full, edited):
     result=full.copy(deep=True)
-    for index in edited.index:
-        for column in edited.columns:
-            result.at[index,column]=edited.at[index,column]
+    for column in edited.columns:
+        result.loc[edited.index,column]=edited[column].to_numpy()
     return result
 
 
@@ -22,9 +21,9 @@ def report_editor(frame, key, container_key, search, disabled=False, column_conf
     if visible.empty:
         st.info('No rows match your search. Clear the search to show all report rows.')
     else:
-        styled=visible.style.set_properties(**{'background-color':'#ffffff','color':'#10183f'})
+        styled=visible
         if 'RTGS Status' in visible:
-            styled=styled.map(lambda value:'background-color:#dcf7df;color:#17632b;font-weight:bold' if value=='RTGS Done' else 'background-color:#fff0d3;color:#9a4c08;font-weight:bold',subset=['RTGS Status'])
+            styled=visible.style.map(lambda value:'background-color:#dcf7df;color:#17632b;font-weight:bold' if value=='RTGS Done' else 'background-color:#fff0d3;color:#9a4c08;font-weight:bold',subset=['RTGS Status'])
         with st.container(key=container_key):
             edited=st.data_editor(styled,hide_index=True,width='stretch',height=min(355,37+29*len(visible)),row_height=29,
                 key=key+'_'+str(generation)+'_'+hashlib.sha256(query.encode()).hexdigest()[:10],disabled=disabled,
