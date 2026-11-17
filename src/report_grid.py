@@ -11,6 +11,9 @@ def merge_visible_edits(full, edited):
 
 
 def report_editor(frame, key, container_key, search, disabled=False, column_config=None, column_order=None):
+    if container_key == 'report_rtgs_grid':
+        from .rtgs_grid import rtgs_editor
+        return rtgs_editor(frame, key, search, disabled, column_order)
     state_key='_report_grid_'+container_key
     state=st.session_state.get(state_key,{})
     full=state['frame'].copy(deep=True) if state.get('key')==key else frame.copy(deep=True)

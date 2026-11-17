@@ -2659,9 +2659,6 @@ def render_generate_reports():
                     status_count=persist_status_edits(store,rtgs_candidates,edited_selection,current_user,
                         st.session_state['_report_source'],st.session_state['_report_payment_metadata'])
                     if status_count:st.toast(f"Saved RTGS status for {status_count} record(s).")
-                    components.html(latest_rows_scroll_script(
-                        "report_rtgs_grid", repr([row.get("request_number") for row in rtgs_candidates]),
-                    ), height=0)
                     editable_rtgs_columns = ["Beneficiary", "Account Number", "IFSC", "Amount", "Remarks"]
                     for index, saved_row in enumerate(rtgs_candidates):
                         edited_item = edited_selection.iloc[index].to_dict()

@@ -85,10 +85,11 @@ def test_all_report_formats_keep_working_and_apply_refreshes_saved_entries(tmp_p
     apply(app,'DTR')
     assert len(app.dataframe[0].value)==2
     apply(app,'RTGS')
-    assert len(app.dataframe[0].value)==1
-    assert app.dataframe[0].value.iloc[0]['Amount']==1000
-    assert app.dataframe[0].value.iloc[0]['Invoice No.']=='TEST-INV'
-    assert app.dataframe[0].value.iloc[0]['Account Number']=='001234'
+    grid=app.session_state['_rtgs_badge_table']['frame']
+    assert len(grid)==1
+    assert grid.iloc[0]['Amount']==1000
+    assert grid.iloc[0]['Invoice No.']=='TEST-INV'
+    assert grid.iloc[0]['Account Number']=='001234'
     from src.rtgs_report_v3 import RTGS_REVIEW_COLUMNS
     exported=app.session_state['rtgs_export_frame']
     assert exported.columns.tolist()==[*RTGS_REVIEW_COLUMNS,'_payment_kind','_payment_id']
@@ -123,7 +124,8 @@ def test_report_switches_render_immediately_without_reapplying_dates(tmp_path):
     for kind,column in [('RTGS','Amount'),('P&L','Profit'),('DTR','Invoice No.')]:
         app.get('button_group')[0].set_value([kind]);run(app)
         assert not app.exception
-        assert column in app.dataframe[0].value.columns
+        frame=app.session_state['_rtgs_badge_table']['frame'] if kind=='RTGS' else app.dataframe[0].value
+        assert column in frame.columns
         assert app.session_state['report_applied_filters']['start']==dt.date(2026,11,10)
         assert app.session_state['report_applied_filters']['end']==dt.date(2026,11,10)
     app.date_input[0].set_value((dt.date(2026,11,11),dt.date(2026,11,12)))
