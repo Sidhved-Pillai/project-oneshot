@@ -2641,7 +2641,7 @@ def render_generate_reports():
                     edited_selection = report_editor(selection_display, rtgs_editor_key, 'report_rtgs_grid', search,
                         disabled=locked_rtgs_columns,
                         column_order=['Select','Sr. No.','Branch','Transporter Name','Date','Vehicle No.','Invoice No.',
-                            'Beneficiary','Account Number','IFSC','Amount','RTGS Status','Remarks','Record'],
+                            'Beneficiary','Account Number','IFSC','Amount','RTGS Status','Remarks'],
                         column_config={
                             "Select":st.column_config.CheckboxColumn("",required=True,width=42),
                             "Sr. No.":st.column_config.NumberColumn(width=65),

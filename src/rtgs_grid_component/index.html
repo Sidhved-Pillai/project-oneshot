@@ -6,7 +6,7 @@ let args={},rows=[],revision=null,patches=new Map(),sort=null,identity=null;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const label=c=>({'RTGS Status':'Status','Amount':'Amount (₹)','Select':''}[c]??c);
 function emit(){send('streamlit:setComponentValue',{dataType:'json',value:{revision,nonce:crypto.randomUUID(),patches:[...patches.values()]}})}
-function update(row,column,value){rows[row][column]=value;patches.set(row+'|'+column,{row,column,value});emit()}
+function update(row,column,value){if(column==='RTGS Status'&&value==='Pending'&&rows[row][column]!==value){rows[row].Select=true;patches.set(row+'|Select',{row,column:'Select',value:true})}rows[row][column]=value;patches.set(row+'|'+column,{row,column,value});emit()}
 let menuAnchor=null;
 function closeMenu(){document.querySelector('.menu')?.remove();menuAnchor=null}
 function positionMenu(){

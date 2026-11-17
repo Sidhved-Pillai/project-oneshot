@@ -32,6 +32,8 @@ def apply_grid_event(frame, event, revision, editable):
         elif column not in ('Select', 'RTGS Status'):
             if not isinstance(value, str):
                 continue
+        if column == 'RTGS Status' and value == 'Pending' and result.iloc[index][column] != 'Pending' and 'Select' in result:
+            result.iat[index, result.columns.get_loc('Select')] = True
         result.iat[index, result.columns.get_loc(column)] = value
     return result
 
