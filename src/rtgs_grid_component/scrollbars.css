@@ -1,0 +1,9 @@
+.report-scrollbar{position:absolute;display:flex;align-items:center;gap:2px;z-index:5;background:#f5f8ff;border-radius:8px;box-sizing:border-box}
+.report-scrollbar.horizontal{left:0;right:20px;bottom:0;height:18px;flex-direction:row}
+.report-scrollbar.vertical{top:0;right:0;bottom:20px;width:18px;flex-direction:column}
+.report-scrollbar button{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;flex:0 0 18px;width:18px;height:18px;color:#1765f4;font:700 19px/1 sans-serif;cursor:pointer;border-radius:5px;user-select:none}
+.report-scrollbar button:hover{background:#dfebff}.report-scrollbar button:disabled{color:#b7c6e4;cursor:default}
+.report-scroll-track{position:relative;flex:1;background:#e5edfc;border-radius:8px;min-width:0;min-height:0;cursor:pointer}
+.horizontal .report-scroll-track{height:12px}.vertical .report-scroll-track{width:12px}
+.report-scroll-thumb{position:absolute;top:0;left:0;background:#2d73f5;border-radius:8px;cursor:grab;touch-action:none;min-width:12px;min-height:12px}
+.report-scroll-thumb:hover{background:#125de1}.report-scroll-thumb:active{cursor:grabbing;background:#064ac6}.report-scroll-thumb:focus-visible{outline:2px solid #082f85;outline-offset:1px}

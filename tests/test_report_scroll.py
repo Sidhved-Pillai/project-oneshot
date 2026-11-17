@@ -11,16 +11,16 @@ def test_report_scroll_opens_at_bottom_but_preserves_manual_scroll():
     if not node:
         pytest.skip("Node is needed for the scroll controller browser mock")
     script = latest_rows_scroll_script("report_dtr_grid", "rows-1")
-    script = script.removeprefix("<script>").removesuffix("</script>")
+    script = script.split("</script><script>", 1)[1].removesuffix("</script>")
     harness = """
 const assert = require('node:assert/strict');
 let tick, visible = true, calls = 0, disconnected = false;
 const scroller = {clientHeight: 400, scrollHeight: 1600, scrollTop: 0,
   scrollTo({top}) { this.scrollTop = top; calls++; }};
-const grid = {getBoundingClientRect: () => ({height: visible ? 400 : 0}),
+const grid = {style: {}, getBoundingClientRect: () => ({height: visible ? 400 : 0}),
   querySelector: selector => selector === 'canvas' ? {} : scroller};
-global.window = {frameElement: {isConnected: true}, parent: {
-  document: {querySelector: () => grid}, getComputedStyle: () => ({visibility:'visible'})}};
+global.window = {installReportScrollbars: () => {}, frameElement: {isConnected: true}, parent: {
+  document: {querySelector: () => grid, getElementById: () => ({})}, getComputedStyle: () => ({visibility:'visible'})}};
 global.setInterval = callback => { tick = callback; return 1; };
 global.clearInterval = () => { disconnected = true; };
 """ + script + """
