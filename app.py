@@ -2582,7 +2582,7 @@ def render_generate_reports():
                 with search_col:
                     search = st.text_input("Search RTGS",placeholder="Search by Transporter, Vehicle No., Invoice No., Beneficiary…",label_visibility="collapsed",key="report_rtgs_search_v4",icon=":material/search:")
                 with st.container(key='report_tools'):
-                    select_tool, balance_tool, _ = st.columns([1,2,4],vertical_alignment='center')
+                    balance_tool, _ = st.columns([3,4],vertical_alignment='center')
                 show_only_balance_payable = balance_tool.toggle(
                     "Show only Balance Payable records",
                     value=False,
@@ -2606,10 +2606,8 @@ def render_generate_reports():
                 rtgs_candidates = filter_report_rows([row for row in rtgs_candidates if start <= as_date(row.get('trip_date')) <= end], filters)
                 rtgs_candidates.sort(key=lambda row: not bool(row.get('rtgs_done')))
                 count_slot.caption(f"{len(rtgs_candidates)} record(s) found")
-                select_all_rtgs = select_tool.checkbox("Select all", key="rtgs_select_all")
                 selection_frame = pd.DataFrame([
                     {
-                        "Select": select_all_rtgs or not bool(row.get("rtgs_done")),
                         "Sr. No.": index + 1,
                         "Record": request_label(row) + (" · Billtee Payment" if row.get("_billtee_payment") else " · UPI Payment" if row.get("_upi_payment") else " · Balance Payment" if row.get("_balance_payment") else " · Advance"),
                         "Date": f"{as_date(row.get('trip_date')):%d/%m/%y}",
@@ -2634,16 +2632,15 @@ def render_generate_reports():
                     selected_request_numbers = []
                 else:
                     selection_display = selection_frame.drop(columns=["_request_number"])
-                    locked_rtgs_columns = [c for c in selection_display.columns if c not in ("Select", "RTGS Status")]
+                    locked_rtgs_columns = [c for c in selection_display.columns if c != "RTGS Status"]
                     rtgs_editor_key = "rtgs_record_selection_" + hashlib.sha256(
                         repr([(r["request_number"], r.get("rtgs_done"), str(r.get("rtgs_data"))) for r in rtgs_candidates]).encode()
-                    ).hexdigest()[:16] + str(select_all_rtgs)
+                    ).hexdigest()[:16] + "_status_only_v1"
                     edited_selection = report_editor(selection_display, rtgs_editor_key, 'report_rtgs_grid', search,
                         disabled=locked_rtgs_columns,
-                        column_order=['Select','Sr. No.','Branch','Transporter Name','Date','Vehicle No.','Invoice No.',
-                            'Beneficiary','Account Number','IFSC','Amount','RTGS Status','Remarks'],
+                        column_order=['Sr. No.','Branch','Date','Vehicle No.',
+                            'Beneficiary','Account Number','IFSC','RTGS Status','Remarks'],
                         column_config={
-                            "Select":st.column_config.CheckboxColumn("",required=True,width=42),
                             "Sr. No.":st.column_config.NumberColumn(width=65),
                             "Amount":st.column_config.NumberColumn("Amount (₹)",min_value=0.0,format="₹%.2f",width=120),
                             "RTGS Status":st.column_config.SelectboxColumn("Status",options=["Pending","RTGS Done"],required=True,width=110),
@@ -2661,7 +2658,7 @@ def render_generate_reports():
                     effective_rtgs_rows = [dict(row) for row in rtgs_candidates]
                     selected_request_numbers = [
                         selection_frame.iloc[index]["_request_number"]
-                        for index, selected in enumerate(edited_selection["Select"].tolist()) if selected
+                        for index, status in enumerate(edited_selection["RTGS Status"].tolist()) if status == "Pending"
                     ]
                 selected_rtgs_rows = [
                     row for row in effective_rtgs_rows if row.get("request_number") in selected_request_numbers
@@ -2680,7 +2677,7 @@ def render_generate_reports():
                     report_file = cached_rtgs_excel(frame, dt.date.today())
                     if st.button("Create RTGS Report", type="primary", icon=":material/file_download:",
                                  disabled=frame.empty or not can_generate_reports, key="create_rtgs_preview"):
-                        preview_frame = edited_selection.loc[edited_selection['Select']].copy(deep=True)
+                        preview_frame = edited_selection.loc[edited_selection['RTGS Status'].eq('Pending')].copy(deep=True)
                         preview_rtgs_report(preview_frame, report_file, selected_request_numbers, start, end,
                                             complete_rtgs_download)
 

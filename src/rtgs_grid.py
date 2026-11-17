@@ -1,6 +1,5 @@
 """RTGS table with accessible, single-click status badges."""
 from pathlib import Path
-import math
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -16,38 +15,19 @@ def apply_grid_event(frame, event, revision, editable):
         if not isinstance(patch, dict):
             continue
         index, column, value = patch.get('row'), patch.get('column'), patch.get('value')
-        if not isinstance(index, int) or not 0 <= index < len(frame) or column not in editable or column not in ('Select', 'RTGS Status'):
+        if not isinstance(index, int) or not 0 <= index < len(frame) or column not in editable or column != 'RTGS Status':
             continue
         if column == 'RTGS Status' and value not in ('Pending', 'RTGS Done'):
             continue
-        if column == 'Select' and not isinstance(value, bool):
-            continue
-        if column == 'Amount':
-            try:
-                value = float(value)
-            except (ValueError, TypeError):
-                continue
-            if not math.isfinite(value) or value < 0:
-                continue
-        elif column not in ('Select', 'RTGS Status'):
-            if not isinstance(value, str):
-                continue
-        if column == 'RTGS Status' and value == 'Pending' and result.iloc[index][column] != 'Pending' and 'Select' in result:
-            result.iat[index, result.columns.get_loc('Select')] = True
         result.iat[index, result.columns.get_loc(column)] = value
     return result
 
 
 def rtgs_editor(frame, key, search, disabled, column_order):
-    editable = [c for c in ('Select', 'RTGS Status') if c in frame.columns and disabled is not True and (disabled is False or c not in disabled)]
+    editable = [c for c in ('RTGS Status',) if c in frame.columns and disabled is not True and (disabled is False or c not in disabled)]
     state_key = '_rtgs_badge_table'
     state = st.session_state.get(state_key, {})
     full = state['frame'].copy(deep=True) if state.get('revision') == key else frame.copy(deep=True)
-    previous = state.get('frame')
-    if (previous is not None and state.get('revision') != key
-            and 'Record' in frame and set(previous['Record']) == set(frame['Record'])
-            and str(state.get('revision')).endswith('True') == str(key).endswith('True')):
-        full['Select'] = frame['Record'].map(dict(zip(previous['Record'], previous['Select']))).to_numpy()
     # JSON conversion preserves bank account strings and excludes NaN values.
     import json
     rows = json.loads(full.to_json(orient='records'))

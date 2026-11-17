@@ -99,7 +99,7 @@ def test_all_report_formats_keep_working_and_apply_refreshes_saved_entries(tmp_p
     assert not app.expander
     assert not any('Mark selected' in b.label or 'Mark Selected' in b.label for b in app.button)
     reads=app.session_state['snapshot_reads']
-    app.checkbox(key='rtgs_select_all').check()
+    assert not any(c.label == 'Select all' for c in app.checkbox)
     run(app)
     assert not app.exception and app.session_state['snapshot_reads']==reads
     apply(app,'P&L')

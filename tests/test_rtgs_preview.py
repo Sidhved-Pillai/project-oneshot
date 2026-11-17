@@ -45,7 +45,7 @@ def test_pending_rows_are_grouped_last_without_changing_export_identity(tmp_path
     frame=app.session_state['_rtgs_badge_table']['frame']
     assert frame['RTGS Status'].tolist()==['RTGS Done','Pending']
     assert frame['Invoice No.'].tolist()==['SENT','TEST-INV']
-    assert frame['Select'].tolist()==[False,True]
+    assert 'Select' not in frame
     assert app.session_state['rtgs_export_frame'].iloc[0]['AMOUNT']==1000
 
 
@@ -76,3 +76,31 @@ render_generate_reports()
     assert not app.exception
     row=RequestStore('sqlite:///'+str(path)).dashboard_snapshot()[0][0]
     assert row['rtgs_advance']==1000 and row['beneficiary_name']!='Corrected beneficiary'
+
+
+def test_status_alone_controls_export_even_with_stale_checkbox_data(tmp_path):
+    source=report_source(tmp_path/'status_only.db')
+    pos=source.rfind('render_generate_reports()')
+    source=source[:pos]+'''original_editor=report_editor
+def report_editor(*args, **kwargs):
+    result=original_editor(*args, **kwargs)
+    if args[2]=='report_rtgs_grid':
+        st.session_state['display_columns']=kwargs['column_order']
+        status=st.session_state.get('test_status','Pending')
+        result['RTGS Status']=status
+        result['Select']=True  # obsolete client state must never authorize export
+    return result
+render_generate_reports()
+'''
+    app=AppTest.from_string(source).run();apply(app,'RTGS')
+    assert app.session_state['display_columns']==['Sr. No.','Branch','Date','Vehicle No.',
+        'Beneficiary','Account Number','IFSC','RTGS Status','Remarks']
+    assert len(app.session_state['rtgs_export_frame'])==1
+    app.session_state['test_status']='RTGS Done';run(app)
+    assert not app.exception
+    assert app.session_state['rtgs_export_frame'].empty
+    assert app.button(key='create_rtgs_preview').disabled
+    app.session_state['test_status']='Pending';run(app)
+    assert not app.exception
+    assert len(app.session_state['rtgs_export_frame'])==1
+    assert not app.button(key='create_rtgs_preview').disabled

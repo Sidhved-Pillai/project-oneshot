@@ -11,7 +11,7 @@ def test_status_event_is_scoped_and_does_not_modify_financial_fields():
     edited=apply_grid_event(frame,event,'v1',['Select','RTGS Status'])
     assert edited.iloc[0]['RTGS Status']=='Pending'
     assert edited.iloc[1]['RTGS Status']=='Pending'
-    assert bool(edited.iloc[0]['Select'])
+    assert not bool(edited.iloc[0]['Select'])
     pd.testing.assert_frame_equal(edited.drop(columns=['RTGS Status','Select']),frame.drop(columns=['RTGS Status','Select']))
     pd.testing.assert_frame_equal(apply_grid_event(frame,event,'v2',['RTGS Status']),frame)
 
@@ -23,4 +23,4 @@ def test_financial_edits_are_rejected_even_if_client_claims_editable():
     edited=apply_grid_event(frame,event,'v1',list(frame.columns))
     assert edited.iloc[0]['Account Number']=='001234'
     assert edited.iloc[0]['Amount']==100
-    assert bool(edited.iloc[0]['Select'])
+    assert not bool(edited.iloc[0]['Select'])
