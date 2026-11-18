@@ -50,7 +50,7 @@ from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
 from src.current_pnl_report_v6 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.payment_access_v2 import PENDING_PAYMENT_USERS
-from src.records_store_v35 import RequestStore
+from src.records_store_v36 import RequestStore
 from src.sid_dashboard import switch_to_reports
 from src.pnl_dashboard_v3 import render_pnl_dashboard as render_dashboard
 from src.dashboard_duplicate_review_v3 import review_duplicates
@@ -93,7 +93,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 hide_manage_app()
-STORE_INTERFACE_VERSION = 35
+STORE_INTERFACE_VERSION = 36
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = [name for name in DIRECT_EXPENSE_COLUMNS if name != "Route expense"]
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*STANDARD_DIRECT_EXPENSE_COLUMNS, "Debit"]
@@ -1441,7 +1441,10 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False, layout_ta
 
 
 require_authentication()
-entry_draft_bridge(st.session_state['authenticated_user'])
+# Sid has no entry forms to recover. A browser-component handshake must not
+# block his dashboard/reports (including after a reconnect or browser update).
+if st.session_state['authenticated_user'] != 'Sid':
+    entry_draft_bridge(st.session_state['authenticated_user'])
 render_mobile_resume_styles()
 if st.session_state.pop("welcome_pending", False):
     st.toast(f"Welcome {st.session_state['authenticated_user']}!", icon="👋")
