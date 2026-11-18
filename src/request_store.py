@@ -48,6 +48,7 @@ requests = Table(
     Column("revenue", Numeric(14, 2), default=0),
     Column("transporter_freight", Numeric(14, 2), default=0),
     Column("rtgs_advance", Numeric(14, 2), default=0),
+    Column("rtgs_later", Boolean, nullable=False, default=False, server_default=false()),
     Column("rtgs_done", Boolean, nullable=False, default=False, server_default=false(), index=True),
     Column("cash_advance", Numeric(14, 2), default=0),
     Column("upi", Numeric(14, 2), default=0),
@@ -71,6 +72,7 @@ balance_payments = Table(
     Column("request_number", String(40), primary_key=True),
     Column("amount", Numeric(14, 2), nullable=False),
     Column("rtgs_data", Text, nullable=False),
+    Column("rtgs_later", Boolean, nullable=False, default=False, server_default=false()),
     Column("rtgs_done", Boolean, nullable=False, default=False),
     Column("requested_by", String(120), nullable=False),
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
@@ -108,6 +110,7 @@ upi_payments = Table(
     Column("request_number", String(40), primary_key=True),
     Column("amount", Numeric(14, 2), nullable=False),
     Column("rtgs_data", Text, nullable=False),
+    Column("rtgs_later", Boolean, nullable=False, default=False, server_default=false()),
     Column("rtgs_done", Boolean, nullable=False, default=False),
     Column("requested_by", String(120), nullable=False),
     Column("created_at", DateTime, nullable=False, server_default=func.now()),
@@ -118,6 +121,7 @@ billtee_payments = Table(
     Column('request_number', String(40), primary_key=True),
     Column('amount', Numeric(14, 2), nullable=False),
     Column('rtgs_data', Text, nullable=False),
+    Column('rtgs_later', Boolean, nullable=False, default=False, server_default=false()),
     Column('rtgs_done', Boolean, nullable=False, default=False),
     Column('requested_by', String(120), nullable=False),
     Column('created_at', DateTime, nullable=False, server_default=func.now()),
@@ -240,6 +244,11 @@ class RequestStore(SettlementStore):
                             "UPDATE dtr_requests SET rtgs_done = TRUE "
                             "WHERE COALESCE(rtgs_advance, 0) > 0 AND report_scope != 'Expense'"
                         ))
+        with self.engine.begin() as conn:
+            for table in (requests, balance_payments, upi_payments, billtee_payments):
+                existing = {c['name'] for c in inspect(conn).get_columns(table.name)}
+                if 'rtgs_later' not in existing:
+                    conn.execute(text(f'ALTER TABLE {table.name} ADD COLUMN rtgs_later BOOLEAN NOT NULL DEFAULT FALSE'))
         batch_columns = {column["name"] for column in inspect(self.engine).get_columns("intake_batches")}
         batch_additions = {
             "ai_draft": "TEXT NOT NULL DEFAULT '[]'",
@@ -813,7 +822,7 @@ class RequestStore(SettlementStore):
                 details=json.dumps({'audit_version': 1, 'before': {'rtgs_data': json.loads(original)}, 'after': {'rtgs_data': data}}, default=str),
             ))
 
-    def mark_rtgs_done(self, request_numbers, done=True, edited_by="System"):
+    def mark_rtgs_done(self, request_numbers, done=True, edited_by="System", later=False):
         """Persist the RTGS download status for the selected trip records."""
         request_numbers = [number for number in request_numbers if number]
         if not request_numbers:
@@ -828,25 +837,25 @@ class RequestStore(SettlementStore):
                     (requests, request_numbers, '')):
                 if not numbers:
                     continue
-                for old in conn.execute(select(table.c.request_number, table.c.rtgs_done).where(
+                for old in conn.execute(select(table.c.request_number, table.c.rtgs_done, table.c.rtgs_later).where(
                         table.c.request_number.in_(numbers)).with_for_update()).mappings():
-                    if bool(old['rtgs_done']) != bool(done):
+                    if bool(old['rtgs_done']) != bool(done) or bool(old['rtgs_later']) != bool(later):
                         conn.execute(insert(activity_logs).values(user_name=edited_by, action='Updated RTGS status',
                             request_number=old['request_number'], details=json.dumps({'audit_version':1,
                                 'message': prefix + old['request_number'],
-                                'before': {'rtgs_done': bool(old['rtgs_done'])},
-                                'after': {'rtgs_done': bool(done)}})))
-            billtee_count = conn.execute(update(billtee_payments).where(billtee_payments.c.request_number.in_(billtee_numbers)).values(rtgs_done=bool(done))).rowcount if billtee_numbers else 0
+                                'before': {'rtgs_done': bool(old['rtgs_done']), 'rtgs_later': bool(old['rtgs_later'])},
+                                'after': {'rtgs_done': bool(done), 'rtgs_later': bool(later)}})))
+            billtee_count = conn.execute(update(billtee_payments).where(billtee_payments.c.request_number.in_(billtee_numbers)).values(rtgs_later=bool(later), rtgs_done=bool(done))).rowcount if billtee_numbers else 0
             upi_count = conn.execute(update(upi_payments).where(
                 upi_payments.c.request_number.in_(upi_numbers),
-            ).values(rtgs_done=bool(done))).rowcount if upi_numbers else 0
+            ).values(rtgs_later=bool(later), rtgs_done=bool(done))).rowcount if upi_numbers else 0
             balance_count = conn.execute(update(balance_payments).where(
                 balance_payments.c.request_number.in_(balance_numbers),
-            ).values(rtgs_done=bool(done))).rowcount if balance_numbers else 0
+            ).values(rtgs_later=bool(later), rtgs_done=bool(done))).rowcount if balance_numbers else 0
             result = conn.execute(
                 update(requests)
                 .where(requests.c.request_number.in_(request_numbers))
-                .values(rtgs_done=bool(done), updated_at=dt.datetime.now())
+                .values(rtgs_later=bool(later), rtgs_done=bool(done), updated_at=dt.datetime.now())
             )
         return result.rowcount + balance_count + upi_count + billtee_count
 
@@ -1051,7 +1060,7 @@ class RequestStore(SettlementStore):
                     select(literal('balance').label('_kind'), *balance_payments.c),
                     select(literal('upi').label('_kind'), *upi_payments.c),
                     select(literal('settlement').label('_kind'), payment_records.c.id, payment_records.c.amount,
-                           payment_records.c.snapshot, literal(False), payment_records.c.user_name, payment_records.c.created_at),
+                           payment_records.c.snapshot, literal(False), literal(False), payment_records.c.user_name, payment_records.c.created_at),
                 )
                 for result in conn.execute(query).mappings():
                     payment = dict(result)

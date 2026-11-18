@@ -53,6 +53,7 @@ def balance_rtgs_rows(trips, payments):
             "trip_date": requested_date,
             "rtgs_advance": report_amount,
             "rtgs_done": (not bool(remaining)) if settled or payment.get("_has_settlement_activity") else payment.get("rtgs_done"),
+            "rtgs_later": payment.get("rtgs_later", False),
             "rtgs_data": json.dumps(data, default=str),
             "_balance_payment": True,
             "beneficiary_name": data.get("BNF_NAME", ""),

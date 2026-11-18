@@ -65,16 +65,16 @@ def render_report_filters(user, report_options, vehicles, today=None, rows=()):
                     ('ownership','Ownership',['All','Own','Outside'])]
             else:
                 specs += [('transporter','Transporter',_options(rows,'transporter_name')),
-                    ('status','Payment Status',['All','Pending','RTGS Done'])]
+                    ('status','Payment Status',['All','Pending','Mark for Later','RTGS Done'])]
             cols=st.columns([1.65,*([1.4]*len(specs)),1],vertical_alignment='bottom',gap='small')
             dates=cols[0].date_input('Date Range',value=(applied['start'],applied['end']),format='DD/MM/YYYY',key=f"report_date_range_v4_{kind}_{applied['start']}_{applied['end']}",min_value=OPERATIONS_START)
             start,end=(dates[0],dates[-1]) if isinstance(dates,(tuple,list)) and len(dates)==2 else (None,None)
             labels={'branch':'All Branches','company':'All Companies','capacity':'All Types','ownership':'All (Own & Outside)',
-                'transporter':'All Transporters','status':'All (Pending & Paid)'}
+                'transporter':'All Transporters','status':'All Statuses'}
             for col,(field,label,options) in zip(cols[1:],specs):
                 key=f'report_{kind}_{field}_v4'
                 if switched or st.session_state.get(key) not in options:st.session_state[key]=choices.get(field,'All') if choices.get(field,'All') in options else 'All'
-                chosen[field]=col.selectbox(label,options,key=key,format_func=lambda v,f=field:labels[f] if v=='All' else v)
+                chosen[field]=col.selectbox(label,options,key=key,format_func=lambda v,f=field:labels[f] if v=='All' else 'Sent' if f=='status' and v=='RTGS Done' else v)
             with cols[-1]:submitted=st.form_submit_button('Apply Filter',icon=':material/filter_alt:',type='primary',key='apply_report_filters',use_container_width=True)
     valid=start is not None and end is not None and start<=end
     if submitted or requested:
@@ -99,5 +99,5 @@ def filter_report_rows(rows, filters):
         value=details.get(choice,'All')
         if value!='All':result=[r for r in result if str(r.get(field) or '').strip().casefold()==value.casefold()]
     status=details.get('status','All')
-    if status!='All':result=[r for r in result if bool(r.get('rtgs_done'))==(status=='RTGS Done')]
+    if status!='All':result=[r for r in result if ('Mark for Later' if r.get('rtgs_later') else 'RTGS Done' if r.get('rtgs_done') else 'Pending')==status]
     return result

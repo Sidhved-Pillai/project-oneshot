@@ -27,7 +27,7 @@ def apply_grid_event(frame, event, revision, editable):
             continue
         if not isinstance(index, int) or not 0 <= index < len(frame) or column not in editable or column != 'RTGS Status':
             continue
-        if column == 'RTGS Status' and value not in ('Pending', 'RTGS Done'):
+        if column == 'RTGS Status' and value not in ('Pending', 'RTGS Done', 'Mark for Later'):
             continue
         result.iat[index, result.columns.get_loc(column)] = value
     return result

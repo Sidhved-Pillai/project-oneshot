@@ -2597,7 +2597,7 @@ def render_generate_reports():
                     item for item in trips if number(item.get("rtgs_advance")) > 0
                 ])))
                 rtgs_candidates = filter_report_rows([row for row in rtgs_candidates if start <= as_date(row.get('trip_date')) <= end], filters)
-                rtgs_candidates.sort(key=lambda row: not bool(row.get('rtgs_done')))
+                rtgs_candidates.sort(key=lambda row: 1 if row.get('rtgs_later') else 0 if row.get('rtgs_done') else 2)
                 count_slot.caption(f"{len(rtgs_candidates)} record(s) found")
                 with search_col:
                     search = st.selectbox("Search RTGS", rtgs_search_options(rtgs_candidates), index=None,
@@ -2617,7 +2617,7 @@ def render_generate_reports():
                         "IFSC": clean_text(unpack(row.get("rtgs_data")).get("BENE_IFSC")),
                         "Amount": number(row.get("rtgs_advance")),
                         "Remarks": clean_text(unpack(row.get("rtgs_data")).get("REMARK")) or rtgs_remark(row),
-                        "RTGS Status": "RTGS Done" if row.get("rtgs_done") else "Pending",
+                        "RTGS Status": "Mark for Later" if row.get("rtgs_later") else "RTGS Done" if row.get("rtgs_done") else "Pending",
                         "_request_number": row.get("request_number"),
                     }
                     for index, row in enumerate(rtgs_candidates)
@@ -2631,7 +2631,7 @@ def render_generate_reports():
                     selection_display = selection_frame.drop(columns=["_request_number"])
                     locked_rtgs_columns = [c for c in selection_display.columns if c != "RTGS Status"]
                     rtgs_editor_key = "rtgs_record_selection_" + hashlib.sha256(
-                        repr([(r["request_number"], r.get("rtgs_done"), str(r.get("rtgs_data"))) for r in rtgs_candidates]).encode()
+                        repr([(r["request_number"], r.get("rtgs_done"), r.get("rtgs_later"), str(r.get("rtgs_data"))) for r in rtgs_candidates]).encode()
                     ).hexdigest()[:16] + "_status_only_v1"
                     edited_selection = report_editor(selection_display, rtgs_editor_key, 'report_rtgs_grid', search,
                         disabled=locked_rtgs_columns,
@@ -2640,7 +2640,7 @@ def render_generate_reports():
                         column_config={
                             "Sr. No.":st.column_config.NumberColumn(width=65),
                             "Amount":st.column_config.NumberColumn("Amount (₹)",min_value=0.0,format="₹%.2f",width=120),
-                            "RTGS Status":st.column_config.SelectboxColumn("Status",options=["Pending","RTGS Done"],required=True,width=110),
+                            "RTGS Status":st.column_config.SelectboxColumn("Status",options=["Pending","Mark for Later","RTGS Done"],required=True,width=110),
                             "Branch":st.column_config.TextColumn(width=100),
                             "Date":st.column_config.TextColumn(width=105),
                             "Transporter Name":st.column_config.TextColumn(width=190),

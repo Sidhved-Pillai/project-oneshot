@@ -95,10 +95,10 @@ def report_styles(kind):
 
 def rtgs_summary(rows):
     done=sum(bool(row.get('rtgs_done')) for row in rows)
-    total=sum(float(row.get('rtgs_advance') or 0) for row in rows)
+    later=sum(bool(row.get('rtgs_later')) for row in rows)
     st.markdown('<div class="report-summary">'+''.join(
         f'<div><span class="summary-icon">{icon(symbol)}</span><div>{label}<strong>{value}</strong></div></div>' for symbol,label,value in [
-            ('layers','Total Records',len(rows)),('send','RTGS Done',done),('clock','Pending',len(rows)-done),('wallet','Total Amount',format_inr(total))])+ '</div>',unsafe_allow_html=True)
+            ('layers','Total Records',len(rows)),('send','RTGS Done',done),('clock','Pending',len(rows)-done-later),('clock','Marked for Later',later)])+ '</div>',unsafe_allow_html=True)
 
 
 def rtgs_search_options(rows):

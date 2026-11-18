@@ -42,3 +42,32 @@ def test_status_edit_persists_without_touching_money_or_remarks(tmp_path):
     edited.loc[0,'RTGS Status']='Pending'
     persist_status_edits(store,rows,edited,'Shyam',snapshot,metadata)
     assert not store.get(number)['rtgs_done']
+
+
+def test_mark_for_later_persists_independently_and_returns_to_pending(tmp_path):
+    from sqlalchemy import insert, select
+    from src.request_store import RequestStore, balance_payments, upi_payments, billtee_payments
+    from tests.test_pending_payments import trip
+    from src.report_filters import filter_report_rows
+    store=RequestStore('sqlite:///'+str(tmp_path/'later.db'))
+    number=trip(store,rtgs_advance=1500)
+    with store.engine.begin() as conn:
+        for table in (balance_payments,upi_payments,billtee_payments):
+            conn.execute(insert(table).values(request_number=number,amount=100,rtgs_data='{}',requested_by='Sid'))
+    ids=[number,'BALANCE:'+number,'UPI:'+number,'BILLTEE:'+number]
+    rows=[{'request_number':n,'rtgs_done':False} for n in ids]
+    edited=pd.DataFrame({'RTGS Status':['Mark for Later']*4})
+    assert persist_status_edits(store,rows,edited,'Sid',([],{},{}),([],{ }))==4
+    assert filter_report_rows(rows,{'details':{'status':'Pending'}})==[]
+    assert len(filter_report_rows(rows,{'details':{'status':'Mark for Later'}}))==4
+    assert store.get(number)['rtgs_later']
+    with store.engine.connect() as conn:
+        for table in (balance_payments,upi_payments,billtee_payments):
+            saved=conn.execute(select(table)).mappings().one()
+            assert saved['rtgs_later'] and not saved['rtgs_done']
+    edited.loc[0,'RTGS Status']='Pending'
+    persist_status_edits(store,rows,edited,'Sid',([],{},{}),([],{}))
+    assert not store.get(number)['rtgs_later']
+    assert len(filter_report_rows(rows,{'details':{'status':'Pending'}}))==1
+    store.mark_rtgs_done(ids,edited_by='Sid')
+    assert store.get(number)['rtgs_done'] and not store.get(number)['rtgs_later']
