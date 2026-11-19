@@ -45,6 +45,32 @@ def styles():
 @media(max-width:800px){.sr-cards{grid-template-columns:repeat(2,1fr)}.sr-heading{flex-wrap:wrap}.sr-total{margin-left:0}.sr-card{padding:10px;gap:8px}.sr-card em{font-size:12px}}
 .st-key-shyam_records h2{font-size:30px!important}.sr-heading p{font-size:14px}.sr-board h3{display:flex;align-items:center}.sr-card{font-size:13px;padding:12px}.sr-total{font-size:12px}.sr-total strong{font-size:22px}.st-key-shyam_records_table [data-testid="stVerticalBlock"]{gap:0!important}
 .sr-table-title{font-size:20px;font-weight:750;display:flex;align-items:center;gap:12px}.sr-table-title small{font-size:12px;font-weight:400}.st-key-shyam_records [data-testid="stSubheader"]{color:#101944}.st-key-shyam_records_table [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]){min-height:38px}
+/* Keep the reference's compact table geometry independent of global widget styles. */
+.st-key-shyam_records [data-testid="stElementContainer"]{margin-bottom:0!important}
+.st-key-shyam_records_filters [data-baseweb="input"],
+.st-key-shyam_records_filters [data-baseweb="select"]>div{min-height:36px!important;border-radius:10px!important}
+.st-key-shyam_records_filters input{font-size:13px!important;min-height:34px!important;padding-top:5px!important;padding-bottom:5px!important}
+.st-key-shyam_records_filters [data-testid="stFormSubmitButton"] button[kind="primaryFormSubmit"],
+.st-key-shyam_records_filters [data-testid="stFormSubmitButton"] button[kind="primary"]{background:linear-gradient(110deg,#1685ff,#0051ff)!important;color:#fff!important}
+.st-key-shyam_records_table [class*="st-key-shyam_record_row_"]{background:#fff!important;border-radius:0!important;padding:0!important;border:0!important;box-shadow:none!important}
+.st-key-shyam_records_table [class*="st-key-shyam_record_row_"]>[data-testid="stVerticalBlock"]{gap:0!important}
+.st-key-shyam_records_table [class*="st-key-shyam_record_row_"] [data-testid="stHorizontalBlock"]{background:#fff!important;border-radius:0!important;min-height:36px!important;padding:2px 0!important}
+.st-key-shyam_records_table [class*="st-key-shyam_record_row_"] [data-testid="stHorizontalBlock"] [data-testid="stHorizontalBlock"]{border-bottom:0!important;padding:0!important;min-height:30px!important;gap:6px!important}
+.st-key-shyam_records_table [data-testid="stColumn"]{min-width:0!important;overflow:visible!important}
+.st-key-shyam_records_table [data-testid="stColumn"] [data-testid="stMarkdownContainer"] p{font-size:12px!important;line-height:1.3!important}
+.st-key-shyam_records_table [class*="st-key-view_record_"] button span{color:#142052!important;font-size:19px!important}
+.st-key-shyam_records_table [class*="st-key-delete_record_"] button span{color:#ed1731!important;font-size:19px!important}
+.st-key-shyam_records_table [class*="st-key-delete_record_"] button:disabled span{color:#ed1731!important}
+.st-key-shyam_records_table [class*="receipt_draft_"] label[data-baseweb="checkbox"]{min-width:28px!important;margin:0!important;padding:0!important;border-width:1.5px!important}
+.st-key-shyam_records_table [class*="receipt_draft_"] label [data-testid="stMarkdownContainer"] p{font-size:19px!important;line-height:1!important}
+.st-key-shyam_records_header{background:#e9edfc!important;min-height:34px!important;padding:4px 0!important}
+.st-key-shyam_records_header [data-testid="stHorizontalBlock"]{border:0!important;background:#e9edfc!important;min-height:28px!important}
+.sr-board{padding:12px!important;margin:8px 0!important}.sr-board h3{font-size:20px!important;margin-bottom:10px!important}
+.sr-card{padding:10px!important;gap:10px!important;min-height:64px;box-sizing:border-box}
+.sr-card em{border-left:1px solid #d5def2;padding-left:12px}.sr-card:nth-child(2) .sr-rank{background:#d5f7db}.sr-card:nth-child(3) .sr-rank{background:#eadbff}.sr-card:nth-child(4) .sr-rank{background:#ffe0e6}
+.st-key-shyam_records_prev button,.st-key-shyam_records_next button{width:30px!important;min-width:30px!important;height:30px!important;min-height:30px!important;border-radius:9px!important;padding:0!important;box-shadow:none!important}
+.st-key-shyam_records_table{scrollbar-width:auto;scrollbar-color:#3174ed #edf2ff}
+
 </style>''', unsafe_allow_html=True)
 
 

@@ -2411,7 +2411,7 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
         if current_user == 'Shyam':
             title = 'Trip Records' if record_type == TRIP_RECORDS else 'Direct Expenses' if record_type == DIRECT_EXPENSES else 'Records'
             shyam_range_slot.markdown(f'<div class="sr-table-title">{title}<small>Showing records {page_start + 1}–{page_start + len(visible_rows)} of {len(rows)}</small></div>', unsafe_allow_html=True)
-        with st.container(height=420, border=True, key='shyam_records_table' if current_user == 'Shyam' else 'standard_records_table'):
+        with st.container(height=360 if current_user == 'Shyam' else 420, border=True, key='shyam_records_table' if current_user == 'Shyam' else 'standard_records_table'):
             has_delete_column = current_user in FULL_DELETE_USERS or current_user in SELF_DELETE_USERS
             action_names = ['edit']
             if current_user == 'Shyam':
@@ -2438,7 +2438,8 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
                 header[value_column].caption(f"Total Figure = {format_inr(sum(number(row.get('amount')) for row in rows))}")
             for row_index, record in enumerate(visible_rows, page_start + 1):
                 raw = unpack(record.get("dtr_data"))
-                columns = st.columns(record_widths, vertical_alignment="center")
+                with st.container(key=f"shyam_record_row_{record['request_number']}") if shyam_layout else nullcontext():
+                    columns = st.columns(record_widths, vertical_alignment="center")
                 if shyam_layout:
                     with columns[detail_count]:
                         action_columns = st.columns(len(action_names), gap="small")
@@ -2449,7 +2450,7 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
                     row_values = (
                         str(row_index),
                         canonical_branch(record.get('branch')) or '—',
-                        f"{as_date(record.get('trip_date')):%d/%m/%y}",
+                        f"{as_date(record.get('trip_date')):%d %b %Y}",
                         canonical_vehicle_number(record.get('vehicle_number')) or '—',
                         canonical_vehicle_capacity(record.get('vehicle_type') or raw.get('Vehicle Type')) or '—',
                         clean_text(raw.get('LR No.')) or '—',
