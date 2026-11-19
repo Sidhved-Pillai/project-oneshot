@@ -39,15 +39,15 @@ def render_filters(rows, user, today):
         st.session_state['records_result_page'] = 1
     with st.form(f'records_filters_batch_{user}', border=False):
         if user == 'Shyam':
-            st.markdown('#### ⚲ Filters')
+            st.markdown('<div class="sr-filter-title">&#9661; &nbsp; Filters</div>', unsafe_allow_html=True)
             c,a,b,placer_col,vehicle_col = st.columns(5)
         else:
             a,b,c = st.columns(3)
-        start = a.date_input('Records from', key=widget_key('start'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
-        end = b.date_input('Records to', key=widget_key('end'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
+        start = a.date_input('Date From' if user == 'Shyam' else 'Records from', key=widget_key('start'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
+        end = b.date_input('Date To' if user == 'Shyam' else 'Records to', key=widget_key('end'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
         kind = c.selectbox('Record Type', RECORD_TYPES, key=widget_key('record_type'))
         if user == 'Shyam':
-            own_col,lr_col,invoice_col,reset_col,apply_col = st.columns([1,1,1,.5,.65])
+            own_col,lr_col,invoice_col,reset_col,apply_col = st.columns([1,1,1,.48,.72])
             a,b,c = placer_col,vehicle_col,own_col
         else:
             a,b,c = st.columns(3)

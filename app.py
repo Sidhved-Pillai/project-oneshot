@@ -78,7 +78,7 @@ from src.dtr_dates import parse_dtr_date, dtr_editor_key
 from src.ashok_dates import parse_month_date
 from src.member_sessions import signing_key, issue_member_session, restore_member_session
 from src.branch_names import canonical_branch as normalized_branch_name
-from src.batched_records_v9 import render_filters, filter_identifiers
+from src.batched_records_v10 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
 from src.vijay_finance import project_vijay_records, vijay_finance_summary
 from src.record_form_v5 import record_form
@@ -2214,7 +2214,7 @@ if current_user in {'Sid', 'Vinod', 'Nikhil'}:
 
 with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' else 'standard_records'):
     if current_user == 'Shyam':
-        from src.shyam_records_design import styles as records_styles, heading as records_heading, leaderboard as records_board
+        from src.shyam_records_design_v2 import styles as records_styles, heading as records_heading, leaderboard as records_board
         records_styles()
         records_heading_slot = st.empty()
     else:
@@ -2335,8 +2335,13 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
             records_heading(sum(number(r.get('revenue')) for r in all_record_rows
                                 if r.get('report_scope') != 'Expense'
                                 and filter_from <= as_date(r.get('trip_date')) <= filter_to))
-    live_title, live_evidence_filter, live_sort = st.columns([5, 3, 1], vertical_alignment="center")
-    live_title.markdown("#### Trip Records" if current_user == "Shyam" and record_type == TRIP_RECORDS else "#### Direct Expenses" if current_user == "Shyam" and record_type == DIRECT_EXPENSES else "#### Live records")
+    if current_user == 'Shyam':
+        live_title, live_evidence_filter, live_sort, shyam_page_control, shyam_page_prev, shyam_page_next = st.columns(
+            [3.5, 3.4, .7, 1.25, .35, .35], vertical_alignment="center")
+        shyam_range_slot = live_title.empty()
+    else:
+        live_title, live_evidence_filter, live_sort = st.columns([5, 3, 1], vertical_alignment="center")
+    (live_title if current_user != "Shyam" else shyam_range_slot).markdown("#### Trip Records" if current_user == "Shyam" and record_type == TRIP_RECORDS else "#### Direct Expenses" if current_user == "Shyam" and record_type == DIRECT_EXPENSES else "#### Live records")
     without_invoice_evidence = live_evidence_filter.toggle(
         "Show Records without Invoice Evidence", key="records_without_invoice_evidence",
     )
@@ -2347,7 +2352,8 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
     )
     trip_record_count = sum(row.get("report_scope") != "Expense" for row in rows)
     expense_record_count = sum(row.get("report_scope") == "Expense" for row in rows)
-    st.caption(f"{trip_record_count} trip record(s) and {expense_record_count} direct expense record(s) listed.")
+    if current_user != 'Shyam':
+        st.caption(f"{trip_record_count} trip record(s) and {expense_record_count} direct expense record(s) listed.")
     if record_type == DIRECT_EXPENSES and current_user in EXPENSE_RECORD_SUMMARY_USERS:
         expense_export_rows = direct_expense_download_records(rows, scoped_rows, applied_filters, without_invoice_evidence)
         expense_export_rows = sort_records_by_date(expense_export_rows, "Oldest first" if sort_arrow == "↑" else "Newest first")
@@ -2384,7 +2390,7 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
             def move_record_page(step):
                 st.session_state[page_key] = valid_page_number(st.session_state.get(page_key, 1) + step, page_count)
             if current_user == 'Shyam':
-                page_spacer, page_control, page_prev, page_next = st.columns([7, 2, .5, .5])
+                page_control, page_prev, page_next = shyam_page_control, shyam_page_prev, shyam_page_next
                 page_prev.button('‹', key='shyam_records_prev', disabled=st.session_state[page_key] <= 1,
                                  on_click=move_record_page, args=(-1,))
                 page_next.button('›', key='shyam_records_next', disabled=st.session_state[page_key] >= page_count,
@@ -2398,9 +2404,13 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
             )
             first = (record_page - 1) * records_per_page + 1
             last = min(record_page * records_per_page, len(rows))
-            st.caption(f"Showing records {first}–{last} of {len(rows)}.")
+            if current_user != 'Shyam':
+                st.caption(f"Showing records {first}–{last} of {len(rows)}.")
         page_start = (record_page - 1) * records_per_page
         visible_rows = rows[page_start:page_start + records_per_page]
+        if current_user == 'Shyam':
+            title = 'Trip Records' if record_type == TRIP_RECORDS else 'Direct Expenses' if record_type == DIRECT_EXPENSES else 'Records'
+            shyam_range_slot.markdown(f'<div class="sr-table-title">{title}<small>Showing records {page_start + 1}–{page_start + len(visible_rows)} of {len(rows)}</small></div>', unsafe_allow_html=True)
         with st.container(height=420, border=True, key='shyam_records_table' if current_user == 'Shyam' else 'standard_records_table'):
             has_delete_column = current_user in FULL_DELETE_USERS or current_user in SELF_DELETE_USERS
             action_names = ['edit']
@@ -2415,19 +2425,26 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
             record_titles = ("Record", "LR No.", "Date", "Branch", "Vehicle", "Placed by", value_title, *([''] * len(action_names)))
             shyam_layout = current_user == 'Shyam'
             if shyam_layout:
-                record_widths = [.3, .8, .85, 1.05, .7, .95, 1.15, 1.5, .9, 1.1, *([.4] * len(action_names))]
-                record_titles = ('#', 'Branch', 'Trip Date', 'Vehicle No.', 'Vehicle Type', 'LR No.', 'Invoice No.', 'From – To', value_title, 'LR Status', 'Actions', *([''] * (len(action_names)-1)))
+                record_widths = [.3, .8, .85, 1.05, .7, .95, 1.15, 1.5, .9, 1.1, 1.35]
+                record_titles = ('#', 'Branch', 'Trip Date', 'Vehicle No.', 'Vehicle Type', 'LR No.', 'Invoice No.', 'From – To', value_title, 'LR Status', 'Actions')
             value_column = 8 if shyam_layout else 6
             detail_count = 10 if shyam_layout else 7
-            header = st.columns(record_widths)
+            with st.container(key='shyam_records_header' if shyam_layout else 'standard_records_header'):
+                header = st.columns(record_widths)
             for column, title in zip(header, record_titles):
-                column.markdown(f"**{title}**")
+                if title:
+                    column.markdown(f"**{title}**")
             if record_type == DIRECT_EXPENSES and current_user in EXPENSE_RECORD_SUMMARY_USERS:
                 header[value_column].caption(f"Total Figure = {format_inr(sum(number(row.get('amount')) for row in rows))}")
             for row_index, record in enumerate(visible_rows, page_start + 1):
                 raw = unpack(record.get("dtr_data"))
                 columns = st.columns(record_widths, vertical_alignment="center")
-                actions = dict(zip(action_names, columns[detail_count:]))
+                if shyam_layout:
+                    with columns[detail_count]:
+                        action_columns = st.columns(len(action_names), gap="small")
+                    actions = dict(zip(action_names, action_columns))
+                else:
+                    actions = dict(zip(action_names, columns[detail_count:]))
                 if shyam_layout:
                     row_values = (
                         str(row_index),
