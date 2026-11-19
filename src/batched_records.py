@@ -32,19 +32,32 @@ def render_filters(rows, user, today):
         key = f'records_filter_draft_{user}_{field}'
         st.session_state.setdefault(key, applied[field])
         return key
+    def reset_filters():
+        st.session_state[saved_key] = dict(defaults)
+        for field, value in defaults.items():
+            st.session_state[f'records_filter_draft_{user}_{field}'] = value
+        st.session_state['records_result_page'] = 1
     with st.form(f'records_filters_batch_{user}', border=False):
-        a,b,c = st.columns(3)
+        if user == 'Shyam':
+            st.markdown('#### ⚲ Filters')
+            c,a,b,placer_col,vehicle_col = st.columns(5)
+        else:
+            a,b,c = st.columns(3)
         start = a.date_input('Records from', key=widget_key('start'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
         end = b.date_input('Records to', key=widget_key('end'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
         kind = c.selectbox('Record Type', RECORD_TYPES, key=widget_key('record_type'))
-        a,b,c = st.columns(3)
+        if user == 'Shyam':
+            own_col,lr_col,invoice_col,reset_col,apply_col = st.columns([1,1,1,.5,.65])
+            a,b,c = placer_col,vehicle_col,own_col
+        else:
+            a,b,c = st.columns(3)
         def select(column, label, options, field):
             key = widget_key(field)
             if st.session_state[key] not in options:
                 st.session_state[key] = options[0]
             return column.selectbox(label, options, key=key,
                 format_func=(lambda item: 'All' if item == 'All' else format_inr(item)) if label == 'By Amount' else str)
-        vehicle_column = b if kind == TRIP_RECORDS and user != 'Ashok' else a
+        vehicle_column = vehicle_col if user == 'Shyam' else (b if kind == TRIP_RECORDS and user != 'Ashok' else a)
         vehicle = select(vehicle_column,'Vehicle no.',['All',*vehicles],'vehicle')
         placer, ownership, amount, heading = 'All', 'Both', 'All', 'All'
         if kind == TRIP_RECORDS:
@@ -52,9 +65,12 @@ def render_filters(rows, user, today):
                 placer = select(a,'Vehicle placed by',['All',*placers],'placer')
                 ownership = select(c,'Own or outside',['Both','Own','Outside'],'ownership')
         elif kind == DIRECT_EXPENSES:
-            amount = select(b,'By Amount',['All',*amounts],'amount')
+            amount = select(placer_col if user == 'Shyam' else b,'By Amount',['All',*amounts],'amount')
             heading = select(c,'Heading',['All',*direct_expense_headings(expenses)],'heading')
-        a,b = st.columns(2)
+        if user == 'Shyam':
+            a,b = lr_col,invoice_col
+        else:
+            a,b = st.columns(2)
         def identifier_select(column, label, field, values):
             key = widget_key(field)
             options = ['', *sorted(({str(value).strip() for value in values if value}
@@ -67,7 +83,11 @@ def render_filters(rows, user, today):
             [data(row).get('LR No.') for row in rows])
         invoice_number = identifier_select(b, 'Invoice No.', 'invoice_number',
             [row.get('invoice_number') or data(row).get('Invoice No.') for row in rows])
-        submitted = st.form_submit_button('Apply Filters', type='primary')
+        if user == 'Shyam':
+            reset_col.form_submit_button('Reset', on_click=reset_filters, use_container_width=True)
+            submitted = apply_col.form_submit_button('Apply Filters', type='primary', use_container_width=True)
+        else:
+            submitted = st.form_submit_button('Apply Filters', type='primary')
     if submitted:
         if start > end:
             st.error('Records from must be on or before Records to. Previous filters remain applied.')

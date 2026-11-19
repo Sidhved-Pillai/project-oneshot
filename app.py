@@ -2212,8 +2212,13 @@ if current_user in {'Sid', 'Vinod', 'Nikhil'}:
                          pnl_reporting.branch_pnl_summary,
                          lambda groups: review_duplicates(current_user, groups, store, duplicate_records))
 
-with records_tab:
-    page_intro("", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
+with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' else 'standard_records'):
+    if current_user == 'Shyam':
+        from src.shyam_records_design import styles as records_styles, heading as records_heading, leaderboard as records_board
+        records_styles()
+        records_heading_slot = st.empty()
+    else:
+        page_intro("", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
     all_record_rows = list(normalization_rows)
     rows = list(all_record_rows)
     if record_branch_scope:
@@ -2236,8 +2241,10 @@ with records_tab:
     filter_from = today.replace(day=1)
     filter_to = today
     if rows:
-        st.markdown("#### Filter records")
-        applied_filters = render_filters(scoped_rows, current_user, today)
+        if current_user != 'Shyam':
+            st.markdown("#### Filter records")
+        with st.container(key='shyam_records_filters' if current_user == 'Shyam' else 'standard_records_filters'):
+            applied_filters = render_filters(scoped_rows, current_user, today)
         filter_from, filter_to = applied_filters['start'], applied_filters['end']
         record_type = applied_filters['record_type']
         vehicle_filter = applied_filters['vehicle']
@@ -2315,13 +2322,21 @@ with records_tab:
             f"<tr><td>{'' if branch == 'Total' else rank}</td><td>{branch}</td><td>{count}</td><td>{format_inr(revenue)}</td></tr>"
             for rank, (branch, count, revenue) in enumerate(monthly_board, 1)
         )
-        st.markdown(f"#### Trip leaderboard · {today:%B %Y}")
+        if current_user == "Shyam":
+            records_board(monthly_board, today)
+        else:
+            st.markdown(f"#### Trip leaderboard · {today:%B %Y}")
         st.markdown(
-            f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_html}</tbody></table>',
+            f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_html}</tbody></table>' if current_user != 'Shyam' else '',
             unsafe_allow_html=True,
         )
+    if current_user == 'Shyam':
+        with records_heading_slot.container():
+            records_heading(sum(number(r.get('revenue')) for r in all_record_rows
+                                if r.get('report_scope') != 'Expense'
+                                and filter_from <= as_date(r.get('trip_date')) <= filter_to))
     live_title, live_evidence_filter, live_sort = st.columns([5, 3, 1], vertical_alignment="center")
-    live_title.markdown("#### Live records")
+    live_title.markdown("#### Trip Records" if current_user == "Shyam" and record_type == TRIP_RECORDS else "#### Direct Expenses" if current_user == "Shyam" and record_type == DIRECT_EXPENSES else "#### Live records")
     without_invoice_evidence = live_evidence_filter.toggle(
         "Show Records without Invoice Evidence", key="records_without_invoice_evidence",
     )
@@ -2366,16 +2381,27 @@ with records_tab:
             st.session_state[page_key] = valid_page_number(
                 st.session_state.get(page_key, 1), page_count,
             )
-            record_page = st.selectbox(
+            def move_record_page(step):
+                st.session_state[page_key] = valid_page_number(st.session_state.get(page_key, 1) + step, page_count)
+            if current_user == 'Shyam':
+                page_spacer, page_control, page_prev, page_next = st.columns([7, 2, .5, .5])
+                page_prev.button('‹', key='shyam_records_prev', disabled=st.session_state[page_key] <= 1,
+                                 on_click=move_record_page, args=(-1,))
+                page_next.button('›', key='shyam_records_next', disabled=st.session_state[page_key] >= page_count,
+                                 on_click=move_record_page, args=(1,))
+            else:
+                page_control = st
+            record_page = page_control.selectbox(
                 "Record page", list(range(1, page_count + 1)),
                 format_func=lambda page: f"Page {page} of {page_count}", key=page_key,
+                label_visibility='collapsed' if current_user == 'Shyam' else 'visible',
             )
             first = (record_page - 1) * records_per_page + 1
             last = min(record_page * records_per_page, len(rows))
             st.caption(f"Showing records {first}–{last} of {len(rows)}.")
         page_start = (record_page - 1) * records_per_page
         visible_rows = rows[page_start:page_start + records_per_page]
-        with st.container(height=420, border=True):
+        with st.container(height=420, border=True, key='shyam_records_table' if current_user == 'Shyam' else 'standard_records_table'):
             has_delete_column = current_user in FULL_DELETE_USERS or current_user in SELF_DELETE_USERS
             action_names = ['edit']
             if current_user == 'Shyam':
@@ -2389,29 +2415,29 @@ with records_tab:
             record_titles = ("Record", "LR No.", "Date", "Branch", "Vehicle", "Placed by", value_title, *([''] * len(action_names)))
             shyam_layout = current_user == 'Shyam'
             if shyam_layout:
-                record_widths = [.85, .85, 1.15, .75, 1.05, 1.3, 1, 1, 1, *([.43] * len(action_names))]
-                record_titles = ('Branch', 'Date', 'Vehicle No.', 'Vehicle Type', 'LR No.', 'Invoice No.', 'From', 'To', value_title, *([''] * len(action_names)))
+                record_widths = [.3, .8, .85, 1.05, .7, .95, 1.15, 1.5, .9, 1.1, *([.4] * len(action_names))]
+                record_titles = ('#', 'Branch', 'Trip Date', 'Vehicle No.', 'Vehicle Type', 'LR No.', 'Invoice No.', 'From – To', value_title, 'LR Status', 'Actions', *([''] * (len(action_names)-1)))
             value_column = 8 if shyam_layout else 6
-            detail_count = 9 if shyam_layout else 7
+            detail_count = 10 if shyam_layout else 7
             header = st.columns(record_widths)
             for column, title in zip(header, record_titles):
                 column.markdown(f"**{title}**")
             if record_type == DIRECT_EXPENSES and current_user in EXPENSE_RECORD_SUMMARY_USERS:
                 header[value_column].caption(f"Total Figure = {format_inr(sum(number(row.get('amount')) for row in rows))}")
-            for record in visible_rows:
+            for row_index, record in enumerate(visible_rows, page_start + 1):
                 raw = unpack(record.get("dtr_data"))
                 columns = st.columns(record_widths, vertical_alignment="center")
                 actions = dict(zip(action_names, columns[detail_count:]))
                 if shyam_layout:
                     row_values = (
+                        str(row_index),
                         canonical_branch(record.get('branch')) or '—',
                         f"{as_date(record.get('trip_date')):%d/%m/%y}",
                         canonical_vehicle_number(record.get('vehicle_number')) or '—',
                         canonical_vehicle_capacity(record.get('vehicle_type') or raw.get('Vehicle Type')) or '—',
                         clean_text(raw.get('LR No.')) or '—',
                         dtr_invoice_text(record.get('invoice_number') or raw.get('Invoice No.')) or '—',
-                        clean_text(record.get('from_location') or raw.get('From')) or '—',
-                        clean_text(record.get('to_location') or raw.get('To')) or '—',
+                        f"{clean_text(record.get('from_location') or raw.get('From')) or '—'} → {clean_text(record.get('to_location') or raw.get('To')) or '—'}",
                     )
                     for column, value in zip(columns, row_values):
                         column.write(value)
@@ -2431,13 +2457,14 @@ with records_tab:
                 can_delete_visible_record = current_user == "Ajit" or can_delete_record(current_user, record)
                 if current_user == 'Shyam' and not is_expense_record:
                     received = raw.get('_hard_copy_received_by') == 'Shyam'
+                    columns[9].markdown('<span class="sr-status received">✓ LR Received</span>' if received else '<span class="sr-status">◷ LR Pending</span>', unsafe_allow_html=True)
                     with actions['received']:
                         stage_invoice_receipt(record['request_number'], received)
                 if can_delete_visible_record and actions['delete'].button("Delete", icon=":material/delete:", key=f"delete_record_{record['request_number']}", help="Delete record", use_container_width=True):
                     confirm_record_delete(record)
         if current_user == 'Shyam':
             st.caption('Ticks are staged until saved. Click a tick again to undo your selection.')
-            st.button('Mark as Invoice Received', type='primary', key='save_invoice_receipt_batch',
+            st.button('Mark Selected Records as Invoice Received', type='primary', key='save_invoice_receipt_batch',
                       on_click=save_invoice_receipt_batch)
             if notice := st.session_state.pop('receipt_batch_notice', None):
                 st.success(notice)
