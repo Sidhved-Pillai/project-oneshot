@@ -29,7 +29,7 @@ def styles():
 .st-key-shyam_records_table [class*="st-key-view_record_"] button,
 .st-key-shyam_records_table [class*="st-key-delete_record_"] button{width:30px!important;min-width:30px!important;height:28px!important;min-height:28px!important;border-radius:9px!important;box-shadow:none!important;padding:0!important}
 .st-key-shyam_records_table [class*="st-key-view_record_"] button{border:1px solid #d4dfff!important;background:#f8faff!important;color:#142052!important}
-.st-key-shyam_records_table [class*="st-key-delete_record_"] button{border:1px solid #ffcbd1!important;background:#fff0f2!important;color:#ed1731!important}
+.st-key-shyam_records_table [class*="st-key-delete_record_"] button{border:1px solid #c8102e!important;background:#e11d2e!important;color:#fff!important}
 .st-key-shyam_records_table [class*="st-key-delete_record_"] button p{display:none!important}
 .st-key-shyam_records_table [class*="receipt_draft_"]{min-width:28px!important;width:28px!important}
 .st-key-shyam_records_table [class*="receipt_draft_"] label[data-baseweb="checkbox"]{width:28px!important;height:28px!important;min-height:28px!important}
@@ -56,11 +56,15 @@ def styles():
 .st-key-shyam_records_table [class*="st-key-shyam_record_row_"]>[data-testid="stVerticalBlock"]{gap:0!important}
 .st-key-shyam_records_table [class*="st-key-shyam_record_row_"] [data-testid="stHorizontalBlock"]{background:#fff!important;border-radius:0!important;min-height:36px!important;padding:2px 0!important}
 .st-key-shyam_records_table [class*="st-key-shyam_record_row_"] [data-testid="stHorizontalBlock"] [data-testid="stHorizontalBlock"]{border-bottom:0!important;padding:0!important;min-height:30px!important;gap:6px!important}
+/* Keep the three row actions together and give every control the same footprint. */
+.st-key-shyam_records_table [class*="st-key-shyam_record_row_"] [data-testid="stHorizontalBlock"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]{flex:0 0 32px!important;width:32px!important;min-width:32px!important}
 .st-key-shyam_records_table [data-testid="stColumn"]{min-width:0!important;overflow:visible!important}
 .st-key-shyam_records_table [data-testid="stColumn"] [data-testid="stMarkdownContainer"] p{font-size:12px!important;line-height:1.3!important}
 .st-key-shyam_records_table [class*="st-key-view_record_"] button span{color:#142052!important;font-size:19px!important}
-.st-key-shyam_records_table [class*="st-key-delete_record_"] button span{color:#ed1731!important;font-size:19px!important}
-.st-key-shyam_records_table [class*="st-key-delete_record_"] button:disabled span{color:#ed1731!important}
+.st-key-shyam_records_table [class*="st-key-delete_record_"] button span{color:#fff!important;font-size:19px!important}
+.st-key-shyam_records_table [class*="st-key-delete_record_"] button:disabled span{color:#fff!important}
+.st-key-shyam_records_table [class*="st-key-delete_record_"] button svg,
+.st-key-shyam_records_table [class*="st-key-delete_record_"] button svg *{color:#fff!important;fill:#fff!important}
 .st-key-shyam_records_table [class*="receipt_draft_"] label[data-baseweb="checkbox"]{min-width:28px!important;margin:0!important;padding:0!important;border-width:1.5px!important}
 .st-key-shyam_records_table [class*="receipt_draft_"] label [data-testid="stMarkdownContainer"] p{font-size:19px!important;line-height:1!important}
 .st-key-shyam_records_header{background:#e9edfc!important;min-height:34px!important;padding:4px 0!important}
