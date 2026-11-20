@@ -94,6 +94,18 @@ def styles():
 .st-key-shyam_records_table [class*="st-key-shyam_record_row_"] [data-testid="stHorizontalBlock"]{min-height:32px!important;padding:1px 0!important}
 .st-key-shyam_records_table [class*="st-key-delete_record_"] button:hover{background:#ffe1e6!important;border-color:#ffabb7!important}
 .st-key-shyam_records_prev button,.st-key-shyam_records_next button{border-radius:9px!important}
+/* Center table content and align the three action glyphs optically. */
+.st-key-shyam_records_header [data-testid="stColumn"],
+.st-key-shyam_records_table [class*="st-key-shyam_record_row_"] [data-testid="stColumn"]{text-align:center!important}
+.st-key-shyam_records_header [data-testid="stColumn"] p,
+.st-key-shyam_records_table [class*="st-key-shyam_record_row_"] [data-testid="stColumn"] p{text-align:center!important}
+.st-key-shyam_records_table [class*="st-key-shyam_record_row_"] [data-testid="stHorizontalBlock"] [data-testid="stHorizontalBlock"]{justify-content:center!important}
+.st-key-shyam_records_table [class*="st-key-view_record_"] button,
+.st-key-shyam_records_table [class*="st-key-delete_record_"] button{display:flex!important;align-items:center!important;justify-content:center!important;box-sizing:border-box!important}
+.st-key-shyam_records_table [class*="st-key-view_record_"] button span,
+.st-key-shyam_records_table [class*="st-key-delete_record_"] button span{display:inline-flex!important;align-items:center!important;justify-content:center!important;margin:0!important;line-height:1!important}
+.st-key-shyam_records_table [class*="receipt_draft_"] label[data-baseweb="checkbox"]{border-radius:9px!important}
+.st-key-shyam_records_table [class*="receipt_draft_"] label [data-testid="stMarkdownContainer"] p{transform:translateY(-2px)}
 
 </style>''', unsafe_allow_html=True)
 

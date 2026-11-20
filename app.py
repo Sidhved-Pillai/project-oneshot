@@ -2443,7 +2443,7 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
                     columns = st.columns(record_widths, vertical_alignment="center")
                 if shyam_layout:
                     with columns[detail_count]:
-                        action_columns = st.columns([*([1] * len(action_names)), 2], gap="small")
+                        action_columns = st.columns(len(action_names), gap="small")
                     actions = dict(zip(action_names, action_columns))
                 else:
                     actions = dict(zip(action_names, columns[detail_count:]))
