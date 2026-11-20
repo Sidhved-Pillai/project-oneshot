@@ -2,6 +2,13 @@
 from streamlit.testing.v1 import AppTest
 
 
+def test_shyam_records_design_exports_table_icon():
+    from src.shyam_records_design_v2 import TRUCK, heading, leaderboard, styles
+
+    assert '<svg' in TRUCK
+    assert all(callable(component) for component in (heading, leaderboard, styles))
+
+
 def test_shyam_filters_submit_and_reset():
     app = AppTest.from_string('''
 import datetime as dt
