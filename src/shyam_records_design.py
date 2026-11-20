@@ -9,6 +9,7 @@ def icon(path):
 FOLDER = icon('M3 7V5h6l2 2h10v13H3z M3 10h18')
 TRUCK = icon('M2 5h12v13H2z M14 10h4l4 4v4h-8 M5 18a2 2 0 1 0 4 0 M16 18a2 2 0 1 0 4 0')
 CHART = icon('M4 20V10h3v10 M11 20V4h3v16 M18 20V8h3v12')
+COINS = icon('M12 5c-5 0-9 1.5-9 3.5S7 12 12 12s9-1.5 9-3.5S17 5 12 5z M3 8.5V15c0 2 4 3.5 9 3.5s9-1.5 9-3.5V8.5 M3 12c0 2 4 3.5 9 3.5s9-1.5 9-3.5')
 
 
 def styles():
@@ -29,7 +30,7 @@ def styles():
 .st-key-shyam_records_table [class*="st-key-view_record_"] button,
 .st-key-shyam_records_table [class*="st-key-delete_record_"] button{width:30px!important;min-width:30px!important;height:30px!important;min-height:30px!important;border-radius:9px!important;box-shadow:none!important;padding:0!important}
 .st-key-shyam_records_table [class*="st-key-view_record_"] button{border:1px solid #d4dfff!important;background:#f8faff!important;color:#142052!important}
-.st-key-shyam_records_table [class*="st-key-delete_record_"] button{border:1px solid #c8102e!important;background:#e11d2e!important;color:#fff!important}
+.st-key-shyam_records_table [class*="st-key-delete_record_"] button{border:1px solid #ffcbd1!important;background:#fff0f2!important;color:#e11d2e!important}
 .st-key-shyam_records_table [class*="st-key-delete_record_"] button p{display:none!important}
 .st-key-shyam_records_table [class*="receipt_draft_"]{min-width:30px!important;width:30px!important}
 .st-key-shyam_records_table [class*="receipt_draft_"] label[data-baseweb="checkbox"]{width:30px!important;height:30px!important;min-height:30px!important}
@@ -61,10 +62,11 @@ def styles():
 .st-key-shyam_records_table [data-testid="stColumn"]{min-width:0!important;overflow:visible!important}
 .st-key-shyam_records_table [data-testid="stColumn"] [data-testid="stMarkdownContainer"] p{font-size:12px!important;line-height:1.3!important}
 .st-key-shyam_records_table [class*="st-key-view_record_"] button span{color:#142052!important;font-size:19px!important}
-.st-key-shyam_records_table [class*="st-key-delete_record_"] button span{color:#fff!important;font-size:19px!important}
-.st-key-shyam_records_table [class*="st-key-delete_record_"] button:disabled span{color:#fff!important}
+.st-key-shyam_records_table [class*="st-key-delete_record_"] button span,
+.st-key-shyam_records_table [class*="st-key-delete_record_"] button [data-testid="stIconMaterial"]{color:#e11d2e!important;font-size:19px!important}
+.st-key-shyam_records_table [class*="st-key-delete_record_"] button:disabled span{color:#e11d2e!important}
 .st-key-shyam_records_table [class*="st-key-delete_record_"] button svg,
-.st-key-shyam_records_table [class*="st-key-delete_record_"] button svg *{color:#fff!important;fill:#fff!important}
+.st-key-shyam_records_table [class*="st-key-delete_record_"] button svg *{color:#e11d2e!important;fill:#e11d2e!important}
 .st-key-shyam_records_table [class*="receipt_draft_"] label[data-baseweb="checkbox"]{min-width:30px!important;margin:0!important;padding:0!important;border-width:1.5px!important}
 .st-key-shyam_records_table [class*="receipt_draft_"] label [data-testid="stMarkdownContainer"] p{font-size:19px!important;line-height:1!important}
 .st-key-shyam_records_header{background:#e9edfc!important;min-height:34px!important;padding:4px 0!important}
@@ -74,12 +76,30 @@ def styles():
 .sr-card em{border-left:1px solid #d5def2;padding-left:12px}.sr-card:nth-child(2) .sr-rank{background:#d5f7db}.sr-card:nth-child(3) .sr-rank{background:#eadbff}.sr-card:nth-child(4) .sr-rank{background:#ffe0e6}
 .st-key-shyam_records_prev button,.st-key-shyam_records_next button{width:30px!important;min-width:30px!important;height:30px!important;min-height:30px!important;border-radius:9px!important;padding:0!important;box-shadow:none!important}
 .st-key-shyam_records_table{scrollbar-width:auto;scrollbar-color:#3174ed #edf2ff}
+/* Compact reference layout, scoped to Shyam's Records tab. */
+.st-key-shyam_records{font-size:13px}
+.st-key-shyam_records_filters{padding:12px 14px!important}
+.st-key-shyam_records_filters [data-testid="stHorizontalBlock"]{gap:12px!important}
+.st-key-shyam_records_filters label p{font-size:12px!important;font-weight:700!important}
+.st-key-shyam_records_filters [data-baseweb="select"]>div,
+.st-key-shyam_records_filters [data-baseweb="input"]>div{min-height:32px!important}
+.sr-filter-title{font-size:17px;margin-bottom:8px}
+.sr-heading{margin-bottom:10px}.sr-heading h2{font-size:28px!important}.sr-heading p{font-size:13px}
+.sr-total{min-width:225px;padding:8px 16px;display:flex;align-items:center;gap:10px}.sr-total svg{color:#0670ff;flex:none}.sr-total strong{font-size:20px}
+.sr-board{margin:8px 0!important;padding:12px!important}.sr-board h3{font-size:18px!important;margin-bottom:10px!important}
+.sr-cards{gap:10px}.sr-card{min-height:58px!important;padding:8px 10px!important;gap:8px!important;font-size:12px}
+.sr-card .sr-truck svg{width:25px;height:25px}.sr-card .sr-rank{font-size:19px;padding:2px 6px}.sr-card em{padding-left:8px}
+.sr-table-title{font-size:18px}.sr-table-title small{font-size:12px}.sr-table-icon{display:inline-flex;color:#0670ff}.sr-table-icon svg{width:22px;height:22px}
+.st-key-shyam_records_table{padding:8px!important}
+.st-key-shyam_records_table [class*="st-key-shyam_record_row_"] [data-testid="stHorizontalBlock"]{min-height:32px!important;padding:1px 0!important}
+.st-key-shyam_records_table [class*="st-key-delete_record_"] button:hover{background:#ffe1e6!important;border-color:#ffabb7!important}
+.st-key-shyam_records_prev button,.st-key-shyam_records_next button{border-radius:9px!important}
 
 </style>''', unsafe_allow_html=True)
 
 
 def heading(revenue):
-    st.markdown(f'<div class="sr-heading"><span class="sr-icon">{FOLDER}</span><div><h2>Records</h2><p>View, filter and manage all trip records.</p></div><div class="sr-total">Total Revenue (All Branches)<strong>{format_inr(revenue)}</strong></div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="sr-heading"><span class="sr-icon">{FOLDER}</span><div><h2>Records</h2><p>View, filter and manage all trip records.</p></div><div class="sr-total">{COINS}<div>Total Revenue (All Branches)<strong>{format_inr(revenue)}</strong></div></div></div>', unsafe_allow_html=True)
 
 
 def leaderboard(items, day):

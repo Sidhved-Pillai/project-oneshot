@@ -2214,7 +2214,7 @@ if current_user in {'Sid', 'Vinod', 'Nikhil'}:
 
 with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' else 'standard_records'):
     if current_user == 'Shyam':
-        from src.shyam_records_design_v2 import styles as records_styles, heading as records_heading, leaderboard as records_board
+        from src.shyam_records_design_v2 import styles as records_styles, heading as records_heading, leaderboard as records_board, TRUCK as records_truck
         records_styles()
         records_heading_slot = st.empty()
     else:
@@ -2410,7 +2410,7 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
         visible_rows = rows[page_start:page_start + records_per_page]
         if current_user == 'Shyam':
             title = 'Trip Records' if record_type == TRIP_RECORDS else 'Direct Expenses' if record_type == DIRECT_EXPENSES else 'Records'
-            shyam_range_slot.markdown(f'<div class="sr-table-title">{title}<small>Showing records {page_start + 1}–{page_start + len(visible_rows)} of {len(rows)}</small></div>', unsafe_allow_html=True)
+            shyam_range_slot.markdown(f'<div class="sr-table-title"><span class="sr-table-icon">{records_truck}</span>{title}<small>Showing records {page_start + 1}–{page_start + len(visible_rows)} of {len(rows)}</small></div>', unsafe_allow_html=True)
         with st.container(height=360 if current_user == 'Shyam' else 420, border=True, key='shyam_records_table' if current_user == 'Shyam' else 'standard_records_table'):
             has_delete_column = current_user in FULL_DELETE_USERS or current_user in SELF_DELETE_USERS
             action_names = ['edit']
@@ -2426,6 +2426,7 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
             shyam_layout = current_user == 'Shyam'
             if shyam_layout:
                 record_widths = [.3, .8, .85, 1.05, .7, .95, 1.15, 1.5, .9, 1.1, 1.35]
+                value_title = 'Revenue (₹)' if value_title == 'Revenue' else value_title
                 record_titles = ('#', 'Branch', 'Trip Date', 'Vehicle No.', 'Vehicle Type', 'LR No.', 'Invoice No.', 'From – To', value_title, 'LR Status', 'Actions')
             value_column = 8 if shyam_layout else 6
             detail_count = 10 if shyam_layout else 7
@@ -2481,8 +2482,7 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
                 if can_delete_visible_record and actions['delete'].button("Delete", icon=":material/delete:", key=f"delete_record_{record['request_number']}", help="Delete record", use_container_width=True):
                     confirm_record_delete(record)
         if current_user == 'Shyam':
-            st.caption('Ticks are staged until saved. Click a tick again to undo your selection.')
-            st.button('Mark Selected Records as Invoice Received', type='primary', key='save_invoice_receipt_batch',
+            st.button('Mark Selected Records as Invoice Received', icon=':material/description:', type='primary', key='save_invoice_receipt_batch',
                       on_click=save_invoice_receipt_batch)
             if notice := st.session_state.pop('receipt_batch_notice', None):
                 st.success(notice)
