@@ -105,6 +105,9 @@ def styles():
 .st-key-shyam_records_table [class*="st-key-view_record_"] button span,
 .st-key-shyam_records_table [class*="st-key-delete_record_"] button span{display:inline-flex!important;align-items:center!important;justify-content:center!important;margin:0!important;line-height:1!important}
 .st-key-shyam_records_table [class*="receipt_draft_"] label[data-baseweb="checkbox"]{border-radius:9px!important}
+.st-key-shyam_records_table .sr-cell{display:flex;align-items:center;justify-content:center;min-height:30px;transform:translateY(-8px)}
+.st-key-shyam_records_table .sr-status{position:relative;top:-8px}
+.st-key-shyam_records_table [class*="receipt_draft_"] label[data-baseweb="checkbox"]{transform:translateY(-4px)}
 .st-key-shyam_records_table [class*="receipt_draft_"] label [data-testid="stMarkdownContainer"] p{transform:translateY(-2px)}
 
 </style>''', unsafe_allow_html=True)

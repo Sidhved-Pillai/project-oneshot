@@ -1,5 +1,6 @@
 import datetime as dt
 from contextlib import nullcontext
+from html import escape
 from src.sid_entry_design_v4 import render_sid_styles, render_sid_header, section_heading, PATHS
 from src.ajit_payment_design import render_ajit_payment_styles
 from src.ajit_navigation import render_ajit_navigation_styles
@@ -2459,7 +2460,7 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
                         f"{clean_text(record.get('from_location') or raw.get('From')) or '—'} → {clean_text(record.get('to_location') or raw.get('To')) or '—'}",
                     )
                     for column, value in zip(columns, row_values):
-                        column.write(value)
+                        column.markdown(f'<span class="sr-cell">{escape(value)}</span>', unsafe_allow_html=True)
                 else:
                     record_suffix = clean_text(record.get('request_number')).split('-')[-1].lstrip('0') or '1'
                     columns[0].write(f"Req- {record_suffix}")
@@ -2470,7 +2471,10 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
                     columns[5].write(canonical_vehicle_placer(raw.get("Veh Placed by")) or "—")
                 is_expense_record = clean_text(record.get("report_scope")).casefold() == "expense"
                 displayed_value = record.get("amount") if is_expense_record else record.get("revenue")
-                columns[value_column].write(format_inr(number(displayed_value), 0))
+                if shyam_layout:
+                    columns[value_column].markdown(f'<span class="sr-cell">{format_inr(number(displayed_value), 0)}</span>', unsafe_allow_html=True)
+                else:
+                    columns[value_column].write(format_inr(number(displayed_value), 0))
                 with actions['edit']:
                     record_edit_control(record)
                 can_delete_visible_record = current_user == "Ajit" or can_delete_record(current_user, record)
