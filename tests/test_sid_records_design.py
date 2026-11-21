@@ -39,7 +39,7 @@ def test_pune_records_keep_nitish_and_gopal_action_rules():
     nitish_row = {'created_by': 'Nitish', 'branch': 'Pune'}
     gopal_row = {'created_by': 'Gopal', 'branch': 'Pune'}
     assert can_delete_record('Nitish', nitish_row)
-    assert not can_delete_record('Nitish', gopal_row)
+    assert can_delete_record('Nitish', gopal_row)
     assert not can_delete_record('Gopal', gopal_row)
     assert can_edit_record('Nitish', nitish_row)
     assert not can_edit_record('Nitish', gopal_row)

@@ -137,6 +137,7 @@ def test_record_delete_permissions_are_owner_scoped_for_manish():
     nitish_record = {"created_by": "Nitish"}
     assert SELF_DELETE_USERS == {"Ashok", "Manish", "Nikhat", "Nitish", "Vijay"}
     assert can_delete_record("Nitish", nitish_record)
+    assert can_delete_record("Nitish", {"created_by": "Gopal", "branch": "Pune"})
     assert not can_delete_record("Nitish", ajit_record)
     assert can_view_record("Nitish", ajit_record)
     ashok_record = {"created_by": "Ashok"}

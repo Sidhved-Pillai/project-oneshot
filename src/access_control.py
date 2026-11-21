@@ -20,10 +20,13 @@ def scope_report_rows(user_name, records):
 
 
 def can_delete_record(user_name, record):
-    """Full-access users may delete any record; other approved users only their own."""
+    """Full-access users may delete any record; Nitish also manages Gopal's records."""
     if user_name in FULL_DELETE_USERS:
         return True
-    return user_name in SELF_DELETE_USERS and str(record.get("created_by") or "").strip() == user_name
+    creator = str(record.get("created_by") or "").strip()
+    if user_name == "Nitish":
+        return creator in {"Nitish", "Gopal"}
+    return user_name in SELF_DELETE_USERS and creator == user_name
 
 
 def can_view_record(user_name, record):
