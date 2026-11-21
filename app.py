@@ -811,9 +811,11 @@ def autofill(files, instruction, prefix, mode="ENTRY"):
                 result = recover_entry_fields(result, extract_intake, secret('GEMINI_API_KEY'), instruction,
                     files, secret('GEMINI_MODEL'), allowed_entry_branches,
                     [row.get('vehicle_number') for row in normalization_rows])
-            if mode == "ENTRY" and current_user == "Vijay" and result.rows:
+            if mode == "ENTRY" and current_user in {"Vijay", "Ajit"} and result.rows:
                 row = result.rows[0]
                 row.cases, row.jars = case_jar_totals(row.items)
+            if mode == "ENTRY" and current_user == "Vijay" and result.rows:
+                row = result.rows[0]
                 raw_invoice_candidates = [*row.invoice_numbers, row.invoice_number]
                 if not row.invoice_number and not row.invoice_numbers:
                     raw_invoice_candidates.append(row.lr_invoice_number)
@@ -973,9 +975,8 @@ def trip_payload(v, files, invoice_filename=None):
     }
     if current_user == "Ashok":
         dtr["_beneficiary_profile_version"] = 2
-    if current_user == 'Vijay':
-        dtr.update({'Case':v.get('cases'), 'Jar':v.get('jars'),
-                    'Cardholders Name':clean_text(v.get('cardholders_name'))})
+    if current_user in {'Vijay', 'Ajit'}:
+        dtr.update({'Case':v.get('cases'), 'Jar':v.get('jars')})
     if 'cardholders_name' in v:
         dtr['Cardholders Name'] = clean_text(v.get('cardholders_name'))
     rtgs = {"BNF_NAME": v["beneficiary_name"], "BENE_ACC_NO": v["beneficiary_account_number"], "BENE_IFSC": v["beneficiary_ifsc_code"], "AMOUNT": v["rtgs_advance"], "REMARK": remarks, "Origin Area": v["branch"]}
@@ -1220,7 +1221,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False, layout_ta
         )
         own_workflow = simplified or is_own_vehicle(v["ownership_type"])
         v["simplified"] = own_workflow
-        if current_user == 'Vijay':
+        if current_user in {'Vijay', 'Ajit'}:
             case_col, jar_col = st.columns(2)
             v['driver_name'] = clean_text(st.session_state.get(f'{prefix}_driver_name'))
             v['cases'] = case_col.number_input('Case', min_value=0.0, value=None, key=f'{prefix}_cases', placeholder='')
