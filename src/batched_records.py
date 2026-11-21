@@ -15,7 +15,7 @@ from .record_lookup import identifier_matches
 
 
 def render_filters(rows, user, today):
-    designed_records = user in {'Shyam', 'Sid', 'Nikhat', 'Vijay', 'Ajit', 'Nitish', 'Gopal', 'Manish'}
+    designed_records = user in {'Shyam', 'Sid', 'Nikhat', 'Vijay', 'Ajit', 'Nitish', 'Gopal', 'Manish', 'Ashok'}
     def data(row):
         raw = row.get('dtr_data') or {}
         return json.loads(raw) if isinstance(raw, str) else raw
@@ -41,15 +41,22 @@ def render_filters(rows, user, today):
     with st.form(f'records_filters_batch_{user}', border=False):
         if designed_records:
             st.markdown('<div class="sr-filter-title">&#9661; &nbsp; Filters</div>', unsafe_allow_html=True)
-            c,a,b,placer_col,vehicle_col = st.columns(5)
+            if user == 'Ashok':
+                c,a,b,vehicle_col = st.columns(4)
+                placer_col = None
+            else:
+                c,a,b,placer_col,vehicle_col = st.columns(5)
         else:
             a,b,c = st.columns(3)
         start = a.date_input('Date From' if designed_records else 'Records from', key=widget_key('start'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
         end = b.date_input('Date To' if designed_records else 'Records to', key=widget_key('end'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
         kind = c.selectbox('Record Type', RECORD_TYPES, key=widget_key('record_type'))
         if designed_records:
-            own_col,lr_col,invoice_col,reset_col,apply_col = st.columns([1,1,1,.48,.72])
-            a,b,c = placer_col,vehicle_col,own_col
+            if user == 'Ashok':
+                lr_col,invoice_col,reset_col,apply_col = st.columns([1,1,.48,.72])
+            else:
+                own_col,lr_col,invoice_col,reset_col,apply_col = st.columns([1,1,1,.48,.72])
+                a,b,c = placer_col,vehicle_col,own_col
         else:
             a,b,c = st.columns(3)
         def select(column, label, options, field):
@@ -66,8 +73,12 @@ def render_filters(rows, user, today):
                 placer = select(a,'Vehicle placed by',['All',*placers],'placer')
                 ownership = select(c,'Own or outside',['Both','Own','Outside'],'ownership')
         elif kind == DIRECT_EXPENSES:
-            amount = select(placer_col if designed_records else b,'By Amount',['All',*amounts],'amount')
-            heading = select(c,'Heading',['All',*direct_expense_headings(expenses)],'heading')
+            if user == 'Ashok' and designed_records:
+                amount_col, heading_col = st.columns(2)
+            else:
+                amount_col, heading_col = (placer_col if designed_records else b), c
+            amount = select(amount_col,'By Amount',['All',*amounts],'amount')
+            heading = select(heading_col,'Heading',['All',*direct_expense_headings(expenses)],'heading')
         if designed_records:
             a,b = lr_col,invoice_col
         else:

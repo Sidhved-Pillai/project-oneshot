@@ -6,7 +6,7 @@ from src.access_control import can_delete_record
 from src.record_integrity import can_edit_record
 
 
-@pytest.mark.parametrize('member', ['sid', 'nikhat', 'vijay', 'ajit', 'nitish', 'gopal', 'manish'])
+@pytest.mark.parametrize('member', ['sid', 'nikhat', 'vijay', 'ajit', 'nitish', 'gopal', 'manish', 'ashok'])
 def test_records_styles_are_scoped_to_member(monkeypatch, member):
     styles = []
     monkeypatch.setattr(shyam_records_design.st, 'markdown', lambda value, **kwargs: styles.append(value))
@@ -45,3 +45,21 @@ def test_pune_records_keep_nitish_and_gopal_action_rules():
     assert not can_edit_record('Nitish', gopal_row)
     assert can_edit_record('Gopal', gopal_row)
     assert not can_edit_record('Gopal', nitish_row)
+
+
+def test_ashok_records_filters_keep_his_restricted_controls():
+    app = AppTest.from_string('''
+import datetime as dt
+from src.batched_records import render_filters
+render_filters([{'report_scope': 'Expense', 'amount': 500, 'dtr_data': {'Salary': 500}}],
+               'Ashok', dt.date(2026, 11, 21))
+''').run()
+    assert not app.exception
+    labels = {widget.label for widget in app.selectbox}
+    assert 'Vehicle no.' in labels
+    assert 'Vehicle placed by' not in labels
+    assert 'Own or outside' not in labels
+    next(widget for widget in app.selectbox if widget.label == 'Record Type').select('Direct Expenses')
+    next(widget for widget in app.button if widget.label == 'Apply Filters').click().run()
+    assert not app.exception
+    assert {'By Amount', 'Heading'} <= {widget.label for widget in app.selectbox}
