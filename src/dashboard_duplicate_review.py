@@ -12,6 +12,10 @@ from .dialog_browser import explicit_close_script
 _review = components.declare_component('sid_dashboard_duplicate_review', path=str(Path(__file__).with_name('dashboard_duplicates_component')))
 
 
+def duplicate_copy_ids(groups):
+    return {row['request_number'] for group in groups for row in group['duplicates']}
+
+
 def review_payload(groups):
     def record(row):
         raw = data(row.get('dtr_data'))
@@ -59,9 +63,9 @@ def review_duplicates(user, groups, store, find_duplicates):
     st.session_state.dashboard_duplicate_action = result.get('nonce')
     if result.get('action') == 'cancel':
         st.rerun()
-    if result.get('action') == 'delete':
-        selected = result.get('numbers') or []
-        allowed = {r['request_number'] for group in groups for r in group['duplicates']}
+    if result.get('action') in {'delete', 'delete_all'}:
+        allowed = duplicate_copy_ids(groups)
+        selected = sorted(allowed) if result.get('action') == 'delete_all' else result.get('numbers') or []
         if not selected or any(number not in allowed for number in selected):
             st.error('Select valid duplicate copies. Originals cannot be deleted here.')
             return

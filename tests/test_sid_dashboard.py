@@ -80,6 +80,20 @@ def test_delete_only_selected_copies_with_atomic_audit_and_protected_original(tm
     assert store.activity_details(event)['request_number']==ids[1]
 
 
+def test_delete_all_duplicate_copies_keeps_originals(tmp_path):
+    from src.dashboard_duplicate_review import duplicate_copy_ids
+
+    store=RequestStore(f'sqlite:///{tmp_path / "all_duplicates.db"}')
+    ids=seed(store)
+    groups=finder()([store.get(i) for i in ids],include_originals=True)
+    selected=sorted(duplicate_copy_ids(groups))
+    assert selected == sorted(ids[1:])
+    versions={i:str(store.get(i)['updated_at']) for i in ids}
+    assert store.delete_duplicate_copies(selected,versions,'Sid',finder()) == 2
+    assert not store.get(ids[0])['is_archived']
+    assert all(store.get(i)['is_archived'] for i in selected)
+
+
 def test_stale_selection_rejects_entire_delete_batch(tmp_path):
     store=RequestStore(f'sqlite:///{tmp_path / "stale.db"}')
     ids=seed(store)
