@@ -241,3 +241,21 @@ def test_popup_actions_are_scoped_and_use_actual_payment_confirmation(tmp_path):
     with pytest.raises(ValueError):ledger_action(store,'Sid',action,rows,records,queues,'confirmed')
     ledger_action(store,'Sid',{**action,'actuallyPaid':True},rows,records,queues,'confirmed')
     assert current(store,n)['_settlement_status']=='Cleared'
+
+
+def test_sid_ledger_cumulative_paid_and_partial_rtgs_request(tmp_path):
+    from src.balance_ledger_ui import ledger_action, row_payload
+    store,n=setup(tmp_path)
+    rows,queues,records=store.settlement_snapshot('Sid')
+    row=next(r for r in rows if r['request_number']==n)
+    assert row_payload(row)['upi']==int(row['upi']*100)
+    ledger_action(store,'Sid',{'action':'save_targets','targets':{n:500},'paymentDate':'2026-11-10'},[row],records,queues,'sid-paid')
+    assert current(store,n)['_outstanding']==1500
+    rows,queues,records=store.settlement_snapshot('Sid')
+    row=next(r for r in rows if r['request_number']==n)
+    ledger_action(store,'Sid',{'action':'send_amounts','amounts':{n:400}},[row],records,queues,'sid-rtgs')
+    assert current(store,n)['_outstanding']==1500
+    assert current(store,n)['_awaiting']==400
+    assert current(store,n)['_sendable']==1100
+    with pytest.raises(ValueError):
+        ledger_action(store,'Nikhat',{'action':'send_amounts','amounts':{n:100}},[row],records,queues,'other-rtgs')

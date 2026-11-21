@@ -1904,7 +1904,7 @@ if hidden_tabs:
     st.markdown(f"<style>{hidden_tab_css}</style>", unsafe_allow_html=True)
 if current_user == 'Sid':
     dashboard_tab, records_tab, pending_tab, reports_tab, logs_tab = st.tabs(
-        ['Dashboard', 'Records', 'Pending Payments', 'Generate Reports', 'Logs'], default='Dashboard')
+        ['Dashboard', 'Records', 'Ledger', 'Generate Reports', 'Logs'], default='Dashboard')
     new_tab = expense_tab = None
 elif current_user in {'Vinod', 'Nikhil'}:
     dashboard_tab, new_tab, expense_tab, records_tab, pending_tab, reports_tab, logs_tab = st.tabs(

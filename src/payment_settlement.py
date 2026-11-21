@@ -174,7 +174,7 @@ class SettlementStore:
                     'amount':str(-money(original['amount'])),'allocations':reversed_allocations})))
         return True
 
-    def queue_settlement_rtgs(self,user,selected,token):
+    def queue_settlement_rtgs(self,user,selected,token,allow_partial=False):
         self._settlement_access(user)
         from .request_store import balance_payments,activity_logs,balance_bills
         if not selected: raise ValueError('Select trips with an outstanding amount available to send.')
@@ -186,12 +186,14 @@ class SettlementStore:
             if len(payment_groups(list(rows.values()),'balance',{},{}))!=1: raise ValueError('Select one transporter at a time.')
             bill=[];queue_ids={}
             for n,expected in sorted(selected.items()):
-                row=rows[n]; amt=money(row['_sendable'])
+                row=rows[n]; available=money(row['_sendable'])
                 if isinstance(expected,dict):
                     if str(row.get('updated_at'))!=str(expected.get('updated_at')):
                         raise ValueError('A selected trip or its bank details changed. Refresh and review before sending.')
                     expected=expected['amount']
-                if amt<=0 or amt!=money(expected): raise ValueError('The available balance changed. Refresh and review before sending.')
+                amt=money(expected)
+                if available<=0 or amt<=0 or (amt>available if allow_partial else amt!=available):
+                    raise ValueError('The available balance changed. Refresh and review before sending.')
                 profile=obj(row.get('rtgs_data')).copy()
                 profile['BNF_NAME']=profile.get('BNF_NAME') or row.get('beneficiary_name','')
                 if not all(str(profile.get(k) or '').strip() for k in ('BNF_NAME','BENE_ACC_NO','BENE_IFSC')): raise ValueError('Complete bank details before sending this trip.')

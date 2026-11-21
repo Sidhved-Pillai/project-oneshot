@@ -15,6 +15,7 @@ from .operational_dates import OPERATIONS_START
 from .invoice_display import dtr_invoice_text
 
 _ledger=components.declare_component('oneshot_balance_ledger',path=str(Path(__file__).with_name('balance_ledger_component')))
+_ledger_sid=components.declare_component('oneshot_balance_ledger_sid',path=str(Path(__file__).with_name('balance_ledger_component_sid')))
 
 
 def row_payload(row):
@@ -22,7 +23,7 @@ def row_payload(row):
     return {'id':row['request_number'],'invoice':dtr_invoice_text(obj(row.get('dtr_data')).get('Invoice No.') or row.get('invoice_number')) or row['request_number'],
             'date':str(row['trip_date'])[:10],'branch':canonical_branch(row.get('branch')),'vehicle':row.get('vehicle_number') or '',
             'route':f"{row.get('from_location') or ''} → {row.get('to_location') or ''}",
-            'original':int(money(row['_payable'])*100),'paid':int(money(row['_paid'])*100),
+            'original':int(money(row['_payable'])*100),'upi':int(money(row.get('upi'))*100),'paid':int(money(row['_paid'])*100),
             'outstanding':int(money(row['_outstanding'])*100),'sendable':int(money(row['_sendable'])*100),
             'awaiting':int(money(row['_awaiting'])*100),'status':row['_settlement_status'],
             'bankReady':all(str(profile.get(k) or (row.get('beneficiary_name') if k=='BNF_NAME' else '') or '').strip() for k in ('BNF_NAME','BENE_ACC_NO','BENE_IFSC'))}
@@ -55,6 +56,24 @@ def ledger_action(store,user,action,rows,records,queues,token):
     """Validate all browser selections against this transporter's server snapshot."""
     by_number={r['request_number']:r for r in rows}
     kind=action.get('action')
+    if user=='Sid' and kind=='save_targets':
+        submitted=action.get('targets') or {}
+        if not isinstance(submitted,dict) or not submitted or not set(submitted)<=set(by_number):
+            raise ValueError('Select valid trips from this transporter.')
+        targets={n:money(v) for n,v in submitted.items()}
+        if any(v<by_number[n]['_paid'] or v>by_number[n]['_payable'] for n,v in targets.items()):
+            raise ValueError('Paid So Far must be between the recorded paid amount and balance payable.')
+        increments={n:targets[n]-money(by_number[n]['_paid']) for n in targets if targets[n]>money(by_number[n]['_paid'])}
+        if not increments: raise ValueError('Enter a new confirmed payment amount.')
+        try: date=dt.date.fromisoformat(str(action.get('paymentDate')))
+        except ValueError: raise ValueError('Choose the actual payment date.')
+        return store.save_matched_payment(user,sum(increments.values()),date,increments,token,'Ledger update')
+    if user=='Sid' and kind=='send_amounts':
+        submitted=action.get('amounts') or {}
+        if not isinstance(submitted,dict) or not submitted or not set(submitted)<=set(by_number):
+            raise ValueError('Select valid trips to send.')
+        selected={n:{'amount':money(v),'updated_at':by_number[n].get('updated_at')} for n,v in submitted.items()}
+        return store.queue_settlement_rtgs(user,selected,token,allow_partial=True)
     if kind=='save':
         submitted=action.get('payments') or {}
         if not isinstance(submitted,dict) or not submitted or not set(submitted)<=set(by_number):
@@ -103,7 +122,8 @@ def update_in_ledger(name,rows,queues,records,user,store,instance):
     history,batches=history_payload(rows,queues,records)
     signature=hashlib.sha256(json.dumps([row_payload(r) for r in rows],sort_keys=True,default=str).encode()).hexdigest()
     response=st.session_state.get('ledger_response_'+instance)
-    result=_ledger(name=name,rows=[row_payload(r) for r in rows],history=history,batches=batches,
+    component=_ledger_sid if user=='Sid' else _ledger
+    result=component(name=name,rows=[row_payload(r) for r in rows],history=history,batches=batches,
         today=str(today()),start=min((str(r['trip_date'])[:10] for r in rows),default=str(OPERATIONS_START)),
         signature=signature,response=response,key='ledger_component_'+instance,default=None)
     if not isinstance(result,dict):return
@@ -112,14 +132,14 @@ def update_in_ledger(name,rows,queues,records,user,store,instance):
     st.session_state['ledger_action_'+instance]=nonce
     if result.get('action')=='close':
         st.rerun()
-    token=('COR-' if result.get('action')=='reverse' else 'RTGS-' if result.get('action')=='send' else 'PAY-')+hashlib.sha256((user+instance+nonce).encode()).hexdigest()[:32]
+    token=('COR-' if result.get('action')=='reverse' else 'RTGS-' if result.get('action') in ('send','send_amounts') else 'PAY-')+hashlib.sha256((user+instance+nonce).encode()).hexdigest()[:32]
     try:
         ledger_action(store,user,result,rows,records,queues,token)
     except (ValueError,TypeError,ArithmeticError) as exc:
         st.session_state['ledger_response_'+instance]={'nonce':nonce,'error':str(exc)}
         st.rerun(scope='fragment')
     else:
-        st.session_state['pending_payment_notice']={'save':'Payment updates saved. Trip balances and statuses are updated.','send':'Sent eligible trips for RTGS. Actual payment confirmation is still required.','reverse':'Payment corrected with an audited reversal.','confirm':'Actual bank payment confirmed.'}[result['action']]
+        st.session_state['pending_payment_notice']={'save':'Payment updates saved. Trip balances and statuses are updated.','save_targets':'Confirmed payments saved. Trip balances are updated.','send':'Sent eligible trips for RTGS. Actual payment confirmation is still required.','send_amounts':'RTGS request sent. Remaining is unchanged until payment is confirmed.','reverse':'Payment corrected with an audited reversal.','confirm':'Actual bank payment confirmed.'}[result['action']]
         st.rerun()
 
 
