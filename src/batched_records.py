@@ -15,6 +15,7 @@ from .record_lookup import identifier_matches
 
 
 def render_filters(rows, user, today):
+    designed_records = user in {'Shyam', 'Sid'}
     def data(row):
         raw = row.get('dtr_data') or {}
         return json.loads(raw) if isinstance(raw, str) else raw
@@ -38,15 +39,15 @@ def render_filters(rows, user, today):
             st.session_state[f'records_filter_draft_{user}_{field}'] = value
         st.session_state['records_result_page'] = 1
     with st.form(f'records_filters_batch_{user}', border=False):
-        if user == 'Shyam':
+        if designed_records:
             st.markdown('<div class="sr-filter-title">&#9661; &nbsp; Filters</div>', unsafe_allow_html=True)
             c,a,b,placer_col,vehicle_col = st.columns(5)
         else:
             a,b,c = st.columns(3)
-        start = a.date_input('Date From' if user == 'Shyam' else 'Records from', key=widget_key('start'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
-        end = b.date_input('Date To' if user == 'Shyam' else 'Records to', key=widget_key('end'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
+        start = a.date_input('Date From' if designed_records else 'Records from', key=widget_key('start'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
+        end = b.date_input('Date To' if designed_records else 'Records to', key=widget_key('end'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
         kind = c.selectbox('Record Type', RECORD_TYPES, key=widget_key('record_type'))
-        if user == 'Shyam':
+        if designed_records:
             own_col,lr_col,invoice_col,reset_col,apply_col = st.columns([1,1,1,.48,.72])
             a,b,c = placer_col,vehicle_col,own_col
         else:
@@ -57,7 +58,7 @@ def render_filters(rows, user, today):
                 st.session_state[key] = options[0]
             return column.selectbox(label, options, key=key,
                 format_func=(lambda item: 'All' if item == 'All' else format_inr(item)) if label == 'By Amount' else str)
-        vehicle_column = vehicle_col if user == 'Shyam' else (b if kind == TRIP_RECORDS and user != 'Ashok' else a)
+        vehicle_column = vehicle_col if designed_records else (b if kind == TRIP_RECORDS and user != 'Ashok' else a)
         vehicle = select(vehicle_column,'Vehicle no.',['All',*vehicles],'vehicle')
         placer, ownership, amount, heading = 'All', 'Both', 'All', 'All'
         if kind == TRIP_RECORDS:
@@ -65,9 +66,9 @@ def render_filters(rows, user, today):
                 placer = select(a,'Vehicle placed by',['All',*placers],'placer')
                 ownership = select(c,'Own or outside',['Both','Own','Outside'],'ownership')
         elif kind == DIRECT_EXPENSES:
-            amount = select(placer_col if user == 'Shyam' else b,'By Amount',['All',*amounts],'amount')
+            amount = select(placer_col if designed_records else b,'By Amount',['All',*amounts],'amount')
             heading = select(c,'Heading',['All',*direct_expense_headings(expenses)],'heading')
-        if user == 'Shyam':
+        if designed_records:
             a,b = lr_col,invoice_col
         else:
             a,b = st.columns(2)
@@ -83,7 +84,7 @@ def render_filters(rows, user, today):
             [data(row).get('LR No.') for row in rows])
         invoice_number = identifier_select(b, 'Invoice No.', 'invoice_number',
             [row.get('invoice_number') or data(row).get('Invoice No.') for row in rows])
-        if user == 'Shyam':
+        if designed_records:
             reset_col.form_submit_button('Reset', on_click=reset_filters, use_container_width=True)
             submitted = apply_col.form_submit_button('Apply Filters', type='primary', use_container_width=True)
         else:

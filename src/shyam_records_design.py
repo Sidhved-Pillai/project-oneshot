@@ -12,8 +12,8 @@ CHART = icon('M4 20V10h3v10 M11 20V4h3v16 M18 20V8h3v12')
 COINS = icon('M12 5c-5 0-9 1.5-9 3.5S7 12 12 12s9-1.5 9-3.5S17 5 12 5z M3 8.5V15c0 2 4 3.5 9 3.5s9-1.5 9-3.5V8.5 M3 12c0 2 4 3.5 9 3.5s9-1.5 9-3.5')
 
 
-def styles():
-    st.markdown('''<style>
+def styles(scope='shyam'):
+    css = '''<style>
 .st-key-shyam_records{color:#101944}
 .st-key-shyam_records [data-testid="stVerticalBlock"]{gap:.65rem}
 .st-key-shyam_records_filters,.st-key-shyam_records_table{background:linear-gradient(120deg,#fff,#f5f8ff);border:1px solid #d4dfff!important;border-radius:18px!important;padding:16px!important;box-shadow:0 4px 14px #1555cc08}
@@ -110,7 +110,8 @@ def styles():
 .st-key-shyam_records_table [class*="receipt_draft_"] label[data-baseweb="checkbox"]{transform:translateY(-4px)}
 .st-key-shyam_records_table [class*="receipt_draft_"] label [data-testid="stMarkdownContainer"] p{transform:translateY(-2px)}
 
-</style>''', unsafe_allow_html=True)
+</style>'''
+    st.markdown(css.replace('shyam', scope), unsafe_allow_html=True)
 
 
 def heading(revenue):

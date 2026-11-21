@@ -2214,10 +2214,11 @@ if current_user in {'Sid', 'Vinod', 'Nikhil'}:
                          pnl_reporting.branch_pnl_summary,
                          lambda groups: review_duplicates(current_user, groups, store, duplicate_records))
 
-with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' else 'standard_records'):
-    if current_user == 'Shyam':
+with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' else 'sid_records' if current_user == 'Sid' else 'standard_records'):
+    designed_records = current_user in {'Shyam', 'Sid'}
+    if designed_records:
         from src.shyam_records_design_v2 import styles as records_styles, heading as records_heading, leaderboard as records_board, TRUCK as records_truck
-        records_styles()
+        records_styles('shyam' if current_user == 'Shyam' else 'sid')
         records_heading_slot = st.empty()
     else:
         page_intro("", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
@@ -2243,9 +2244,9 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
     filter_from = today.replace(day=1)
     filter_to = today
     if rows:
-        if current_user != 'Shyam':
+        if not designed_records:
             st.markdown("#### Filter records")
-        with st.container(key='shyam_records_filters' if current_user == 'Shyam' else 'standard_records_filters'):
+        with st.container(key='shyam_records_filters' if current_user == 'Shyam' else 'sid_records_filters' if current_user == 'Sid' else 'standard_records_filters'):
             applied_filters = render_filters(scoped_rows, current_user, today)
         filter_from, filter_to = applied_filters['start'], applied_filters['end']
         record_type = applied_filters['record_type']
@@ -2324,26 +2325,27 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
             f"<tr><td>{'' if branch == 'Total' else rank}</td><td>{branch}</td><td>{count}</td><td>{format_inr(revenue)}</td></tr>"
             for rank, (branch, count, revenue) in enumerate(monthly_board, 1)
         )
-        if current_user == "Shyam":
+        if designed_records:
             records_board(monthly_board, today)
         else:
             st.markdown(f"#### Trip leaderboard · {today:%B %Y}")
         st.markdown(
-            f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_html}</tbody></table>' if current_user != 'Shyam' else '',
+            f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_html}</tbody></table>' if not designed_records else '',
             unsafe_allow_html=True,
         )
-    if current_user == 'Shyam':
+    if designed_records:
         with records_heading_slot.container():
             records_heading(sum(number(r.get('revenue')) for r in all_record_rows
                                 if r.get('report_scope') != 'Expense'
                                 and filter_from <= as_date(r.get('trip_date')) <= filter_to))
-    if current_user == 'Shyam':
+    if designed_records:
         live_title, live_evidence_filter, live_sort, shyam_page_control, shyam_page_prev, shyam_page_next = st.columns(
             [3.5, 3.4, .7, 1.25, .35, .35], vertical_alignment="center")
         shyam_range_slot = live_title.empty()
     else:
         live_title, live_evidence_filter, live_sort = st.columns([5, 3, 1], vertical_alignment="center")
-    (live_title if current_user != "Shyam" else shyam_range_slot).markdown("#### Trip Records" if current_user == "Shyam" and record_type == TRIP_RECORDS else "#### Direct Expenses" if current_user == "Shyam" and record_type == DIRECT_EXPENSES else "#### Live records")
+    if not designed_records:
+        live_title.markdown("#### Live records")
     without_invoice_evidence = live_evidence_filter.toggle(
         "Show Records without Invoice Evidence", key="records_without_invoice_evidence",
     )
@@ -2354,7 +2356,7 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
     )
     trip_record_count = sum(row.get("report_scope") != "Expense" for row in rows)
     expense_record_count = sum(row.get("report_scope") == "Expense" for row in rows)
-    if current_user != 'Shyam':
+    if not designed_records:
         st.caption(f"{trip_record_count} trip record(s) and {expense_record_count} direct expense record(s) listed.")
     if record_type == DIRECT_EXPENSES and current_user in EXPENSE_RECORD_SUMMARY_USERS:
         expense_export_rows = direct_expense_download_records(rows, scoped_rows, applied_filters, without_invoice_evidence)
@@ -2391,29 +2393,29 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
             )
             def move_record_page(step):
                 st.session_state[page_key] = valid_page_number(st.session_state.get(page_key, 1) + step, page_count)
-            if current_user == 'Shyam':
+            if designed_records:
                 page_control, page_prev, page_next = shyam_page_control, shyam_page_prev, shyam_page_next
-                page_prev.button('‹', key='shyam_records_prev', disabled=st.session_state[page_key] <= 1,
+                page_prev.button('‹', key=f'{current_user.casefold()}_records_prev', disabled=st.session_state[page_key] <= 1,
                                  on_click=move_record_page, args=(-1,))
-                page_next.button('›', key='shyam_records_next', disabled=st.session_state[page_key] >= page_count,
+                page_next.button('›', key=f'{current_user.casefold()}_records_next', disabled=st.session_state[page_key] >= page_count,
                                  on_click=move_record_page, args=(1,))
             else:
                 page_control = st
             record_page = page_control.selectbox(
                 "Record page", list(range(1, page_count + 1)),
                 format_func=lambda page: f"Page {page} of {page_count}", key=page_key,
-                label_visibility='collapsed' if current_user == 'Shyam' else 'visible',
+                label_visibility='collapsed' if designed_records else 'visible',
             )
             first = (record_page - 1) * records_per_page + 1
             last = min(record_page * records_per_page, len(rows))
-            if current_user != 'Shyam':
+            if not designed_records:
                 st.caption(f"Showing records {first}–{last} of {len(rows)}.")
         page_start = (record_page - 1) * records_per_page
         visible_rows = rows[page_start:page_start + records_per_page]
-        if current_user == 'Shyam':
+        if designed_records:
             title = 'Trip Records' if record_type == TRIP_RECORDS else 'Direct Expenses' if record_type == DIRECT_EXPENSES else 'Records'
             shyam_range_slot.markdown(f'<div class="sr-table-title"><span class="sr-table-icon">{records_truck}</span>{title}<small>Showing records {page_start + 1}–{page_start + len(visible_rows)} of {len(rows)}</small></div>', unsafe_allow_html=True)
-        with st.container(height=360 if current_user == 'Shyam' else 420, border=True, key='shyam_records_table' if current_user == 'Shyam' else 'standard_records_table'):
+        with st.container(height=360 if designed_records else 420, border=True, key='shyam_records_table' if current_user == 'Shyam' else 'sid_records_table' if current_user == 'Sid' else 'standard_records_table'):
             has_delete_column = current_user in FULL_DELETE_USERS or current_user in SELF_DELETE_USERS
             action_names = ['edit']
             if current_user == 'Shyam':
@@ -2425,14 +2427,14 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
             has_expense_rows = any(clean_text(row.get("report_scope")).casefold() == "expense" for row in visible_rows)
             value_title = "Revenue / Amount" if has_trip_rows and has_expense_rows else ("Amount" if has_expense_rows else "Revenue")
             record_titles = ("Record", "LR No.", "Date", "Branch", "Vehicle", "Placed by", value_title, *([''] * len(action_names)))
-            shyam_layout = current_user == 'Shyam'
+            shyam_layout = designed_records
             if shyam_layout:
                 record_widths = [.3, .8, .85, 1.05, .7, .95, 1.15, 1.5, .9, 1.1, 1.35]
                 value_title = 'Revenue (₹)' if value_title == 'Revenue' else value_title
                 record_titles = ('#', 'Branch', 'Trip Date', 'Vehicle No.', 'Vehicle Type', 'LR No.', 'Invoice No.', 'From – To', value_title, 'LR Status', 'Actions')
             value_column = 8 if shyam_layout else 6
             detail_count = 10 if shyam_layout else 7
-            with st.container(key='shyam_records_header' if shyam_layout else 'standard_records_header'):
+            with st.container(key='shyam_records_header' if current_user == 'Shyam' else 'sid_records_header' if current_user == 'Sid' else 'standard_records_header'):
                 header = st.columns(record_widths)
             for column, title in zip(header, record_titles):
                 if title:
@@ -2441,7 +2443,7 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
                 header[value_column].caption(f"Total Figure = {format_inr(sum(number(row.get('amount')) for row in rows))}")
             for row_index, record in enumerate(visible_rows, page_start + 1):
                 raw = unpack(record.get("dtr_data"))
-                with st.container(key=f"shyam_record_row_{record['request_number']}") if shyam_layout else nullcontext():
+                with st.container(key=f"{'shyam' if current_user == 'Shyam' else 'sid'}_record_row_{record['request_number']}") if shyam_layout else nullcontext():
                     columns = st.columns(record_widths, vertical_alignment="center")
                 if shyam_layout:
                     with columns[detail_count]:
@@ -2484,6 +2486,12 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
                     columns[9].markdown('<span class="sr-status received">✓ LR Received</span>' if received else '<span class="sr-status">◷ LR Pending</span>', unsafe_allow_html=True)
                     with actions['received']:
                         stage_invoice_receipt(record['request_number'], received)
+                elif current_user == 'Sid':
+                    lr_received = clean_text(raw.get('LR Status')).casefold() == 'received'
+                    columns[9].markdown(
+                        '<span class="sr-status received">✓ LR Received</span>' if lr_received else '<span class="sr-status">◷ LR Pending</span>' if not is_expense_record else '—',
+                        unsafe_allow_html=True,
+                    )
                 if can_delete_visible_record and actions['delete'].button("Delete", icon=":material/delete:", key=f"delete_record_{record['request_number']}", help="Delete record", use_container_width=True):
                     confirm_record_delete(record)
         if current_user == 'Shyam':

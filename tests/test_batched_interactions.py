@@ -13,13 +13,13 @@ filters = render_filters([], 'Sid', dt.date(2026,10,14))
 st.write('APPLIED: ' + filters['record_type'])
 ''').run()
     assert not app.exception
-    app.selectbox[0].select('Direct Expenses')
-    app.button[0].click().run()
+    next(widget for widget in app.selectbox if widget.label == 'Record Type').select('Direct Expenses')
+    next(widget for widget in app.button if widget.label == 'Apply Filters').click().run()
     assert not app.exception
     assert app.session_state['applied_records_filters_Sid']['record_type'] == 'Direct Expenses'
     import datetime as dt
-    app.date_input[0].set_value(dt.date(2026,10,20))
-    app.button[0].click().run()
+    next(widget for widget in app.date_input if widget.label == 'Date From').set_value(dt.date(2026,10,20))
+    next(widget for widget in app.button if widget.label == 'Apply Filters').click().run()
     assert not app.exception
     assert app.error
     assert app.session_state['applied_records_filters_Sid']['start'] == dt.date(2026,10,1)
