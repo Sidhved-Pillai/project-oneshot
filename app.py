@@ -2214,8 +2214,8 @@ if current_user in {'Sid', 'Vinod', 'Nikhil'}:
                          pnl_reporting.branch_pnl_summary,
                          lambda groups: review_duplicates(current_user, groups, store, duplicate_records))
 
-with records_tab, st.container(key=f'{current_user.casefold()}_records' if current_user in {'Shyam', 'Sid', 'Nikhat'} else 'standard_records'):
-    designed_records = current_user in {'Shyam', 'Sid', 'Nikhat'}
+with records_tab, st.container(key=f'{current_user.casefold()}_records' if current_user in {'Shyam', 'Sid', 'Nikhat', 'Vijay'} else 'standard_records'):
+    designed_records = current_user in {'Shyam', 'Sid', 'Nikhat', 'Vijay'}
     if designed_records:
         from src.shyam_records_design_v2 import styles as records_styles, heading as records_heading, leaderboard as records_board, TRUCK as records_truck
         records_styles(current_user.casefold())
@@ -2291,7 +2291,30 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
                 row for row in all_record_rows
                 if filter_from <= as_date(row.get("trip_date")) <= filter_to
             ]
-            leaderboard_rows = "".join(
+            if current_user == 'Vijay':
+                records_board(branch_trip_leaderboard(leaderboard_source, BRANCHES), filter_to)
+            else:
+                leaderboard_rows = "".join(
+                    f"<tr><td>{rank}</td><td>{branch}</td><td>{trip_count}</td><td>{format_inr(revenue)}</td></tr>"
+                    for rank, (branch, trip_count, revenue) in enumerate(
+                        branch_trip_leaderboard(leaderboard_source, BRANCHES), 1
+                    )
+                )
+                st.markdown("#### Trip leaderboard")
+                st.markdown(
+                    f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_rows}</tbody></table>',
+                    unsafe_allow_html=True,
+                )
+    elif record_branch_scope and can_view_trip_leaderboard(current_user) and current_user not in EXPENSE_RECORD_SUMMARY_USERS:
+        today = dt.date.today()
+        leaderboard_source = [
+            row for row in all_record_rows
+            if today.replace(day=1) <= as_date(row.get("trip_date")) <= today
+        ]
+        if current_user == 'Vijay':
+            records_board(branch_trip_leaderboard(leaderboard_source, BRANCHES), today)
+        else:
+            empty_leaderboard_rows = "".join(
                 f"<tr><td>{rank}</td><td>{branch}</td><td>{trip_count}</td><td>{format_inr(revenue)}</td></tr>"
                 for rank, (branch, trip_count, revenue) in enumerate(
                     branch_trip_leaderboard(leaderboard_source, BRANCHES), 1
@@ -2299,26 +2322,9 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
             )
             st.markdown("#### Trip leaderboard")
             st.markdown(
-                f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_rows}</tbody></table>',
+                f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{empty_leaderboard_rows}</tbody></table>',
                 unsafe_allow_html=True,
             )
-    elif record_branch_scope and can_view_trip_leaderboard(current_user) and current_user not in EXPENSE_RECORD_SUMMARY_USERS:
-        today = dt.date.today()
-        leaderboard_source = [
-            row for row in all_record_rows
-            if today.replace(day=1) <= as_date(row.get("trip_date")) <= today
-        ]
-        empty_leaderboard_rows = "".join(
-            f"<tr><td>{rank}</td><td>{branch}</td><td>{trip_count}</td><td>{format_inr(revenue)}</td></tr>"
-            for rank, (branch, trip_count, revenue) in enumerate(
-                branch_trip_leaderboard(leaderboard_source, BRANCHES), 1
-            )
-        )
-        st.markdown("#### Trip leaderboard")
-        st.markdown(
-            f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{empty_leaderboard_rows}</tbody></table>',
-            unsafe_allow_html=True,
-        )
     if current_user in EXPENSE_RECORD_SUMMARY_USERS and can_view_trip_leaderboard(current_user):
         monthly_board = current_month_leaderboard(all_record_rows, today, BRANCHES)
         leaderboard_html = "".join(
@@ -2335,9 +2341,11 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
         )
     if designed_records:
         with records_heading_slot.container():
-            records_heading(sum(number(r.get('revenue')) for r in all_record_rows
+            heading_rows = scoped_rows if current_user == 'Vijay' else all_record_rows
+            records_heading(sum(number(r.get('revenue')) for r in heading_rows
                                 if r.get('report_scope') != 'Expense'
-                                and filter_from <= as_date(r.get('trip_date')) <= filter_to))
+                                and filter_from <= as_date(r.get('trip_date')) <= filter_to),
+                            'Total Revenue (Your Records)' if current_user == 'Vijay' else 'Total Revenue (All Branches)')
     if designed_records:
         live_title, live_evidence_filter, live_sort, shyam_page_control, shyam_page_prev, shyam_page_next = st.columns(
             [3.5, 3.4, .7, 1.25, .35, .35], vertical_alignment="center")
@@ -2486,7 +2494,7 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
                     columns[9].markdown('<span class="sr-status received">✓ LR Received</span>' if received else '<span class="sr-status">◷ LR Pending</span>', unsafe_allow_html=True)
                     with actions['received']:
                         stage_invoice_receipt(record['request_number'], received)
-                elif current_user in {'Sid', 'Nikhat'}:
+                elif current_user in {'Sid', 'Nikhat', 'Vijay'}:
                     lr_received = clean_text(raw.get('LR Status')).casefold() == 'received'
                     columns[9].markdown(
                         '<span class="sr-status received">✓ LR Received</span>' if lr_received else '<span class="sr-status">◷ LR Pending</span>' if not is_expense_record else '—',

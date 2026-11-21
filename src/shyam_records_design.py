@@ -114,8 +114,8 @@ def styles(scope='shyam'):
     st.markdown(css.replace('shyam', scope), unsafe_allow_html=True)
 
 
-def heading(revenue):
-    st.markdown(f'<div class="sr-heading"><span class="sr-icon">{FOLDER}</span><div><h2>Records</h2><p>View, filter and manage all trip records.</p></div><div class="sr-total">{COINS}<div>Total Revenue (All Branches)<strong>{format_inr(revenue)}</strong></div></div></div>', unsafe_allow_html=True)
+def heading(revenue, total_label='Total Revenue (All Branches)'):
+    st.markdown(f'<div class="sr-heading"><span class="sr-icon">{FOLDER}</span><div><h2>Records</h2><p>View, filter and manage all trip records.</p></div><div class="sr-total">{COINS}<div>{escape(total_label)}<strong>{format_inr(revenue)}</strong></div></div></div>', unsafe_allow_html=True)
 
 
 def leaderboard(items, day):
