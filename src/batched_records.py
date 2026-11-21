@@ -15,7 +15,7 @@ from .record_lookup import identifier_matches
 
 
 def render_filters(rows, user, today):
-    designed_records = user in {'Shyam', 'Sid', 'Nikhat', 'Vijay', 'Ajit'}
+    designed_records = user in {'Shyam', 'Sid', 'Nikhat', 'Vijay', 'Ajit', 'Nitish', 'Gopal'}
     def data(row):
         raw = row.get('dtr_data') or {}
         return json.loads(raw) if isinstance(raw, str) else raw

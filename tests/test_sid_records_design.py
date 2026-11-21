@@ -2,9 +2,11 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from src import shyam_records_design
+from src.access_control import can_delete_record
+from src.record_integrity import can_edit_record
 
 
-@pytest.mark.parametrize('member', ['sid', 'nikhat', 'vijay', 'ajit'])
+@pytest.mark.parametrize('member', ['sid', 'nikhat', 'vijay', 'ajit', 'nitish', 'gopal'])
 def test_records_styles_are_scoped_to_member(monkeypatch, member):
     styles = []
     monkeypatch.setattr(shyam_records_design.st, 'markdown', lambda value, **kwargs: styles.append(value))
@@ -31,3 +33,15 @@ render_filters([{{'report_scope': 'Expense', 'amount': 500, 'dtr_data': {{'Salar
     assert not app.exception
     assert any(widget.label == 'By Amount' for widget in app.selectbox)
     assert any(widget.label == 'Heading' for widget in app.selectbox)
+
+
+def test_pune_records_keep_nitish_and_gopal_action_rules():
+    nitish_row = {'created_by': 'Nitish', 'branch': 'Pune'}
+    gopal_row = {'created_by': 'Gopal', 'branch': 'Pune'}
+    assert can_delete_record('Nitish', nitish_row)
+    assert not can_delete_record('Nitish', gopal_row)
+    assert not can_delete_record('Gopal', gopal_row)
+    assert can_edit_record('Nitish', nitish_row)
+    assert not can_edit_record('Nitish', gopal_row)
+    assert can_edit_record('Gopal', gopal_row)
+    assert not can_edit_record('Gopal', nitish_row)

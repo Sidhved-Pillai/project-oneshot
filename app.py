@@ -2214,8 +2214,8 @@ if current_user in {'Sid', 'Vinod', 'Nikhil'}:
                          pnl_reporting.branch_pnl_summary,
                          lambda groups: review_duplicates(current_user, groups, store, duplicate_records))
 
-with records_tab, st.container(key=f'{current_user.casefold()}_records' if current_user in {'Shyam', 'Sid', 'Nikhat', 'Vijay', 'Ajit'} else 'standard_records'):
-    designed_records = current_user in {'Shyam', 'Sid', 'Nikhat', 'Vijay', 'Ajit'}
+with records_tab, st.container(key=f'{current_user.casefold()}_records' if current_user in {'Shyam', 'Sid', 'Nikhat', 'Vijay', 'Ajit', 'Nitish', 'Gopal'} else 'standard_records'):
+    designed_records = current_user in {'Shyam', 'Sid', 'Nikhat', 'Vijay', 'Ajit', 'Nitish', 'Gopal'}
     if designed_records:
         from src.shyam_records_design_v2 import styles as records_styles, heading as records_heading, leaderboard as records_board, TRUCK as records_truck
         records_styles(current_user.casefold())
@@ -2291,7 +2291,7 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
                 row for row in all_record_rows
                 if filter_from <= as_date(row.get("trip_date")) <= filter_to
             ]
-            if current_user == 'Vijay':
+            if current_user in {'Vijay', 'Nitish', 'Gopal'}:
                 records_board(branch_trip_leaderboard(leaderboard_source, BRANCHES), filter_to)
             else:
                 leaderboard_rows = "".join(
@@ -2311,7 +2311,7 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
             row for row in all_record_rows
             if today.replace(day=1) <= as_date(row.get("trip_date")) <= today
         ]
-        if current_user == 'Vijay':
+        if current_user in {'Vijay', 'Nitish', 'Gopal'}:
             records_board(branch_trip_leaderboard(leaderboard_source, BRANCHES), today)
         else:
             empty_leaderboard_rows = "".join(
@@ -2341,11 +2341,13 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
         )
     if designed_records:
         with records_heading_slot.container():
-            heading_rows = scoped_rows if current_user == 'Vijay' else all_record_rows
+            heading_rows = scoped_rows if record_branch_scope else all_record_rows
             records_heading(sum(number(r.get('revenue')) for r in heading_rows
                                 if r.get('report_scope') != 'Expense'
                                 and filter_from <= as_date(r.get('trip_date')) <= filter_to),
-                            'Total Revenue (Your Records)' if current_user == 'Vijay' else 'Total Revenue (All Branches)')
+                            'Total Revenue (Your Records)' if current_user == 'Vijay' else
+                            f'Total Revenue ({record_branch_scope} Records)' if record_branch_scope else
+                            'Total Revenue (All Branches)')
     if designed_records:
         live_title, live_evidence_filter, live_sort, shyam_page_control, shyam_page_prev, shyam_page_next = st.columns(
             [3.5, 3.4, .7, 1.25, .35, .35], vertical_alignment="center")
@@ -2494,7 +2496,7 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
                     columns[9].markdown('<span class="sr-status received">✓ LR Received</span>' if received else '<span class="sr-status">◷ LR Pending</span>', unsafe_allow_html=True)
                     with actions['received']:
                         stage_invoice_receipt(record['request_number'], received)
-                elif current_user in {'Sid', 'Nikhat', 'Vijay', 'Ajit'}:
+                elif current_user in {'Sid', 'Nikhat', 'Vijay', 'Ajit', 'Nitish', 'Gopal'}:
                     lr_received = clean_text(raw.get('LR Status')).casefold() == 'received'
                     columns[9].markdown(
                         '<span class="sr-status received">✓ LR Received</span>' if lr_received else '<span class="sr-status">◷ LR Pending</span>' if not is_expense_record else '—',
