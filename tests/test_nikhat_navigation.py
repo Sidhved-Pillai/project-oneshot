@@ -17,7 +17,7 @@ def test_nikhat_tabs_exclude_new_entry_and_include_pending_payments():
         return list(names)
     namespace = {'current_user':'Nikhat', 'st':SimpleNamespace(tabs=tabs), 'PENDING_PAYMENT_USERS':{'Nikhat'}}
     exec(compile(ast.Module(body=[navigation], type_ignores=[]), 'navigation', 'exec'), namespace)
-    assert labels == ['Direct Expenses','Records','Pending Payments','Generate Reports','Logs']
+    assert labels == ['Direct Expenses','Records','Ledger','Generate Reports','Logs']
     assert namespace['new_tab'] is None
 
 

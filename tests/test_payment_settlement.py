@@ -257,5 +257,11 @@ def test_sid_ledger_cumulative_paid_and_partial_rtgs_request(tmp_path):
     assert current(store,n)['_outstanding']==1500
     assert current(store,n)['_awaiting']==400
     assert current(store,n)['_sendable']==1100
+    ledger_action(store,'Nikhat',{'action':'send_amounts','amounts':{n:100}},[row],records,queues,'nikhat-rtgs')
+    assert current(store,n)['_outstanding']==1500
+    rows,queues,records=store.settlement_snapshot('Ajit')
+    row=next(r for r in rows if r['request_number']==n)
+    ledger_action(store,'Ajit',{'action':'save_targets','targets':{n:600},'paymentDate':'2026-11-10'},[row],records,queues,'ajit-paid')
+    assert current(store,n)['_outstanding']==1400
     with pytest.raises(ValueError):
-        ledger_action(store,'Nikhat',{'action':'send_amounts','amounts':{n:100}},[row],records,queues,'other-rtgs')
+        ledger_action(store,'Shyam',{'action':'send_amounts','amounts':{n:100}},[row],records,queues,'other-rtgs')

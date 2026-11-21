@@ -16,6 +16,7 @@ from .invoice_display import dtr_invoice_text
 
 _ledger=components.declare_component('oneshot_balance_ledger',path=str(Path(__file__).with_name('balance_ledger_component')))
 _ledger_sid=components.declare_component('oneshot_balance_ledger_sid',path=str(Path(__file__).with_name('balance_ledger_component_sid')))
+COMPACT_LEDGER_USERS={'Sid','Nikhat','Ajit'}
 
 
 def row_payload(row):
@@ -56,7 +57,7 @@ def ledger_action(store,user,action,rows,records,queues,token):
     """Validate all browser selections against this transporter's server snapshot."""
     by_number={r['request_number']:r for r in rows}
     kind=action.get('action')
-    if user=='Sid' and kind=='save_targets':
+    if user in COMPACT_LEDGER_USERS and kind=='save_targets':
         submitted=action.get('targets') or {}
         if not isinstance(submitted,dict) or not submitted or not set(submitted)<=set(by_number):
             raise ValueError('Select valid trips from this transporter.')
@@ -68,7 +69,7 @@ def ledger_action(store,user,action,rows,records,queues,token):
         try: date=dt.date.fromisoformat(str(action.get('paymentDate')))
         except ValueError: raise ValueError('Choose the actual payment date.')
         return store.save_matched_payment(user,sum(increments.values()),date,increments,token,'Ledger update')
-    if user=='Sid' and kind=='send_amounts':
+    if user in COMPACT_LEDGER_USERS and kind=='send_amounts':
         submitted=action.get('amounts') or {}
         if not isinstance(submitted,dict) or not submitted or not set(submitted)<=set(by_number):
             raise ValueError('Select valid trips to send.')
@@ -122,7 +123,7 @@ def update_in_ledger(name,rows,queues,records,user,store,instance):
     history,batches=history_payload(rows,queues,records)
     signature=hashlib.sha256(json.dumps([row_payload(r) for r in rows],sort_keys=True,default=str).encode()).hexdigest()
     response=st.session_state.get('ledger_response_'+instance)
-    component=_ledger_sid if user=='Sid' else _ledger
+    component=_ledger_sid if user in COMPACT_LEDGER_USERS else _ledger
     result=component(name=name,rows=[row_payload(r) for r in rows],history=history,batches=batches,
         today=str(today()),start=min((str(r['trip_date'])[:10] for r in rows),default=str(OPERATIONS_START)),
         signature=signature,response=response,key='ledger_component_'+instance,default=None)

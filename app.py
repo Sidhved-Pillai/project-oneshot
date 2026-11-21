@@ -1911,11 +1911,11 @@ elif current_user in {'Vinod', 'Nikhil'}:
         ['Dashboard', 'New Entry', 'Direct Expenses', 'Records', 'Pending Payments', 'Generate Reports', 'Logs'], default='Dashboard')
 elif current_user == 'Nikhat':
     expense_tab, records_tab, pending_tab, reports_tab, logs_tab = st.tabs(
-        ['Direct Expenses','Records','Pending Payments','Generate Reports','Logs'])
+        ['Direct Expenses','Records','Ledger','Generate Reports','Logs'])
     new_tab = None
 elif current_user in PENDING_PAYMENT_USERS:
     new_tab, expense_tab, records_tab, pending_tab, reports_tab, logs_tab = st.tabs(
-        ["New Entry", "Direct Expenses", "Records", "Pending Payments", "Generate Reports", "Logs"])
+        ["New Entry", "Direct Expenses", "Records", "Ledger" if current_user == 'Ajit' else "Pending Payments", "Generate Reports", "Logs"])
 else:
     new_tab, expense_tab, records_tab, reports_tab, logs_tab = st.tabs(["New Entry", "Direct Expenses", "Records", "Generate Reports", "Logs"])
 

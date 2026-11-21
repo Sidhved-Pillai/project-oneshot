@@ -28,13 +28,14 @@ def test_sid_navigation_replaces_entry_tabs_and_other_users_keep_theirs():
     for user, expected in [('Sid',['Dashboard','Records','Ledger','Generate Reports','Logs']),
                            ('Vinod',['Dashboard','New Entry','Direct Expenses','Records','Pending Payments','Generate Reports','Logs']),
                            ('Nikhil',['Dashboard','New Entry','Direct Expenses','Records','Pending Payments','Generate Reports','Logs']),
-                           ('Ajit',['New Entry','Direct Expenses','Records','Pending Payments','Generate Reports','Logs']),
-                           ('Nikhat',['Direct Expenses','Records','Pending Payments','Generate Reports','Logs'])]:
+                           ('Ajit',['New Entry','Direct Expenses','Records','Ledger','Generate Reports','Logs']),
+                           ('Nikhat',['Direct Expenses','Records','Ledger','Generate Reports','Logs']),
+                           ('Shyam',['New Entry','Direct Expenses','Records','Pending Payments','Generate Reports','Logs'])]:
         labels=[]
         def tabs(names, **kwargs):
             labels.extend(names)
             return names
-        scope={'current_user':user,'st':SimpleNamespace(tabs=tabs),'PENDING_PAYMENT_USERS':{'Sid','Nikhat','Ajit'}}
+        scope={'current_user':user,'st':SimpleNamespace(tabs=tabs),'PENDING_PAYMENT_USERS':{'Sid','Nikhat','Ajit','Shyam'}}
         exec(compile(ast.Module(body=[navigation],type_ignores=[]),'nav','exec'),scope)
         assert labels == expected
         if user=='Sid':
