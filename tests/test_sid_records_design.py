@@ -4,7 +4,7 @@ from streamlit.testing.v1 import AppTest
 from src import shyam_records_design
 
 
-@pytest.mark.parametrize('member', ['sid', 'nikhat', 'vijay'])
+@pytest.mark.parametrize('member', ['sid', 'nikhat', 'vijay', 'ajit'])
 def test_records_styles_are_scoped_to_member(monkeypatch, member):
     styles = []
     monkeypatch.setattr(shyam_records_design.st, 'markdown', lambda value, **kwargs: styles.append(value))
@@ -17,7 +17,7 @@ def test_records_styles_are_scoped_to_member(monkeypatch, member):
     assert '.st-key-shyam_records_table' not in styles[0]
 
 
-@pytest.mark.parametrize('member', ['Nikhat', 'Vijay'])
+@pytest.mark.parametrize('member', ['Nikhat', 'Vijay', 'Ajit'])
 def test_designed_filters_keep_direct_expense_controls(member):
     app = AppTest.from_string(f'''
 import datetime as dt

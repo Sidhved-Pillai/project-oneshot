@@ -2214,8 +2214,8 @@ if current_user in {'Sid', 'Vinod', 'Nikhil'}:
                          pnl_reporting.branch_pnl_summary,
                          lambda groups: review_duplicates(current_user, groups, store, duplicate_records))
 
-with records_tab, st.container(key=f'{current_user.casefold()}_records' if current_user in {'Shyam', 'Sid', 'Nikhat', 'Vijay'} else 'standard_records'):
-    designed_records = current_user in {'Shyam', 'Sid', 'Nikhat', 'Vijay'}
+with records_tab, st.container(key=f'{current_user.casefold()}_records' if current_user in {'Shyam', 'Sid', 'Nikhat', 'Vijay', 'Ajit'} else 'standard_records'):
+    designed_records = current_user in {'Shyam', 'Sid', 'Nikhat', 'Vijay', 'Ajit'}
     if designed_records:
         from src.shyam_records_design_v2 import styles as records_styles, heading as records_heading, leaderboard as records_board, TRUCK as records_truck
         records_styles(current_user.casefold())
@@ -2494,7 +2494,7 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
                     columns[9].markdown('<span class="sr-status received">✓ LR Received</span>' if received else '<span class="sr-status">◷ LR Pending</span>', unsafe_allow_html=True)
                     with actions['received']:
                         stage_invoice_receipt(record['request_number'], received)
-                elif current_user in {'Sid', 'Nikhat', 'Vijay'}:
+                elif current_user in {'Sid', 'Nikhat', 'Vijay', 'Ajit'}:
                     lr_received = clean_text(raw.get('LR Status')).casefold() == 'received'
                     columns[9].markdown(
                         '<span class="sr-status received">✓ LR Received</span>' if lr_received else '<span class="sr-status">◷ LR Pending</span>' if not is_expense_record else '—',

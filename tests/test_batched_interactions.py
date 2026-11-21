@@ -176,12 +176,12 @@ filters = render_filters([{'invoice_number':'GST/GST/1087', 'dtr_data':{'LR No.'
     next(w for w in app.selectbox if w.label == 'LR No.').select('UTPL-139')
     next(w for w in app.selectbox if w.label == 'Invoice No.').select('GST/GST/1087')
     assert 'applied_records_filters_Ajit' not in app.session_state
-    app.button[0].click().run()
+    next(w for w in app.button if w.label == 'Apply Filters').click().run()
     assert not app.exception
     assert app.session_state['applied_records_filters_Ajit']['lr_number'] == 'UTPL-139'
     assert app.session_state['applied_records_filters_Ajit']['invoice_number'] == 'GST/GST/1087'
-    app.selectbox[0].select('Direct Expenses')
-    app.button[0].click().run()
+    next(w for w in app.selectbox if w.label == 'Record Type').select('Direct Expenses')
+    next(w for w in app.button if w.label == 'Apply Filters').click().run()
     assert not app.exception
     assert {'By Amount', 'Heading'} <= {w.label for w in app.selectbox}
 
