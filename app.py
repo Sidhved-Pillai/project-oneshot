@@ -2214,11 +2214,11 @@ if current_user in {'Sid', 'Vinod', 'Nikhil'}:
                          pnl_reporting.branch_pnl_summary,
                          lambda groups: review_duplicates(current_user, groups, store, duplicate_records))
 
-with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' else 'sid_records' if current_user == 'Sid' else 'standard_records'):
-    designed_records = current_user in {'Shyam', 'Sid'}
+with records_tab, st.container(key=f'{current_user.casefold()}_records' if current_user in {'Shyam', 'Sid', 'Nikhat'} else 'standard_records'):
+    designed_records = current_user in {'Shyam', 'Sid', 'Nikhat'}
     if designed_records:
         from src.shyam_records_design_v2 import styles as records_styles, heading as records_heading, leaderboard as records_board, TRUCK as records_truck
-        records_styles('shyam' if current_user == 'Shyam' else 'sid')
+        records_styles(current_user.casefold())
         records_heading_slot = st.empty()
     else:
         page_intro("", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
@@ -2246,7 +2246,7 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
     if rows:
         if not designed_records:
             st.markdown("#### Filter records")
-        with st.container(key='shyam_records_filters' if current_user == 'Shyam' else 'sid_records_filters' if current_user == 'Sid' else 'standard_records_filters'):
+        with st.container(key=f'{current_user.casefold()}_records_filters' if designed_records else 'standard_records_filters'):
             applied_filters = render_filters(scoped_rows, current_user, today)
         filter_from, filter_to = applied_filters['start'], applied_filters['end']
         record_type = applied_filters['record_type']
@@ -2415,7 +2415,7 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
         if designed_records:
             title = 'Trip Records' if record_type == TRIP_RECORDS else 'Direct Expenses' if record_type == DIRECT_EXPENSES else 'Records'
             shyam_range_slot.markdown(f'<div class="sr-table-title"><span class="sr-table-icon">{records_truck}</span>{title}<small>Showing records {page_start + 1}–{page_start + len(visible_rows)} of {len(rows)}</small></div>', unsafe_allow_html=True)
-        with st.container(height=360 if designed_records else 420, border=True, key='shyam_records_table' if current_user == 'Shyam' else 'sid_records_table' if current_user == 'Sid' else 'standard_records_table'):
+        with st.container(height=360 if designed_records else 420, border=True, key=f'{current_user.casefold()}_records_table' if designed_records else 'standard_records_table'):
             has_delete_column = current_user in FULL_DELETE_USERS or current_user in SELF_DELETE_USERS
             action_names = ['edit']
             if current_user == 'Shyam':
@@ -2434,7 +2434,7 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
                 record_titles = ('#', 'Branch', 'Trip Date', 'Vehicle No.', 'Vehicle Type', 'LR No.', 'Invoice No.', 'From – To', value_title, 'LR Status', 'Actions')
             value_column = 8 if shyam_layout else 6
             detail_count = 10 if shyam_layout else 7
-            with st.container(key='shyam_records_header' if current_user == 'Shyam' else 'sid_records_header' if current_user == 'Sid' else 'standard_records_header'):
+            with st.container(key=f'{current_user.casefold()}_records_header' if designed_records else 'standard_records_header'):
                 header = st.columns(record_widths)
             for column, title in zip(header, record_titles):
                 if title:
@@ -2443,7 +2443,7 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
                 header[value_column].caption(f"Total Figure = {format_inr(sum(number(row.get('amount')) for row in rows))}")
             for row_index, record in enumerate(visible_rows, page_start + 1):
                 raw = unpack(record.get("dtr_data"))
-                with st.container(key=f"{'shyam' if current_user == 'Shyam' else 'sid'}_record_row_{record['request_number']}") if shyam_layout else nullcontext():
+                with st.container(key=f"{current_user.casefold()}_record_row_{record['request_number']}") if shyam_layout else nullcontext():
                     columns = st.columns(record_widths, vertical_alignment="center")
                 if shyam_layout:
                     with columns[detail_count]:
@@ -2486,7 +2486,7 @@ with records_tab, st.container(key='shyam_records' if current_user == 'Shyam' el
                     columns[9].markdown('<span class="sr-status received">✓ LR Received</span>' if received else '<span class="sr-status">◷ LR Pending</span>', unsafe_allow_html=True)
                     with actions['received']:
                         stage_invoice_receipt(record['request_number'], received)
-                elif current_user == 'Sid':
+                elif current_user in {'Sid', 'Nikhat'}:
                     lr_received = clean_text(raw.get('LR Status')).casefold() == 'received'
                     columns[9].markdown(
                         '<span class="sr-status received">✓ LR Received</span>' if lr_received else '<span class="sr-status">◷ LR Pending</span>' if not is_expense_record else '—',
