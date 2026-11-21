@@ -6,7 +6,7 @@ from src.access_control import can_delete_record
 from src.record_integrity import can_edit_record
 
 
-@pytest.mark.parametrize('member', ['sid', 'nikhat', 'vijay', 'ajit', 'nitish', 'gopal'])
+@pytest.mark.parametrize('member', ['sid', 'nikhat', 'vijay', 'ajit', 'nitish', 'gopal', 'manish'])
 def test_records_styles_are_scoped_to_member(monkeypatch, member):
     styles = []
     monkeypatch.setattr(shyam_records_design.st, 'markdown', lambda value, **kwargs: styles.append(value))
@@ -19,7 +19,7 @@ def test_records_styles_are_scoped_to_member(monkeypatch, member):
     assert '.st-key-shyam_records_table' not in styles[0]
 
 
-@pytest.mark.parametrize('member', ['Nikhat', 'Vijay', 'Ajit'])
+@pytest.mark.parametrize('member', ['Nikhat', 'Vijay', 'Ajit', 'Manish'])
 def test_designed_filters_keep_direct_expense_controls(member):
     app = AppTest.from_string(f'''
 import datetime as dt
