@@ -4,6 +4,7 @@ from streamlit.testing.v1 import AppTest
 from src import shyam_records_design
 from src.access_control import can_delete_record
 from src.record_integrity import can_edit_record
+from src.company_catalog import COMPANIES, NEEDS_REVIEW, NEEDS_COMPANY_REVIEW
 
 
 @pytest.mark.parametrize('member', ['sid', 'nikhil', 'nikhat', 'vijay', 'ajit', 'nitish', 'gopal', 'manish', 'ashok'])
@@ -78,16 +79,16 @@ render_filters([
     assert not app.exception
     options = {widget.label: widget.options for widget in app.selectbox}
     assert options['Branch'] == ['All', 'Pune', 'Vadodara']
-    assert options['Company Name'] == ['All', 'Bisleri', 'Saint Gobain']
+    assert options['Company Name'] == ['All', *COMPANIES, NEEDS_REVIEW, NEEDS_COMPANY_REVIEW]
     assert options['Vehicle placed by'] == [
         'All', 'Nitish Jha', 'Manish Jha', 'Gopal', 'Shyam',
         'Ajit Thakur', 'Ashok', 'Vijay',
     ]
     app.selectbox(key=f'records_filter_draft_{member}_branch').select('Pune')
-    app.selectbox(key=f'records_filter_draft_{member}_company').select('Bisleri')
+    app.selectbox(key=f'records_filter_draft_{member}_company').select('Bisleri International Private Limited')
     app.selectbox(key=f'records_filter_draft_{member}_placer').select('Nitish Jha')
     next(widget for widget in app.button if widget.label == 'Apply Filters').click().run()
     assert not app.exception
     assert app.session_state[f'applied_records_filters_{member}']['branch'] == 'Pune'
-    assert app.session_state[f'applied_records_filters_{member}']['company'] == 'Bisleri'
+    assert app.session_state[f'applied_records_filters_{member}']['company'] == 'Bisleri International Private Limited'
     assert app.session_state[f'applied_records_filters_{member}']['placer'] == 'Nitish Jha'

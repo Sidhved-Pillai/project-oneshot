@@ -43,3 +43,30 @@ if submitted:
     assert saved['UPI'] == 250
     assert saved['Account Number'] == '001234'
     assert saved['LR No.'] == 'LR100'
+
+
+def test_empty_vehicle_editor_only_shows_required_trip_fields():
+    app = AppTest.from_string('''
+import datetime as dt
+from src.shyam_record_form import record_form
+record_form({'Date':dt.date(2026,11,24),'Company':'Empty Vehicle',
+    'Vehicle':'MH04AB1234','From':'Pune','To':'Wada','Branch':'',
+    'Invoice No.':'','Remarks':''}, {}, 'EMPTY-1', ['Company'], ['Pune'],
+    companies=['', 'Empty Vehicle'])
+''').run()
+    assert not app.exception
+    assert {widget.label for widget in app.text_input} == {'Vehicle', 'From', 'To'}
+    assert not any(widget.label == 'View Invoice' for widget in app.button)
+
+
+def test_ambiguous_saint_gobain_requires_business_selection():
+    app = AppTest.from_string('''
+from src.shyam_record_form import record_form
+record_form({'Company':'Saint-Gobain India Private Limited','Remarks':''}, {},
+    'SG-1', [], ['Pune'], companies=['', 'Saint Gobain - Gyproc', 'Saint Gobain - Weber'],
+    review_company=True)
+''').run()
+    assert not app.exception
+    company = next(widget for widget in app.selectbox if widget.label == 'Company')
+    assert company.options == ['', 'Saint Gobain - Gyproc', 'Saint Gobain - Weber']
+    assert next(widget for widget in app.button if widget.label == 'Save changes').disabled

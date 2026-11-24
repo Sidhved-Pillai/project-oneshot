@@ -25,7 +25,7 @@ st.write('APPLIED: ' + filters['record_type'])
     assert app.session_state['applied_records_filters_Sid']['start'] == dt.date(2026,10,1)
 
 
-def trip_app(user):
+def trip_app(user, rows=None):
     tree = ast.parse(Path('app.py').read_text())
     imports = [n for n in tree.body if isinstance(n,(ast.Import,ast.ImportFrom))]
     definitions = [n for n in tree.body if isinstance(n,ast.FunctionDef) and not n.decorator_list]
@@ -34,16 +34,19 @@ def trip_app(user):
     source = '\n'.join(ast.unparse(n) for n in imports + constants + definitions)
     source += f"\ncurrent_user = {user!r}\n"
     source += '''
-normalization_rows = []
+normalization_rows = ''' + repr(rows or []) + '''
 business_memory = {}
 historical_business_memory = {}
 KNOWN_COMPANIES = []
+CUSTOM_COMPANIES = []
 KNOWN_LOCATIONS = []
 st.session_state.setdefault('test_branch','Pune' if current_user != 'Vijay' else 'Andheri')
 st.session_state.setdefault('test_ownership_type','Outside')
 st.session_state.setdefault('test_vehicle_number','MH14JL9818' if current_user != 'Vijay' else 'MH17AG4504')
 values = trip_form('test', {}, BRANCHES, simplified=current_user == 'Manish')
 st.session_state['test_returned_values'] = values
+if values['company_name'] == 'Empty Vehicle' and values['from_location'] and values['to_location'] and values['vehicle_number']:
+    st.session_state['test_payload'] = trip_payload(values, [])
 '''
     return AppTest.from_string(source).run()
 
@@ -57,6 +60,46 @@ def test_entry_preserves_original_controls_without_extra_buttons():
         customer.set_value('Shraddha Enterprises').run()
         assert app.session_state['test_returned_values']['customer_name'] == 'Shraddha Enterprises'
         assert not app.exception
+
+
+def test_empty_vehicle_only_shows_trip_identifiers():
+    app = trip_app('Manish')
+    next(widget for widget in app.selectbox if widget.label == 'Company name').select('Empty Vehicle').run()
+    assert not app.exception
+    labels = {widget.label for widget in app.text_input}
+    assert labels == {'From *', 'To *', 'Truck No. *'}
+    assert not any(widget.label == 'Branch *' for widget in app.selectbox)
+    values = app.session_state['test_returned_values']
+    assert values['company_name'] == 'Empty Vehicle'
+    assert values['invoice_number'] == '' and values['branch'] == ''
+    next(widget for widget in app.text_input if widget.label == 'From *').set_value('Pune').run()
+    next(widget for widget in app.text_input if widget.label == 'To *').set_value('Wada').run()
+    assert not app.exception
+    payload = app.session_state['test_payload']
+    assert payload['company_name'] == 'Empty Vehicle' and payload['invoice_number'] == ''
+    assert payload['vehicle_number'] == 'MH14JL9818'
+
+
+def test_driver_suggestions_read_saved_dtr_names():
+    app = trip_app('Manish', [{'dtr_data': {'Driver Name': 'Ramesh Jha'}},
+                              {'dtr_data': {'Driver Name': 'Suresh'}}])
+    assert not app.exception
+    driver = next(widget for widget in app.selectbox if widget.label == 'Driver name')
+    assert 'Ramesh Jha' in driver.options and 'Suresh' in driver.options
+    driver.select('Suresh').run()
+    assert app.session_state['test_returned_values']['driver_name'] == 'Suresh'
+
+
+def test_new_company_can_be_typed_for_future_catalog():
+    app = trip_app('Manish')
+    next(widget for widget in app.selectbox if widget.label == 'Company name').select(
+        'Add New + (for new companies)').run()
+    assert not app.exception
+    next(widget for widget in app.text_input if widget.label == 'New company name').set_value(
+        'New Customer').run()
+    values = app.session_state['test_returned_values']
+    assert values['company_name'] == 'New Customer'
+    assert values['custom_company_name']
 
 
 def test_payment_calculations_update_without_a_calculate_button():

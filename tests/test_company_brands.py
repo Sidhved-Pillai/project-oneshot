@@ -4,6 +4,7 @@ import pytest
 from src.text_normalization import canonical_company
 from src.company_brands import company_brand_update
 from src.request_store import RequestStore
+from src.company_catalog import COMPANIES, company_choices, is_saint_gobain_name, is_unresolved_saint_gobain, is_unapproved_company
 
 
 @pytest.mark.parametrize('value,expected', [
@@ -25,6 +26,33 @@ def test_generic_company_is_not_guessed_and_conflicting_brands_not_migrated():
     assert canonical_company('Weber Transport') == 'Weber Transport'
     assert company_brand_update({'company_name':'Saint Gobain','dtr_data':{}}) is None
     assert company_brand_update({'company_name':'Saint Gobain - Weber','dtr_data':{'Compnay Name':'Saint Gobain - Gyproc'}}) is None
+
+
+def test_company_choices_ignore_legacy_typos_and_keep_explicit_additions():
+    rows = [
+        {'company_name': 'Saint Gobain India Private Limited', 'dtr_data': {}},
+        {'company_name': 'Wrong Spelling', 'dtr_data': {}},
+        {'company_name': 'New Customer', 'dtr_data': {'_custom_company_name': True}},
+    ]
+    choices = company_choices(rows)
+    assert all(name in choices for name in COMPANIES)
+    assert 'New Customer' in choices and 'Wrong Spelling' not in choices
+    assert is_unresolved_saint_gobain(rows[0])
+    assert is_saint_gobain_name('Saint-Gobain India Private Limited')
+    assert is_unresolved_saint_gobain({'company_name':'Saint Gobain - Weber',
+                                      'dtr_data':{'Compnay Name':'Saint Gobain - Gyproc'}})
+    assert is_unapproved_company(rows[1])
+    assert not is_unresolved_saint_gobain({'company_name': 'Saint Gobain - Weber', 'dtr_data': {}})
+
+
+def test_added_company_remains_in_catalog_after_trip_is_archived(tmp_path):
+    store = RequestStore(f'sqlite:///{tmp_path / "custom-companies.db"}')
+    number = store.create({'trip_date': dt.date(2026, 11, 24), 'vehicle_number': 'MH04AB1234',
+                           'company_name': 'New Customer',
+                           'dtr_data': {'_custom_company_name': True}})
+    store.update(number, {'is_archived': True})
+    assert 'New Customer' in store.custom_company_names()
+    assert 'New Customer' in company_choices([], store.custom_company_names())
 
 
 def test_legacy_repair_updates_record_and_dtr_without_changing_trip_values(tmp_path):

@@ -49,6 +49,7 @@ from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROF
 from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
+from src.company_catalog import COMPANIES, ADD_NEW, NEEDS_REVIEW, NEEDS_COMPANY_REVIEW, company_choices, is_saint_gobain_name, is_unresolved_saint_gobain, is_unapproved_company
 from src.current_pnl_report_v6 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.payment_access_v2 import PENDING_PAYMENT_USERS
 from src.records_store_v36 import RequestStore
@@ -924,13 +925,18 @@ def file_values(files, preferred_filename=None):
 
 
 def trip_payload(v, files, invoice_filename=None):
-    if not clean_text(v.get('invoice_number')):
+    if v.get('custom_company_name') and is_saint_gobain_name(v.get('company_name')):
+        raise ValueError('Select Saint Gobain - Gyproc or Saint Gobain - Weber.')
+    if v.get('company_name') == 'Empty Vehicle' and not all(clean_text(v.get(field)) for field in
+            ('vehicle_number', 'from_location', 'to_location')):
+        raise ValueError('Truck No., From, and To are required for an Empty Vehicle trip.')
+    if v.get('company_name') != 'Empty Vehicle' and not clean_text(v.get('invoice_number')):
         raise ValueError('Invoice number is required before saving a trip.')
     if v.get('date') is None or v['date'] < OPERATIONS_START:
         raise ValueError('Choose a date in 2026 or later.')
     if current_user == 'Vijay':
         v = {**v, 'lr_number': v['invoice_number']}
-    company = canonical_company(v["company_name"], KNOWN_COMPANIES)
+    company = clean_text(v['company_name']) if v.get('custom_company_name') else canonical_company(v["company_name"], KNOWN_COMPANIES)
     origin = canonical_location(v["from_location"], KNOWN_LOCATIONS)
     destination = canonical_location(v["to_location"], KNOWN_LOCATIONS)
     capacity = canonical_vehicle_capacity(v["vehicle_capacity"])
@@ -973,6 +979,8 @@ def trip_payload(v, files, invoice_filename=None):
         "Diesel Pump Name": v["diesel_pump_name"], "Card Name": v["card_name"],
         "Transporter Name": transporter_name, "Veh Placed by": canonical_vehicle_placer(v["vehicle_placed_by"]), "Remark": remarks,
     }
+    if v.get('custom_company_name'):
+        dtr['_custom_company_name'] = True
     if current_user == "Ashok":
         dtr["_beneficiary_profile_version"] = 2
     if current_user in {'Vijay', 'Ajit'}:
@@ -1099,7 +1107,7 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False, layout_ta
         if clean_text(st.session_state.get(key)):
             st.session_state[key] = normalizer(st.session_state[key])
     if current_user == "Vijay":
-        st.session_state[f"{prefix}_company_name"] = "Bisleri International Private Limited"
+        st.session_state.setdefault(f"{prefix}_company_name", "Bisleri International Private Limited")
         st.session_state[f"{prefix}_vehicle_number"] = resolve_vijay_vehicle_number(
             st.session_state.get(f"{prefix}_vehicle_number"),
         )
@@ -1134,9 +1142,39 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False, layout_ta
         if previous_date and previous_date < OPERATIONS_START:
             st.session_state[f"{prefix}_date"] = None
             st.warning("Choose a trip date in 2026 or later.")
-        v.update({"date": c1.date_input("Date *", value=st.session_state.get(f"{prefix}_date", dt.date.today()), format="DD/MM/YYYY", key=f"{prefix}_date", **date_options), "branch": c2.selectbox("Branch *", branch_choices, index=branch_choices.index(current_branch), key=branch_key, placeholder="Select a branch")})
+        v['date'] = c1.date_input("Date *", value=st.session_state.get(f"{prefix}_date", dt.date.today()), format="DD/MM/YYYY", key=f"{prefix}_date", **date_options)
         company_col, customer_col = st.columns(2)
-        v["company_name"] = company_col.text_input("Company name *", key=f"{prefix}_company_name", placeholder="e.g., Bisleri International Private Limited")
+        company_key = f"{prefix}_company_name"
+        company_options = company_choices(normalization_rows, CUSTOM_COMPANIES)
+        current_company = canonical_company(st.session_state.get(company_key), COMPANIES)
+        unrecognized_company = bool(current_company and current_company not in company_options and current_company != ADD_NEW)
+        if current_company not in company_options:
+            current_company = ''
+        st.session_state[company_key] = current_company
+        selected_company = company_col.selectbox('Company name', company_options, key=company_key,
+            format_func=lambda name: 'Select company' if not name else name)
+        v['company_name'] = (company_col.text_input('New company name', key=f'{prefix}_new_company_name').strip()
+                             if selected_company == ADD_NEW else selected_company)
+        v['custom_company_name'] = selected_company == ADD_NEW and bool(v['company_name'])
+        v['invalid_new_company'] = v['custom_company_name'] and is_saint_gobain_name(v['company_name'])
+        if v['invalid_new_company']:
+            st.error('Select Saint Gobain - Gyproc or Saint Gobain - Weber from the list.')
+        if selected_company == '' and unrecognized_company:
+            st.warning('Review the extracted company and select one of the approved names.')
+        if v['company_name'] == 'Empty Vehicle':
+            v['from_location'] = c1.text_input('From *', key=f'{prefix}_from_location')
+            v['to_location'] = c2.text_input('To *', key=f'{prefix}_to_location')
+            v['vehicle_number'] = st.text_input('Truck No. *', key=f'{prefix}_vehicle_number')
+            v.update({field: '' for field in ('customer_name','lr_number','invoice_number','vehicle_capacity',
+                'ownership_type','driver_name','vehicle_placed_by','beneficiary_name','transporter_name',
+                'beneficiary_account_number','beneficiary_ifsc_code','diesel_pump_name','card_name','repair_reason')})
+            v.update({field: 0 for field in ('revenue','transporter_freight','rtgs_advance','cash_advance',
+                'upi','diesel_advance','billtee','toll_expense','repairs_maintenance')})
+            v.update({'branch':'', 'simplified':True, 'has_duplicate_identifiers':False})
+            if layout_targets is not None:
+                layout_targets['save'] = st
+            return v
+        v['branch'] = c2.selectbox("Branch *", branch_choices, index=branch_choices.index(current_branch), key=branch_key, placeholder="Select a branch")
         v["customer_name"] = customer_col.text_input("Customer Name", key=f"{prefix}_customer_name", placeholder="e.g., Shraddha Enterprises", help="The party receiving the goods, as shown under Ship To / Consignee on the invoice.")
         c1, c2 = st.columns(2)
         v["from_location"] = c1.text_input("From *", key=f"{prefix}_from_location", placeholder="e.g., Talegaon, Pune")
@@ -1227,7 +1265,8 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False, layout_ta
             v['cases'] = case_col.number_input('Case', min_value=0.0, value=None, key=f'{prefix}_cases', placeholder='')
             v['jars'] = jar_col.number_input('Jar', min_value=0.0, value=None, key=f'{prefix}_jars', placeholder='')
         elif current_user == 'Manish':
-            driver_names = sorted({clean_text(row.get('driver_name')) for row in normalization_rows} - {''}, key=str.casefold)
+            driver_names = sorted({clean_text(unpack(row.get('dtr_data')).get('Driver Name'))
+                                   for row in normalization_rows} - {''}, key=str.casefold)
             driver_key = f'{prefix}_driver_name'
             current_driver = clean_text(st.session_state.get(driver_key))
             driver_options = ['', *driver_names]
@@ -1483,6 +1522,7 @@ normalization_rows, balance_requests, upi_requests, dashboard_logs = store.dashb
     include_logs=current_user in SPECIAL_MEMBERS,
 )
 normalization_rows = project_vijay_records(normalization_rows)
+CUSTOM_COMPANIES = store.custom_company_names()
 historical_business_memory = cached_business_memory(normalization_rows)
 business_memory = historical_business_memory
 if current_user == "Ashok":
@@ -1498,7 +1538,9 @@ if current_user == "Ashok":
         "transporters": new_ashok_memory["transporters"],
         "transporter_beneficiaries": new_ashok_memory["transporter_beneficiaries"],
     }
-KNOWN_COMPANIES = sorted({clean_text(row.get("company_name")) for row in normalization_rows} - {""}, key=str.casefold)
+KNOWN_COMPANIES = [name for name in company_choices(normalization_rows, CUSTOM_COMPANIES) if name and name != ADD_NEW]
+KNOWN_DRIVERS = sorted({clean_text(unpack(row.get('dtr_data')).get('Driver Name'))
+                        for row in normalization_rows} - {''}, key=str.casefold)
 KNOWN_LOCATIONS = sorted({
     clean_text(row.get(field))
     for row in normalization_rows for field in ("from_location", "to_location")
@@ -1578,6 +1620,13 @@ def view_record(row):
     if not can_view_record(current_user, row):
         st.error("You are not authorized to view this record.")
         return
+    saved_key = f"record_edit_saved_{row['request_number']}"
+    if st.session_state.get(saved_key):
+        st.success('Record saved. A revision snapshot was kept.')
+        if st.button('Close editor', key=f"close_saved_record_{row['request_number']}"):
+            st.session_state.pop(saved_key, None)
+            st.rerun()
+        return
     legacy_own_expense = (
         row.get("report_scope") == "Expense"
         and clean_text(row.get("created_by")) == current_user
@@ -1644,11 +1693,15 @@ def view_record(row):
         display.update({'Case':number(raw.get('Case')), 'Jar':number(raw.get('Jar'))})
     editable = can_edit_record(current_user, row)
     locked_columns = (["Type", "Branch"] if record_branch_scope else ["Type"]) if editable else list(display)
+    if row.get('company_name') == 'Empty Vehicle':
+        locked_columns.append('Company')
     if is_own_record:
         locked_columns.append("Profit / Loss")
     edited_item, replacement_evidence, save_clicked = record_form(
         display, {}, request_number, locked_columns, BRANCHES,
-        load_evidence=lambda: store.get_evidence(request_number), can_edit=editable)
+        load_evidence=lambda: store.get_evidence(request_number), can_edit=editable,
+        companies=company_choices(normalization_rows, CUSTOM_COMPANIES), drivers=KNOWN_DRIVERS,
+        review_company=is_unresolved_saint_gobain(row))
     replace_evidence_key = f"replace_record_evidence_{request_number}"
     repair_reason_missing = is_own_record and number(edited_item.get("Repairs & Maintenance")) > 0 and not clean_text(edited_item.get("Reason"))
     if repair_reason_missing:
@@ -1666,7 +1719,7 @@ def view_record(row):
         toll_expense = number(item.get("Toll Expense"))
         update_values = {
             "trip_date": edited_trip_date, "branch": clean_text(item["Branch"]),
-            "company_name": canonical_company(item["Company"], KNOWN_COMPANIES), "vehicle_number": canonical_vehicle_number(item["Vehicle"]),
+            "company_name": clean_text(item['Company']) if item.get('_custom_company_name') else canonical_company(item["Company"], KNOWN_COMPANIES), "vehicle_number": canonical_vehicle_number(item["Vehicle"]),
             "vehicle_type": canonical_vehicle_capacity(item["Vehicle Capacity"]), "ownership_type": ownership_type,
             "from_location": canonical_location(item["From"], KNOWN_LOCATIONS), "to_location": canonical_location(item["To"], KNOWN_LOCATIONS),
             "invoice_number": clean_text(item["Invoice No."]), "beneficiary_name": clean_text(item["Beneficiary"]),
@@ -1732,7 +1785,7 @@ def view_record(row):
                 payment = advance_summary(transporter_freight, *(item[name] for name in ("RTGS", "Cash", "UPI", "Diesel")), billtee)
                 total, balance = float(payment["total_advance"]), float(payment["balance_payable"])
                 total_advance = total
-            normalized_company = canonical_company(item["Company"], KNOWN_COMPANIES)
+            normalized_company = clean_text(item['Company']) if item.get('_custom_company_name') else canonical_company(item["Company"], KNOWN_COMPANIES)
             normalized_from = canonical_location(item["From"], KNOWN_LOCATIONS)
             normalized_to = canonical_location(item["To"], KNOWN_LOCATIONS)
             normalized_capacity = canonical_vehicle_capacity(item["Vehicle Capacity"])
@@ -1755,6 +1808,8 @@ def view_record(row):
                 "Diesel Qty": number(item.get("Diesel Qty")), "Diesel Rate": number(item.get("Diesel Rate")),
                 "Veh Placed by": canonical_vehicle_placer(item["Vehicle Placed By"]), "Remark": normalized_remark,
             }
+            if item.get('_custom_company_name'):
+                updated_dtr['_custom_company_name'] = True
             if current_user == "Ashok" and clean_text(row.get("created_by")) == "Ashok":
                 updated_dtr["_beneficiary_profile_version"] = 2
             if is_vijay_record:
@@ -1782,12 +1837,14 @@ def view_record(row):
             except ValueError as exc:
                 st.error(str(exc))
                 return
-            audit_action("Updated record", row["request_number"], request_label(row))
         st.session_state.pop(replace_evidence_key, None)
         st.session_state.pop("evidence_request_number", None)
         st.session_state.pop("evidence_record", None)
-        st.toast("Record updated. A revision snapshot was saved.", icon="✅")
-        st.rerun()
+        st.session_state[saved_key] = True
+        st.success('Record saved. A revision snapshot was kept.')
+        if st.button('Close editor', key=f"close_saved_record_{row['request_number']}"):
+            st.session_state.pop(saved_key, None)
+            st.rerun()
 
 st.markdown("""
 <style>
@@ -1929,7 +1986,8 @@ else:
     new_tab, expense_tab, records_tab, reports_tab, logs_tab = st.tabs(["New Entry", "Direct Expenses", "Records", "Generate Reports", "Logs"])
 
 def finish_trip_save(payload, generation):
-    if not clean_text(payload.get('invoice_number')):
+    empty_vehicle = payload.get('company_name') == 'Empty Vehicle'
+    if not empty_vehicle and not clean_text(payload.get('invoice_number')):
         st.error('Invoice number is required before saving a trip.')
         return
     if generation != st.session_state.get('new_entry_generation', 0):
@@ -1938,7 +1996,7 @@ def finish_trip_save(payload, generation):
     if payload.get('created_by') != current_user:
         raise ValueError('The signed-in user changed. Reopen the entry before saving.')
     latest = store.list(status='All active')
-    if user_invoice_duplicates(latest, current_user, payload.get('invoice_number')) or user_lr_duplicates(latest, current_user, payload.get('dtr_data', {}).get('LR No.')):
+    if not empty_vehicle and (user_invoice_duplicates(latest, current_user, payload.get('invoice_number')) or user_lr_duplicates(latest, current_user, payload.get('dtr_data', {}).get('LR No.'))):
         st.error('This invoice or LR is already saved. No duplicate was created.')
         return
     saved = store.create(payload)
@@ -2005,14 +2063,22 @@ def render_new_entry():
             invalid_operational_date = values['date'] is None or values['date'] < OPERATIONS_START
             if invalid_operational_date:
                 st.error('Choose a date in 2026 or later before saving.')
-            missing_invoice = not clean_text(values.get('invoice_number'))
+            empty_vehicle = values['company_name'] == 'Empty Vehicle'
+            missing_invoice = not empty_vehicle and not clean_text(values.get('invoice_number'))
             if missing_invoice:
                 st.caption('Invoice number is required before saving a trip.')
-            save_disabled = not values["branch"] or not values["vehicle_number"] or missing_invoice or repair_reason_missing or values["has_duplicate_identifiers"] or invalid_operational_date
+            if empty_vehicle:
+                save_disabled = (not values['vehicle_number'] or not values['from_location']
+                                 or not values['to_location'] or invalid_operational_date)
+            else:
+                save_disabled = (not values['branch'] or not values['company_name']
+                                 or not values['vehicle_number'] or missing_invoice or repair_reason_missing
+                                 or values['has_duplicate_identifiers'] or invalid_operational_date
+                                 or values['invalid_new_company'])
             save_target = layout_targets['save'] if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam"} else st
             if save_target.button("Save and Add Another" if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam"} else "Save and Another Entry", type="primary", disabled=save_disabled, key=f"{entry_prefix}_save", use_container_width=current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam"}):
                 latest = store.list(status="All active")
-                if user_invoice_duplicates(latest, current_user, values["invoice_number"]) or user_lr_duplicates(latest, current_user, values["lr_number"]):
+                if not empty_vehicle and (user_invoice_duplicates(latest, current_user, values["invoice_number"]) or user_lr_duplicates(latest, current_user, values["lr_number"])):
                     st.error("This invoice or LR was saved by another session. Refresh and review the existing record before saving.")
                     st.stop()
                 payload = {**trip_payload(values, files, invoice_filename), 'created_by': current_user}
@@ -2178,6 +2244,7 @@ def record_edit_control(record):
     # Open the dialog without rebuilding every tab, report, and database snapshot.
     if st.button('', icon=':material/edit:', help='Edit record / View invoice evidence',
                  key=f"view_record_{record['request_number']}", use_container_width=True):
+        st.session_state.pop(f"record_edit_saved_{record['request_number']}", None)
         latest = store.get(record['request_number'])
         if latest and not latest.get('is_archived') and latest.get('status') != 'Cancelled':
             view_record(latest)
@@ -2248,6 +2315,14 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
         rows = [row for row in rows if can_view_record(current_user, row)]
         st.caption(f"Your account can access records created by {current_user} only.")
     scoped_rows = list(rows)
+    unresolved_saint_gobain = [row for row in scoped_rows if is_unresolved_saint_gobain(row)]
+    if unresolved_saint_gobain:
+        st.warning(f'{len(unresolved_saint_gobain)} Saint Gobain trip(s) need Gyproc or Weber review. '
+                   f'Select “{NEEDS_REVIEW}” in Company Name, then open each record and check its evidence.')
+    unapproved_companies = [row for row in scoped_rows if is_unapproved_company(row)]
+    if unapproved_companies:
+        st.info(f'{len(unapproved_companies)} trip(s) have older company names to review. '
+                f'Select “{NEEDS_COMPANY_REVIEW}” in Company Name to find them.')
     record_type = TRIP_RECORDS
     today = dt.date.today()
     filter_from = today.replace(day=1)
@@ -2256,7 +2331,7 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
         if not designed_records:
             st.markdown("#### Filter records")
         with st.container(key=f'{current_user.casefold()}_records_filters' if designed_records else 'standard_records_filters'):
-            applied_filters = render_filters(scoped_rows, current_user, today)
+            applied_filters = render_filters(scoped_rows, current_user, today, CUSTOM_COMPANIES)
         filter_from, filter_to = applied_filters['start'], applied_filters['end']
         record_type = applied_filters['record_type']
         vehicle_filter = applied_filters['vehicle']
@@ -2271,9 +2346,17 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
                 None if applied_filters['amount'] == 'All' else applied_filters['amount'],
                 applied_filters['heading'])
         date_filtered_rows = [row for row in type_rows if filter_from <= as_date(row.get("trip_date")) <= filter_to]
+        def company_matches(row):
+            if company_filter == 'All':
+                return True
+            if company_filter == NEEDS_REVIEW:
+                return is_unresolved_saint_gobain(row)
+            if company_filter == NEEDS_COMPANY_REVIEW:
+                return is_unapproved_company(row)
+            return clean_text(row.get('company_name')).casefold() == company_filter.casefold()
         rows = [row for row in date_filtered_rows if
                 (branch_filter == "All" or canonical_branch(row.get("branch")).casefold() == canonical_branch(branch_filter).casefold())
-                and (company_filter == "All" or clean_text(row.get("company_name")).casefold() == company_filter.casefold())
+                and company_matches(row)
                 and
                 (placed_by_filter == "All" or canonical_vehicle_placer(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter)
                 and (vehicle_filter == "All" or canonical_vehicle_number(row.get("vehicle_number")) == vehicle_filter)
@@ -2284,7 +2367,7 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
             if outside_date_rows:
                 rows = [row for row in outside_date_rows
                         if (branch_filter == 'All' or canonical_branch(row.get('branch')).casefold() == canonical_branch(branch_filter).casefold())
-                        and (company_filter == 'All' or clean_text(row.get('company_name')).casefold() == company_filter.casefold())]
+                        and company_matches(row)]
             if rows:
                 saved_dates = ', '.join(sorted({f"{as_date(row.get('trip_date')):%d/%m/%Y}" for row in rows}))
                 st.warning(f'Matching LR/invoice records are saved with date {saved_dates}, outside the selected date range. '
@@ -2547,7 +2630,7 @@ def render_generate_reports():
             st.session_state['_report_refresh_metadata'] = True
         scoped_rows = scope_report_rows(current_user, source_rows)
         vehicles = sorted({canonical_vehicle_number(row.get('vehicle_number')) for row in scoped_rows if row.get('report_scope') != 'Expense'} - {''}, key=str.casefold)
-        filters, submitted = render_report_filters(current_user, report_options, vehicles, rows=[r for r in scoped_rows if r.get("report_scope") != "Expense"])
+        filters, submitted = render_report_filters(current_user, report_options, vehicles, rows=[r for r in scoped_rows if r.get("report_scope") != "Expense"], saved_companies=CUSTOM_COMPANIES)
         if filters is None:
             return
         start, end, report_type = filters['start'], filters['end'], filters['kind']

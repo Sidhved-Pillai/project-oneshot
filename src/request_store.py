@@ -419,6 +419,22 @@ class RequestStore(SettlementStore):
             ).mappings().first()
         return dict(row) if row else None
 
+    def custom_company_names(self):
+        """Keep explicitly added companies available even after their trips are archived."""
+        with self.engine.connect() as conn:
+            rows = conn.execute(select(requests.c.company_name, requests.c.dtr_data).where(
+                requests.c.dtr_data.contains('"_custom_company_name"')
+            )).mappings()
+            names = set()
+            for row in rows:
+                try:
+                    data = json.loads(row['dtr_data'] or '{}')
+                except (TypeError, ValueError):
+                    continue
+                if isinstance(data, dict) and data.get('_custom_company_name') and row['company_name']:
+                    names.add(str(row['company_name']).strip())
+        return sorted(names, key=str.casefold)
+
     def get_evidence(self, request_number):
         """Load the evidence bytes for exactly one record, on demand."""
         if not request_number:

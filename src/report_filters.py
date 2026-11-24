@@ -2,13 +2,14 @@
 import datetime as dt
 import streamlit as st
 from .operational_dates import OPERATIONS_START
+from .company_catalog import ADD_NEW, NEEDS_REVIEW, NEEDS_COMPANY_REVIEW, company_choices, is_unresolved_saint_gobain, is_unapproved_company
 
 
 def _options(rows, field):
     return ['All',*sorted({str(r.get(field) or '').strip() for r in rows}-{''},key=str.casefold)]
 
 
-def render_report_filters(user, report_options, vehicles, today=None, rows=()):
+def render_report_filters(user, report_options, vehicles, today=None, rows=(), saved_companies=()):
     today=today or dt.date.today()
     if st.session_state.get('report_type') not in (None,*report_options):
         st.session_state['report_type']='DTR'
@@ -61,7 +62,10 @@ def render_report_filters(user, report_options, vehicles, today=None, rows=()):
         else:
             specs=[('branch','Branch',_options(rows,'branch'))]
             if kind=='DTR':
-                specs += [('company','Company Name',_options(rows,'company_name')),
+                companies=['All',*(name for name in company_choices(rows, saved_companies) if name and name != ADD_NEW)]
+                if any(is_unresolved_saint_gobain(row) for row in rows):companies.append(NEEDS_REVIEW)
+                if any(is_unapproved_company(row) for row in rows):companies.append(NEEDS_COMPANY_REVIEW)
+                specs += [('company','Company Name',companies),
                     ('ownership','Ownership',['All','Own','Outside'])]
             else:
                 specs += [('transporter','Transporter',_options(rows,'transporter_name')),
@@ -94,7 +98,13 @@ def filter_report_rows(rows, filters):
     result=list(rows)
     for choice,field in fields.items():
         value=details.get(choice,'All')
-        if value!='All':result=[r for r in result if str(r.get(field) or '').strip().casefold()==value.casefold()]
+        if value != 'All':
+            if choice == 'company' and value == NEEDS_REVIEW:
+                result = [r for r in result if is_unresolved_saint_gobain(r)]
+            elif choice == 'company' and value == NEEDS_COMPANY_REVIEW:
+                result = [r for r in result if is_unapproved_company(r)]
+            else:
+                result = [r for r in result if str(r.get(field) or '').strip().casefold() == value.casefold()]
     status=details.get('status','All')
     if status!='All':result=[r for r in result if ('Mark for Later' if r.get('rtgs_later') else 'RTGS Done' if r.get('rtgs_done') else 'Pending')==status]
     return result

@@ -13,16 +13,21 @@ from .route_expense_export import route_export_row
 from .expense_amounts import expense_amounts
 from .record_lookup import identifier_matches
 from .branch_names import canonical_branch
+from .company_catalog import ADD_NEW, NEEDS_REVIEW, NEEDS_COMPANY_REVIEW, company_choices, is_unresolved_saint_gobain, is_unapproved_company
 
 
-def render_filters(rows, user, today):
+def render_filters(rows, user, today, saved_companies=()):
     designed_records = user in {'Shyam', 'Sid', 'Nikhil', 'Nikhat', 'Vijay', 'Ajit', 'Nitish', 'Gopal', 'Manish', 'Ashok'}
     def data(row):
         raw = row.get('dtr_data') or {}
         return json.loads(raw) if isinstance(raw, str) else raw
     vehicles = sorted({canonical_vehicle_number(r.get('vehicle_number')) for r in rows} - {''})
     branches = ['All', *sorted({canonical_branch(r.get('branch')) for r in rows} - {''}, key=str.casefold)]
-    companies = ['All', *sorted({str(r.get('company_name') or '').strip() for r in rows} - {''}, key=str.casefold)]
+    companies = ['All', *(name for name in company_choices(rows, saved_companies) if name and name != ADD_NEW)]
+    if any(is_unresolved_saint_gobain(row) for row in rows):
+        companies.append(NEEDS_REVIEW)
+    if any(is_unapproved_company(row) for row in rows):
+        companies.append(NEEDS_COMPANY_REVIEW)
     expenses = [r for r in rows if r.get('report_scope') == 'Expense']
     amounts = sorted({float(value) for row in expenses for value in expense_amounts(row)})
     expenses += [projected for row in rows if (projected := route_export_row(row)) is not None]

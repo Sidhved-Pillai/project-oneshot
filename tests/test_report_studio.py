@@ -33,6 +33,7 @@ from src.operational_dates import OPERATIONS_START
 current_user='Sid'
 can_generate_reports=can_generate_pnl=True
 KNOWN_COMPANIES=[]
+CUSTOM_COMPANIES=[]
 KNOWN_LOCATIONS=[]
 page_intro=lambda *args:None
 workflow_steps=lambda *args:None

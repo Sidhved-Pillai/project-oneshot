@@ -40,7 +40,7 @@ def test_saint_gobain_invoice_table_recovery_keeps_one_lr():
 
 def test_saint_gobain_entry_has_separate_invoices_and_single_lr():
     app = trip_app('Nitish')
-    next(w for w in app.text_input if w.label == 'Company name *').set_value('Saint-Gobain India Private Limited').run()
+    next(w for w in app.selectbox if w.label == 'Company name').select('Saint Gobain - Gyproc').run()
     assert not app.exception
     next(w for w in app.text_input if w.label == 'Invoice No. 1 *').set_value('9102085603')
     next(w for w in app.text_input if w.label == 'Invoice No. 2').set_value('9102085604')
