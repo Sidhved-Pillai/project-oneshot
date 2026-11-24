@@ -52,7 +52,7 @@ from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS,
 from src.company_catalog import COMPANIES, ADD_NEW, NEEDS_REVIEW, NEEDS_COMPANY_REVIEW, company_choices, is_saint_gobain_name, is_unresolved_saint_gobain, is_unapproved_company
 from src.current_pnl_report_v6 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.payment_access_v2 import PENDING_PAYMENT_USERS
-from src.records_store_v36 import RequestStore
+from src.records_store_v37 import RequestStore
 from src.sid_dashboard import switch_to_reports
 from src.pnl_dashboard_v3 import render_pnl_dashboard as render_dashboard
 from src.dashboard_duplicate_review_v3 import review_duplicates
@@ -95,7 +95,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 hide_manage_app()
-STORE_INTERFACE_VERSION = 36
+STORE_INTERFACE_VERSION = 37
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = [name for name in DIRECT_EXPENSE_COLUMNS if name != "Route expense"]
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*STANDARD_DIRECT_EXPENSE_COLUMNS, "Debit"]
@@ -1522,7 +1522,7 @@ normalization_rows, balance_requests, upi_requests, dashboard_logs = store.dashb
     include_logs=current_user in SPECIAL_MEMBERS,
 )
 normalization_rows = project_vijay_records(normalization_rows)
-CUSTOM_COMPANIES = store.custom_company_names()
+CUSTOM_COMPANIES = store.custom_company_names() if hasattr(store, 'custom_company_names') else []
 historical_business_memory = cached_business_memory(normalization_rows)
 business_memory = historical_business_memory
 if current_user == "Ashok":

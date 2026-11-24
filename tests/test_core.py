@@ -1526,4 +1526,6 @@ def test_hot_deploy_modules_expose_current_workflow_contract():
     assert hasattr(WorkflowRequestStore, "delete_batch")
     assert hasattr(ActiveRequestStore, "attach_evidence")
     assert hasattr(ActiveRequestStore, "get_evidence")
+    from src.records_store_v37 import RequestStore as CatalogRequestStore
+    assert hasattr(CatalogRequestStore, "custom_company_names")
     assert callable(workflow_branch_vehicle_pnl_summary)
