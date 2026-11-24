@@ -83,7 +83,7 @@ from src.branch_names import canonical_branch as normalized_branch_name
 from src.batched_records_v10 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
 from src.vijay_finance import project_vijay_records, vijay_finance_summary
-from src.record_form_v5 import record_form
+from src.record_form_v6 import record_form
 from src.dialog_browser import explicit_close_script
 
 load_dotenv(ROOT / ".env")

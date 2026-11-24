@@ -61,12 +61,22 @@ record_form({'Date':dt.date(2026,11,24),'Company':'Empty Vehicle',
 
 def test_ambiguous_saint_gobain_requires_business_selection():
     app = AppTest.from_string('''
+import streamlit as st
 from src.shyam_record_form import record_form
-record_form({'Company':'Saint-Gobain India Private Limited','Remarks':''}, {},
+values, _, saved = record_form({'Company':'Saint-Gobain India Private Limited','Remarks':''}, {},
     'SG-1', [], ['Pune'], companies=['', 'Saint Gobain - Gyproc', 'Saint Gobain - Weber'],
     review_company=True)
+if saved: st.session_state['saved_company'] = values['Company']
 ''').run()
     assert not app.exception
     company = next(widget for widget in app.selectbox if widget.label == 'Company')
     assert company.options == ['', 'Saint Gobain - Gyproc', 'Saint Gobain - Weber']
-    assert next(widget for widget in app.button if widget.label == 'Save changes').disabled
+    save = next(widget for widget in app.button if widget.label == 'Save changes')
+    assert not save.disabled
+    save.click().run()
+    assert 'saved_company' not in app.session_state
+    company = next(widget for widget in app.selectbox if widget.label == 'Company')
+    company.select('Saint Gobain - Gyproc')
+    next(widget for widget in app.button if widget.label == 'Save changes').click().run()
+    assert not app.exception
+    assert app.session_state['saved_company'] == 'Saint Gobain - Gyproc'

@@ -108,8 +108,9 @@ def record_form(display, evidence, request_number, locked, branches, load_eviden
             st.error('Select Saint Gobain - Gyproc or Saint Gobain - Weber from the list.')
         if empty_vehicle and not all(str(values.get(field) or '').strip() for field in ('Vehicle', 'From', 'To')):
             st.warning('Truck No., From, and To are required.')
-        submitted = st.form_submit_button('Save changes', type='primary',
-                                          disabled=not can_edit or (review_company or needs_company_choice) and not values.get('Company')
-                                          or empty_vehicle and not all(str(values.get(field) or '').strip() for field in ('Vehicle', 'From', 'To'))
-                                          or values.get('_invalid_new_company', False))
-    return values, replacement, submitted and confirm_increase
+        submitted = st.form_submit_button('Save changes', type='primary', disabled=not can_edit)
+    valid_company = not (review_company or needs_company_choice) or bool(values.get('Company'))
+    valid_empty_trip = not empty_vehicle or all(str(values.get(field) or '').strip()
+                                                  for field in ('Vehicle', 'From', 'To'))
+    return (values, replacement, submitted and confirm_increase and valid_company
+            and valid_empty_trip and not values.get('_invalid_new_company', False))
