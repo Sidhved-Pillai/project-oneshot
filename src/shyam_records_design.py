@@ -60,7 +60,7 @@ def styles(scope='shyam'):
 /* Keep the three row actions together and give every control the same footprint. */
 .st-key-shyam_records_table [class*="st-key-shyam_record_row_"] [data-testid="stHorizontalBlock"] [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]{flex:0 0 32px!important;width:32px!important;min-width:32px!important}
 .st-key-shyam_records_table [data-testid="stColumn"]{min-width:0!important;overflow:visible!important}
-.st-key-shyam_records_table [data-testid="stColumn"] [data-testid="stMarkdownContainer"] p{font-size:12px!important;line-height:1.3!important}
+.st-key-shyam_records_table [data-testid="stColumn"] [data-testid="stMarkdownContainer"] p{font-size:15px!important;line-height:1.45!important}
 .st-key-shyam_records_table [class*="st-key-view_record_"] button span{color:#142052!important;font-size:19px!important}
 .st-key-shyam_records_table [class*="st-key-delete_record_"] button span,
 .st-key-shyam_records_table [class*="st-key-delete_record_"] button [data-testid="stIconMaterial"]{color:#e11d2e!important;font-size:19px!important}
@@ -80,7 +80,7 @@ def styles(scope='shyam'):
 .st-key-shyam_records{font-size:13px}
 .st-key-shyam_records_filters{padding:12px 14px!important}
 .st-key-shyam_records_filters [data-testid="stHorizontalBlock"]{gap:12px!important}
-.st-key-shyam_records_filters label p{font-size:12px!important;font-weight:700!important}
+.st-key-shyam_records_filters label p{font-size:14px!important;font-weight:700!important}
 .st-key-shyam_records_filters [data-baseweb="select"]>div,
 .st-key-shyam_records_filters [data-baseweb="input"]>div{min-height:32px!important}
 .sr-filter-title{font-size:17px;margin-bottom:8px}

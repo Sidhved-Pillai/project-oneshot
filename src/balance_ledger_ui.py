@@ -175,6 +175,8 @@ def render_balance_cards(user,trips,upi_requests,store):
     [class*="st-key-ledger_update_"] button{background:linear-gradient(110deg,#178b25,#006c19)!important;color:white!important;border:0!important;border-radius:11px!important;min-height:42px!important;box-shadow:0 3px 5px #006b1720!important;white-space:nowrap!important}
     [class*="st-key-ledger_print_"] button{background:#fff!important;border:1px solid #d4def0!important;color:#101b3c!important;border-radius:11px!important;min-height:42px!important;white-space:nowrap!important}
     .st-key-ledger_apply button{background:linear-gradient(110deg,#2289ff,#0055ff)!important;color:white!important;border:0!important;min-height:43px!important;border-radius:11px!important}
+    .st-key-ledger_filters label p,.st-key-ledger_filters input,.st-key-ledger_filters [data-baseweb="select"]{font-size:16px!important}
+    [class*="st-key-ledger_card_"] p{font-size:16px!important;line-height:1.45!important}
     @media(max-width:700px){.pp-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}.pp-summary-card{padding:12px!important;min-height:140px!important}.pp-summary-card .pp-summary-icon{display:none!important}.pp-summary-copy strong{font-size:21px!important}.pp-summary-label{font-size:11px!important}}
     </style>''',unsafe_allow_html=True)
     if st.session_state.get('pending_payment_notice'):st.success(st.session_state.pop('pending_payment_notice'))

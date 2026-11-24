@@ -149,7 +149,7 @@ def test_vijay_pump_and_conditional_cardholder_selection():
     other = trip_app('Nitish')
     next(widget for widget in other.number_input if widget.label == 'Diesel (₹)').set_value(500).run()
     assert not any(widget.label == 'Driver name' for widget in other.text_input)
-    assert any(widget.label == 'Driver name' for widget in trip_app('Manish').text_input)
+    assert any(widget.label == 'Driver name' for widget in trip_app('Manish').selectbox)
     assert any(widget.label == 'Pump Name' for widget in other.selectbox)
     assert not any(widget.label == 'Pump Name' for widget in trip_app('Ashok').selectbox)
 

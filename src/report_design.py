@@ -40,8 +40,8 @@ def report_styles(kind):
     .st-key-report_studio .st-key-report_filters [data-testid="stHorizontalBlock"] {gap:16px!important;flex-wrap:nowrap!important}
     .st-key-report_studio .st-key-report_filters [data-testid="stColumn"] {min-width:0!important}
     .st-key-report_studio .st-key-report_type [data-testid="stIconMaterial"] {font-size:24px!important}
-    .st-key-report_studio label p {font-size:14px!important;font-weight:650!important;color:#080f42!important}
-    .st-key-report_studio input {font-size:14px!important;color:#10183f!important;min-height:36px!important;padding:7px 11px!important;background:white!important}
+    .st-key-report_studio label p {font-size:16px!important;font-weight:650!important;color:#080f42!important}
+    .st-key-report_studio input {font-size:16px!important;color:#10183f!important;min-height:36px!important;padding:7px 11px!important;background:white!important}
     .st-key-report_studio [data-baseweb="input"],.st-key-report_studio [data-baseweb="select"]>div {background:white!important;border:1px solid #d5e0ff!important;border-radius:12px!important;min-height:40px!important;box-shadow:0 2px 5px #0055ff0d}
     .st-key-report_studio [data-baseweb="select"] {font-size:14px!important}
     .st-key-report_studio [data-baseweb="select"] input {min-height:0!important;padding:0!important}

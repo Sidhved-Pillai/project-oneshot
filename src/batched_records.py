@@ -48,8 +48,8 @@ def render_filters(rows, user, today):
                 c,a,b,placer_col,vehicle_col = st.columns(5)
         else:
             a,b,c = st.columns(3)
-        start = a.date_input('Date From' if designed_records else 'Records from', key=widget_key('start'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
-        end = b.date_input('Date To' if designed_records else 'Records to', key=widget_key('end'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
+        start = a.date_input('Date From', key=widget_key('start'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
+        end = b.date_input('Date To', key=widget_key('end'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
         kind = c.selectbox('Record Type', RECORD_TYPES, key=widget_key('record_type'))
         if designed_records:
             if user == 'Ashok':
@@ -108,6 +108,7 @@ def render_filters(rows, user, today):
                            ownership=ownership,amount=amount,heading=heading,without_evidence=False,order='↓',
                            lr_number=lr_number.strip(), invoice_number=invoice_number.strip())
             st.session_state[saved_key] = applied
+            st.session_state['records_result_page'] = 1
     return applied
 
 

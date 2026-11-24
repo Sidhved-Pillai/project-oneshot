@@ -120,7 +120,8 @@ def test_rtgs_download_requests_a_fresh_fragment_snapshot():
 
 def test_report_switches_render_immediately_without_reapplying_dates(tmp_path):
     app=AppTest.from_string(report_source(tmp_path/'switch.db')).run()
-    app.date_input[0].set_value((dt.date(2026,11,10),dt.date(2026,11,10)))
+    app.date_input(key='report_from_v2').set_value(dt.date(2026,11,10))
+    app.date_input(key='report_to_v2').set_value(dt.date(2026,11,10))
     apply(app,'DTR')
     for kind,column in [('RTGS','Amount'),('P&L','Profit'),('DTR','Invoice No.')]:
         app.get('button_group')[0].set_value([kind]);run(app)
@@ -132,7 +133,8 @@ def test_report_switches_render_immediately_without_reapplying_dates(tmp_path):
             assert column in frame.columns
         assert app.session_state['report_applied_filters']['start']==dt.date(2026,11,10)
         assert app.session_state['report_applied_filters']['end']==dt.date(2026,11,10)
-    app.date_input[0].set_value((dt.date(2026,11,11),dt.date(2026,11,12)))
+    app.date_input(key='report_from_v2').set_value(dt.date(2026,11,11))
+    app.date_input(key='report_to_v2').set_value(dt.date(2026,11,12))
     apply(app,'DTR')
     app.get('button_group')[0].set_value(['RTGS']);run(app)
     assert not app.exception

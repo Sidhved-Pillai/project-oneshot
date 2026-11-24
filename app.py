@@ -1227,7 +1227,14 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False, layout_ta
             v['cases'] = case_col.number_input('Case', min_value=0.0, value=None, key=f'{prefix}_cases', placeholder='')
             v['jars'] = jar_col.number_input('Jar', min_value=0.0, value=None, key=f'{prefix}_jars', placeholder='')
         elif current_user == 'Manish':
-            v['driver_name'] = st.text_input('Driver name', key=f'{prefix}_driver_name', placeholder='Driver name as printed on the LR')
+            driver_names = sorted({clean_text(row.get('driver_name')) for row in normalization_rows} - {''}, key=str.casefold)
+            driver_key = f'{prefix}_driver_name'
+            current_driver = clean_text(st.session_state.get(driver_key))
+            driver_options = ['', *driver_names]
+            if current_driver and current_driver not in driver_options:
+                driver_options.append(current_driver)
+            v['driver_name'] = st.selectbox('Driver name', driver_options, key=driver_key,
+                accept_new_options=True, placeholder='Select or type a driver name')
         else:
             v['driver_name'] = clean_text(st.session_state.get(f'{prefix}_driver_name'))
         placer_key = f"{prefix}_vehicle_placed_by"
@@ -2272,20 +2279,6 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
                 saved_dates = ', '.join(sorted({f"{as_date(row.get('trip_date')):%d/%m/%Y}" for row in rows}))
                 st.warning(f'Matching LR/invoice records are saved with date {saved_dates}, outside the selected date range. '
                            'They are shown below so you can review and correct the existing records.')
-        if not rows and vehicle_filter != "All" and record_type == TRIP_RECORDS:
-            outside_date_rows = [
-                row for row in filter_record_type(identifier_rows, record_type)
-                if canonical_vehicle_number(row.get("vehicle_number")) == vehicle_filter
-                and (placed_by_filter == "All" or canonical_vehicle_placer(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter)
-                and ownership_matches(row.get("ownership_type"), ownership_filter)
-            ]
-            if outside_date_rows:
-                rows = outside_date_rows
-                saved_dates = ", ".join(sorted({f"{as_date(row.get('trip_date')):%d/%m/%Y}" for row in rows}))
-                st.warning(
-                    f"{vehicle_filter} is saved with date {saved_dates}, outside the selected date range. "
-                    "It is shown below so the record can be reviewed."
-                )
         if record_type == TRIP_RECORDS and can_view_trip_leaderboard(current_user) and current_user not in EXPENSE_RECORD_SUMMARY_USERS:
             leaderboard_source = [
                 row for row in all_record_rows

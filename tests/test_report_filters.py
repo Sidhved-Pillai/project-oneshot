@@ -28,7 +28,8 @@ def test_dates_type_and_pnl_filters_apply_together():
     app=filter_app();assert not app.exception
     assert app.json
     assert app.session_state["report_applied_filters"]["start"]==dt.date(2026,11,1)
-    app.date_input[0].set_value((dt.date(2026,10,1),dt.date(2026,10,31)))
+    app.date_input(key='report_from_v2').set_value(dt.date(2026,10,1))
+    app.date_input(key='report_to_v2').set_value(dt.date(2026,10,31))
     app.get('button_group')[0].set_value(['P&L'])
     run(app)
     app.date_input(key='report_from_v2').set_value(dt.date(2026,10,1))
@@ -49,7 +50,7 @@ def test_invalid_range_keeps_last_report_and_ashok_is_dtr_only():
     app=filter_app('Ashok',['DTR'])
     app.button(key='apply_report_filters').click();run(app)
     saved=app.session_state['report_applied_filters'].copy()
-    app.date_input[0].set_value((dt.date(2026,12,1),))
+    app.date_input(key='report_from_v2').set_value(dt.date(2026,12,1))
     app.button(key='apply_report_filters').click();run(app)
     assert app.error and app.session_state['report_applied_filters']==saved
     assert len(app.selectbox)==3
@@ -69,7 +70,8 @@ def test_dashboard_jump_applies_requested_pnl_and_refresh_is_fragment_only():
 
 def test_switching_formats_reuses_shared_dates_and_committed_pnl_choices():
     app=filter_app()
-    app.date_input[0].set_value((dt.date(2026,10,1),dt.date(2026,10,31)))
+    app.date_input(key='report_from_v2').set_value(dt.date(2026,10,1))
+    app.date_input(key='report_to_v2').set_value(dt.date(2026,10,31))
     app.button(key='apply_report_filters').click();run(app)
     for kind in ['RTGS','P&L']:
         app.get('button_group')[0].set_value([kind]);run(app)

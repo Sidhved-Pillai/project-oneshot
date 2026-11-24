@@ -48,8 +48,8 @@ def render_report_filters(user, report_options, vehicles, today=None, rows=()):
             dates_col, ownership_col, vehicle_col, apply_col=st.columns([1.8,2.2,1.6,1],vertical_alignment='bottom')
             with dates_col:
                 c1,c2=st.columns(2,gap='small')
-                start=c1.date_input('Records from',value=None,format='DD/MM/YYYY',key='report_from_v2',min_value=OPERATIONS_START)
-                end=c2.date_input('Records to',value=None,format='DD/MM/YYYY',key='report_to_v2',min_value=OPERATIONS_START)
+                start=c1.date_input('Date From',value=None,format='DD/MM/YYYY',key='report_from_v2',min_value=OPERATIONS_START)
+                end=c2.date_input('Date To',value=None,format='DD/MM/YYYY',key='report_to_v2',min_value=OPERATIONS_START)
             st.session_state.setdefault('pnl_ownership_filter',pnl['ownership'])
             if st.session_state.get('pnl_vehicle_filter') not in vehicle_options:st.session_state['pnl_vehicle_filter']=pnl['vehicle']
             with ownership_col:
@@ -66,12 +66,12 @@ def render_report_filters(user, report_options, vehicles, today=None, rows=()):
             else:
                 specs += [('transporter','Transporter',_options(rows,'transporter_name')),
                     ('status','Payment Status',['All','Pending','Mark for Later','RTGS Done'])]
-            cols=st.columns([1.65,*([1.4]*len(specs)),1],vertical_alignment='bottom',gap='small')
-            dates=cols[0].date_input('Date Range',value=(applied['start'],applied['end']),format='DD/MM/YYYY',key=f"report_date_range_v4_{kind}_{applied['start']}_{applied['end']}",min_value=OPERATIONS_START)
-            start,end=(dates[0],dates[-1]) if isinstance(dates,(tuple,list)) and len(dates)==2 else (None,None)
+            cols=st.columns([1.15,1.15,*([1.4]*len(specs)),1],vertical_alignment='bottom',gap='small')
+            start=cols[0].date_input('Date From',format='DD/MM/YYYY',key='report_from_v2',min_value=OPERATIONS_START)
+            end=cols[1].date_input('Date To',format='DD/MM/YYYY',key='report_to_v2',min_value=OPERATIONS_START)
             labels={'branch':'All Branches','company':'All Companies','capacity':'All Types','ownership':'All (Own & Outside)',
                 'transporter':'All Transporters','status':'All Statuses'}
-            for col,(field,label,options) in zip(cols[1:],specs):
+            for col,(field,label,options) in zip(cols[2:],specs):
                 key=f'report_{kind}_{field}_v4'
                 if switched or st.session_state.get(key) not in options:st.session_state[key]=choices.get(field,'All') if choices.get(field,'All') in options else 'All'
                 chosen[field]=col.selectbox(label,options,key=key,format_func=lambda v,f=field:labels[f] if v=='All' else 'Sent' if f=='status' and v=='RTGS Done' else v)
@@ -83,9 +83,6 @@ def render_report_filters(user, report_options, vehicles, today=None, rows=()):
         else:
             applied={'user':user,'start':start,'end':end,'kind':kind,'ownership':ownership,'vehicle':vehicle,'details':chosen}
             st.session_state['report_applied_filters']=applied
-            if kind!='P&L':
-                st.session_state['report_from_v2']=start
-                st.session_state['report_to_v2']=end
             if kind=='P&L':st.session_state['report_applied_pnl']={'user':user,'ownership':ownership,'vehicle':vehicle}
             st.session_state['report_applied_details']={**details,kind:chosen}
     return applied,bool((submitted or requested) and valid)

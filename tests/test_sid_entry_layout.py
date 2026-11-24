@@ -70,7 +70,7 @@ def test_manish_responsive_layout_preserves_driver_and_expense_workflow():
     app = trip_app('Manish')
     assert not app.exception
     assert any('sid_basic_panel' in b.proto.id for b in app.get('flex_container'))
-    assert any(w.label == 'Driver name' for w in app.text_input)
+    assert any(w.label == 'Driver name' for w in app.selectbox)
     assert 'Transporter freight (₹)' not in {w.label for w in app.number_input}
     next(w for w in app.number_input if w.label == 'Revenue freight (₹)').set_value(10000).run()
     next(w for w in app.number_input if w.label == 'Diesel Rate (₹/L)').set_value(90).run()
