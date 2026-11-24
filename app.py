@@ -2261,6 +2261,7 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
         record_type = applied_filters['record_type']
         vehicle_filter = applied_filters['vehicle']
         branch_filter = applied_filters['branch']
+        company_filter = applied_filters['company']
         placed_by_filter = applied_filters['placer'] if record_type == TRIP_RECORDS else 'All'
         ownership_filter = applied_filters['ownership'] if record_type == TRIP_RECORDS else 'Both'
         identifier_rows = filter_identifiers(scoped_rows, applied_filters)
@@ -2272,6 +2273,7 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
         date_filtered_rows = [row for row in type_rows if filter_from <= as_date(row.get("trip_date")) <= filter_to]
         rows = [row for row in date_filtered_rows if
                 (branch_filter == "All" or canonical_branch(row.get("branch")).casefold() == canonical_branch(branch_filter).casefold())
+                and (company_filter == "All" or clean_text(row.get("company_name")).casefold() == company_filter.casefold())
                 and
                 (placed_by_filter == "All" or canonical_vehicle_placer(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter)
                 and (vehicle_filter == "All" or canonical_vehicle_number(row.get("vehicle_number")) == vehicle_filter)
@@ -2280,7 +2282,9 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
         if not rows:
             outside_date_rows = outside_date_identifier_matches(type_rows, applied_filters)
             if outside_date_rows:
-                rows = [row for row in outside_date_rows if branch_filter == 'All' or canonical_branch(row.get('branch')).casefold() == canonical_branch(branch_filter).casefold()]
+                rows = [row for row in outside_date_rows
+                        if (branch_filter == 'All' or canonical_branch(row.get('branch')).casefold() == canonical_branch(branch_filter).casefold())
+                        and (company_filter == 'All' or clean_text(row.get('company_name')).casefold() == company_filter.casefold())]
             if rows:
                 saved_dates = ', '.join(sorted({f"{as_date(row.get('trip_date')):%d/%m/%Y}" for row in rows}))
                 st.warning(f'Matching LR/invoice records are saved with date {saved_dates}, outside the selected date range. '

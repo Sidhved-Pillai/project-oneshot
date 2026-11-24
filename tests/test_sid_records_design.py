@@ -71,20 +71,23 @@ def test_records_branch_and_placer_filters_use_clean_options(member):
 import datetime as dt
 from src.batched_records import render_filters
 render_filters([
-    {{'branch': 'Vadodra', 'dtr_data': {{'Veh Placed by': 'UBIQUITY TRANSTECH PVT LTD'}}}},
-    {{'branch': 'Pune', 'dtr_data': {{'Veh Placed by': 'Nit'}}}},
+    {{'branch': 'Vadodra', 'company_name': 'Saint Gobain', 'dtr_data': {{'Veh Placed by': 'UBIQUITY TRANSTECH PVT LTD'}}}},
+    {{'branch': 'Pune', 'company_name': 'Bisleri', 'dtr_data': {{'Veh Placed by': 'Nit'}}}},
 ], {member!r}, dt.date(2026, 11, 24))
 ''').run()
     assert not app.exception
     options = {widget.label: widget.options for widget in app.selectbox}
     assert options['Branch'] == ['All', 'Pune', 'Vadodara']
+    assert options['Company Name'] == ['All', 'Bisleri', 'Saint Gobain']
     assert options['Vehicle placed by'] == [
         'All', 'Nitish Jha', 'Manish Jha', 'Gopal', 'Shyam',
         'Ajit Thakur', 'Ashok', 'Vijay',
     ]
     app.selectbox(key=f'records_filter_draft_{member}_branch').select('Pune')
+    app.selectbox(key=f'records_filter_draft_{member}_company').select('Bisleri')
     app.selectbox(key=f'records_filter_draft_{member}_placer').select('Nitish Jha')
     next(widget for widget in app.button if widget.label == 'Apply Filters').click().run()
     assert not app.exception
     assert app.session_state[f'applied_records_filters_{member}']['branch'] == 'Pune'
+    assert app.session_state[f'applied_records_filters_{member}']['company'] == 'Bisleri'
     assert app.session_state[f'applied_records_filters_{member}']['placer'] == 'Nitish Jha'

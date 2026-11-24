@@ -22,11 +22,12 @@ def render_filters(rows, user, today):
         return json.loads(raw) if isinstance(raw, str) else raw
     vehicles = sorted({canonical_vehicle_number(r.get('vehicle_number')) for r in rows} - {''})
     branches = ['All', *sorted({canonical_branch(r.get('branch')) for r in rows} - {''}, key=str.casefold)]
+    companies = ['All', *sorted({str(r.get('company_name') or '').strip() for r in rows} - {''}, key=str.casefold)]
     expenses = [r for r in rows if r.get('report_scope') == 'Expense']
     amounts = sorted({float(value) for row in expenses for value in expense_amounts(row)})
     expenses += [projected for row in rows if (projected := route_export_row(row)) is not None]
     defaults = dict(start=today.replace(day=1), end=today, record_type=TRIP_RECORDS,
-                    branch='All', vehicle='All', placer='All', ownership='Both', amount='All', heading='All',
+                    branch='All', company='All', vehicle='All', placer='All', ownership='Both', amount='All', heading='All',
                     without_evidence=False, order='↓', lr_number='', invoice_number='')
     saved_key = f'applied_records_filters_{user}'
     applied = {**defaults, **st.session_state.get(saved_key, {})}
@@ -58,12 +59,13 @@ def render_filters(rows, user, today):
         branch = branch_col.selectbox('Branch', branches, key=branch_key)
         if designed_records:
             if user == 'Ashok':
-                lr_col,invoice_col,reset_col,apply_col = st.columns([1,1,.48,.72])
+                company_col,lr_col,invoice_col,reset_col,apply_col = st.columns([1.2,1,1,.48,.72])
             else:
-                own_col,lr_col,invoice_col,reset_col,apply_col = st.columns([1,1,1,.48,.72])
+                own_col,company_col,lr_col,invoice_col,reset_col,apply_col = st.columns([1,1.2,1,1,.48,.72])
                 a,b,c = placer_col,vehicle_col,own_col
         else:
             a,b,c = st.columns(3)
+            company_col = st
         def select(column, label, options, field):
             key = widget_key(field)
             if st.session_state[key] not in options:
@@ -72,6 +74,7 @@ def render_filters(rows, user, today):
                 format_func=(lambda item: 'All' if item == 'All' else format_inr(item)) if label == 'By Amount' else str)
         vehicle_column = vehicle_col if designed_records else (b if kind == TRIP_RECORDS and user != 'Ashok' else a)
         vehicle = select(vehicle_column,'Vehicle no.',['All',*vehicles],'vehicle')
+        company = select(company_col,'Company Name',companies,'company')
         placer, ownership, amount, heading = 'All', 'Both', 'All', 'All'
         if kind == TRIP_RECORDS:
             if user != 'Ashok':
@@ -109,7 +112,7 @@ def render_filters(rows, user, today):
         if start > end:
             st.error('Records from must be on or before Records to. Previous filters remain applied.')
         else:
-            applied = dict(start=start,end=end,record_type=kind,branch=branch,vehicle=vehicle,placer=placer,
+            applied = dict(start=start,end=end,record_type=kind,branch=branch,company=company,vehicle=vehicle,placer=placer,
                            ownership=ownership,amount=amount,heading=heading,without_evidence=False,order='↓',
                            lr_number=lr_number.strip(), invoice_number=invoice_number.strip())
             st.session_state[saved_key] = applied
