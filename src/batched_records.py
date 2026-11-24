@@ -6,26 +6,27 @@ import streamlit as st
 
 from .record_filters_v3 import RECORD_TYPES, TRIP_RECORDS, DIRECT_EXPENSES, direct_expense_headings
 from .vehicle_normalization import canonical_vehicle_number
-from .vehicle_placer import canonical_vehicle_placer
+from .vehicle_placer import CANONICAL_VEHICLE_PLACERS
 from .number_format import format_inr
 from .operational_dates_v2 import OPERATIONS_START
 from .route_expense_export import route_export_row
 from .expense_amounts import expense_amounts
 from .record_lookup import identifier_matches
+from .branch_names import canonical_branch
 
 
 def render_filters(rows, user, today):
-    designed_records = user in {'Shyam', 'Sid', 'Nikhat', 'Vijay', 'Ajit', 'Nitish', 'Gopal', 'Manish', 'Ashok'}
+    designed_records = user in {'Shyam', 'Sid', 'Nikhil', 'Nikhat', 'Vijay', 'Ajit', 'Nitish', 'Gopal', 'Manish', 'Ashok'}
     def data(row):
         raw = row.get('dtr_data') or {}
         return json.loads(raw) if isinstance(raw, str) else raw
     vehicles = sorted({canonical_vehicle_number(r.get('vehicle_number')) for r in rows} - {''})
-    placers = sorted({canonical_vehicle_placer(data(r).get('Veh Placed by')) for r in rows} - {''})
+    branches = ['All', *sorted({canonical_branch(r.get('branch')) for r in rows} - {''}, key=str.casefold)]
     expenses = [r for r in rows if r.get('report_scope') == 'Expense']
     amounts = sorted({float(value) for row in expenses for value in expense_amounts(row)})
     expenses += [projected for row in rows if (projected := route_export_row(row)) is not None]
     defaults = dict(start=today.replace(day=1), end=today, record_type=TRIP_RECORDS,
-                    vehicle='All', placer='All', ownership='Both', amount='All', heading='All',
+                    branch='All', vehicle='All', placer='All', ownership='Both', amount='All', heading='All',
                     without_evidence=False, order='↓', lr_number='', invoice_number='')
     saved_key = f'applied_records_filters_{user}'
     applied = {**defaults, **st.session_state.get(saved_key, {})}
@@ -42,15 +43,19 @@ def render_filters(rows, user, today):
         if designed_records:
             st.markdown('<div class="sr-filter-title">&#9661; &nbsp; Filters</div>', unsafe_allow_html=True)
             if user == 'Ashok':
-                c,a,b,vehicle_col = st.columns(4)
+                c,a,b,branch_col,vehicle_col = st.columns(5)
                 placer_col = None
             else:
-                c,a,b,placer_col,vehicle_col = st.columns(5)
+                c,a,b,branch_col,placer_col,vehicle_col = st.columns(6)
         else:
-            a,b,c = st.columns(3)
+            a,b,c,branch_col = st.columns(4)
         start = a.date_input('Date From', key=widget_key('start'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
         end = b.date_input('Date To', key=widget_key('end'), format='DD/MM/YYYY', min_value=OPERATIONS_START)
         kind = c.selectbox('Record Type', RECORD_TYPES, key=widget_key('record_type'))
+        branch_key = widget_key('branch')
+        if st.session_state[branch_key] not in branches:
+            st.session_state[branch_key] = 'All'
+        branch = branch_col.selectbox('Branch', branches, key=branch_key)
         if designed_records:
             if user == 'Ashok':
                 lr_col,invoice_col,reset_col,apply_col = st.columns([1,1,.48,.72])
@@ -70,7 +75,7 @@ def render_filters(rows, user, today):
         placer, ownership, amount, heading = 'All', 'Both', 'All', 'All'
         if kind == TRIP_RECORDS:
             if user != 'Ashok':
-                placer = select(a,'Vehicle placed by',['All',*placers],'placer')
+                placer = select(a,'Vehicle placed by',['All',*CANONICAL_VEHICLE_PLACERS],'placer')
                 ownership = select(c,'Own or outside',['Both','Own','Outside'],'ownership')
         elif kind == DIRECT_EXPENSES:
             if user == 'Ashok' and designed_records:
@@ -104,7 +109,7 @@ def render_filters(rows, user, today):
         if start > end:
             st.error('Records from must be on or before Records to. Previous filters remain applied.')
         else:
-            applied = dict(start=start,end=end,record_type=kind,vehicle=vehicle,placer=placer,
+            applied = dict(start=start,end=end,record_type=kind,branch=branch,vehicle=vehicle,placer=placer,
                            ownership=ownership,amount=amount,heading=heading,without_evidence=False,order='↓',
                            lr_number=lr_number.strip(), invoice_number=invoice_number.strip())
             st.session_state[saved_key] = applied

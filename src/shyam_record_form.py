@@ -9,6 +9,7 @@ from .invoice_viewer import invoice_viewer_html
 from .operational_dates import OPERATIONS_START
 from .expense_review import expense_category_increase
 from .pnl_report import REPORT_EXPENSE_COLUMNS
+from .vehicle_placer import CANONICAL_VEHICLE_PLACERS, canonical_vehicle_placer
 
 
 @st.fragment
@@ -52,10 +53,11 @@ def record_form(display, evidence, request_number, locked, branches, load_eviden
                 column = columns[index % 2]
                 value = display[field]
                 key = f'shyam_edit_{request_number}_{field}'
-                options = branches if field == 'Branch' else ['', 'Own', 'Outside'] if field == 'Own / Outside' else None
+                options = branches if field == 'Branch' else ['', 'Own', 'Outside'] if field == 'Own / Outside' else ['', *CANONICAL_VEHICLE_PLACERS] if field == 'Vehicle Placed By' else None
                 if options is not None:
-                    options = list(dict.fromkeys([*options, str(value or '')]))
-                    values[field] = column.selectbox(field, options, index=options.index(str(value or '')),
+                    selected = canonical_vehicle_placer(value) if field == 'Vehicle Placed By' else str(value or '')
+                    options = list(dict.fromkeys([*options, selected]))
+                    values[field] = column.selectbox(field, options, index=options.index(selected),
                                                      key=key, disabled=field in locked)
                 elif isinstance(value, (dt.date, dt.datetime)) or field == 'Date' or 'Period ' in field:
                     values[field] = column.date_input(field, value=value, format='DD/MM/YYYY', key=key,

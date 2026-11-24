@@ -1238,11 +1238,13 @@ def trip_form(prefix, memory, allowed_branches=None, simplified=False, layout_ta
         else:
             v['driver_name'] = clean_text(st.session_state.get(f'{prefix}_driver_name'))
         placer_key = f"{prefix}_vehicle_placed_by"
-        v["vehicle_placed_by"] = st.text_input(
-            "Vehicle placed by", key=placer_key, placeholder="e.g., Ajit Thakur",
-            on_change=canonicalize_placer_state, args=(placer_key,),
+        st.session_state[placer_key] = canonical_vehicle_placer(st.session_state.get(placer_key, ""))
+        if st.session_state[placer_key] not in ('', *CANONICAL_VEHICLE_PLACERS):
+            st.session_state[placer_key] = ''
+        v["vehicle_placed_by"] = st.selectbox(
+            "Vehicle placed by", ['', *CANONICAL_VEHICLE_PLACERS], key=placer_key,
         )
-        memory_prompt(prefix, f"Known setup for {v['vehicle_number']}", f"vehicle_{v['vehicle_number']}", recall(memory, "vehicles", v["vehicle_number"]), ["vehicle_capacity", "transporter_name", "ownership_type", "vehicle_placed_by"])
+        memory_prompt(prefix, f"Known setup for {v['vehicle_number']}", f"vehicle_{v['vehicle_number']}", recall(memory, "vehicles", v["vehicle_number"]), ["vehicle_capacity", "transporter_name", "ownership_type"])
         memory_prompt(prefix, f"Known branch for {v['company_name']}", f"company_{v['company_name']}", recall(memory, "companies", v["company_name"]), ["branch"])
     with beneficiary_panel if sid_preview else nullcontext():
         show_beneficiary = not own_workflow or current_user == "Vijay"
@@ -2222,7 +2224,7 @@ if current_user in {'Sid', 'Vinod', 'Nikhil'}:
                          lambda groups: review_duplicates(current_user, groups, store, duplicate_records))
 
 with records_tab, st.container(key=f'{current_user.casefold()}_records' if current_user in {'Shyam', 'Sid', 'Nikhat', 'Vijay', 'Ajit', 'Nitish', 'Gopal', 'Manish', 'Ashok'} else 'standard_records'):
-    designed_records = current_user in {'Shyam', 'Sid', 'Nikhat', 'Vijay', 'Ajit', 'Nitish', 'Gopal', 'Manish', 'Ashok'}
+    designed_records = current_user in {'Shyam', 'Sid', 'Nikhil', 'Nikhat', 'Vijay', 'Ajit', 'Nitish', 'Gopal', 'Manish', 'Ashok'}
     if designed_records:
         from src.shyam_records_design_v2 import styles as records_styles, heading as records_heading, leaderboard as records_board, TRUCK as records_truck
         records_styles(current_user.casefold())
@@ -2258,6 +2260,7 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
         filter_from, filter_to = applied_filters['start'], applied_filters['end']
         record_type = applied_filters['record_type']
         vehicle_filter = applied_filters['vehicle']
+        branch_filter = applied_filters['branch']
         placed_by_filter = applied_filters['placer'] if record_type == TRIP_RECORDS else 'All'
         ownership_filter = applied_filters['ownership'] if record_type == TRIP_RECORDS else 'Both'
         identifier_rows = filter_identifiers(scoped_rows, applied_filters)
@@ -2268,6 +2271,8 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
                 applied_filters['heading'])
         date_filtered_rows = [row for row in type_rows if filter_from <= as_date(row.get("trip_date")) <= filter_to]
         rows = [row for row in date_filtered_rows if
+                (branch_filter == "All" or canonical_branch(row.get("branch")).casefold() == canonical_branch(branch_filter).casefold())
+                and
                 (placed_by_filter == "All" or canonical_vehicle_placer(unpack(row.get("dtr_data")).get("Veh Placed by")) == placed_by_filter)
                 and (vehicle_filter == "All" or canonical_vehicle_number(row.get("vehicle_number")) == vehicle_filter)
                 and ownership_matches(row.get("ownership_type"), ownership_filter)]
@@ -2275,7 +2280,8 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
         if not rows:
             outside_date_rows = outside_date_identifier_matches(type_rows, applied_filters)
             if outside_date_rows:
-                rows = outside_date_rows
+                rows = [row for row in outside_date_rows if branch_filter == 'All' or canonical_branch(row.get('branch')).casefold() == canonical_branch(branch_filter).casefold()]
+            if rows:
                 saved_dates = ', '.join(sorted({f"{as_date(row.get('trip_date')):%d/%m/%Y}" for row in rows}))
                 st.warning(f'Matching LR/invoice records are saved with date {saved_dates}, outside the selected date range. '
                            'They are shown below so you can review and correct the existing records.')
@@ -2489,7 +2495,7 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
                     columns[9].markdown('<span class="sr-status received">✓ LR Received</span>' if received else '<span class="sr-status">◷ LR Pending</span>', unsafe_allow_html=True)
                     with actions['received']:
                         stage_invoice_receipt(record['request_number'], received)
-                elif current_user in {'Sid', 'Nikhat', 'Vijay', 'Ajit', 'Nitish', 'Gopal', 'Manish', 'Ashok'}:
+                elif current_user in {'Sid', 'Nikhil', 'Nikhat', 'Vijay', 'Ajit', 'Nitish', 'Gopal', 'Manish', 'Ashok'}:
                     lr_received = clean_text(raw.get('LR Status')).casefold() == 'received'
                     columns[9].markdown(
                         '<span class="sr-status received">✓ LR Received</span>' if lr_received else '<span class="sr-status">◷ LR Pending</span>' if not is_expense_record else '—',

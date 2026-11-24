@@ -4,9 +4,11 @@ import re
 from difflib import SequenceMatcher
 
 
-CANONICAL_VEHICLE_PLACERS = ("Nitish Jha", "Ajit Thakur", "Manish Jha", "Ashok")
+CANONICAL_VEHICLE_PLACERS = ("Nitish Jha", "Manish Jha", "Gopal", "Shyam", "Ajit Thakur", "Ashok", "Vijay")
 LOGIN_VEHICLE_PLACERS = {
-    "Nitish": "Nitish Jha", "Ajit": "Ajit Thakur", "Manish": "Manish Jha", "Ashok": "Ashok",
+    "Nitish": "Nitish Jha", "Nit": "Nitish Jha", "Ajit": "Ajit Thakur",
+    "Manish": "Manish Jha", "Gopal": "Gopal", "Shyam": "Shyam",
+    "Ashok": "Ashok", "Vijay": "Vijay",
 }
 LEGACY_VEHICLE_PLACERS = {"ashokbhai": "Ashok", "ashok bhai": "Ashok"}
 

@@ -6,7 +6,7 @@ from src.access_control import can_delete_record
 from src.record_integrity import can_edit_record
 
 
-@pytest.mark.parametrize('member', ['sid', 'nikhat', 'vijay', 'ajit', 'nitish', 'gopal', 'manish', 'ashok'])
+@pytest.mark.parametrize('member', ['sid', 'nikhil', 'nikhat', 'vijay', 'ajit', 'nitish', 'gopal', 'manish', 'ashok'])
 def test_records_styles_are_scoped_to_member(monkeypatch, member):
     styles = []
     monkeypatch.setattr(shyam_records_design.st, 'markdown', lambda value, **kwargs: styles.append(value))
@@ -63,3 +63,28 @@ render_filters([{'report_scope': 'Expense', 'amount': 500, 'dtr_data': {'Salary'
     next(widget for widget in app.button if widget.label == 'Apply Filters').click().run()
     assert not app.exception
     assert {'By Amount', 'Heading'} <= {widget.label for widget in app.selectbox}
+
+
+@pytest.mark.parametrize('member', ['Sid', 'Nikhil'])
+def test_records_branch_and_placer_filters_use_clean_options(member):
+    app = AppTest.from_string(f'''
+import datetime as dt
+from src.batched_records import render_filters
+render_filters([
+    {{'branch': 'Vadodra', 'dtr_data': {{'Veh Placed by': 'UBIQUITY TRANSTECH PVT LTD'}}}},
+    {{'branch': 'Pune', 'dtr_data': {{'Veh Placed by': 'Nit'}}}},
+], {member!r}, dt.date(2026, 11, 24))
+''').run()
+    assert not app.exception
+    options = {widget.label: widget.options for widget in app.selectbox}
+    assert options['Branch'] == ['All', 'Pune', 'Vadodara']
+    assert options['Vehicle placed by'] == [
+        'All', 'Nitish Jha', 'Manish Jha', 'Gopal', 'Shyam',
+        'Ajit Thakur', 'Ashok', 'Vijay',
+    ]
+    app.selectbox(key=f'records_filter_draft_{member}_branch').select('Pune')
+    app.selectbox(key=f'records_filter_draft_{member}_placer').select('Nitish Jha')
+    next(widget for widget in app.button if widget.label == 'Apply Filters').click().run()
+    assert not app.exception
+    assert app.session_state[f'applied_records_filters_{member}']['branch'] == 'Pune'
+    assert app.session_state[f'applied_records_filters_{member}']['placer'] == 'Nitish Jha'

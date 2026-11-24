@@ -118,6 +118,10 @@ def test_short_vehicle_placer_login_names_are_canonicalized():
     assert canonical_vehicle_placer("Manish") == "Manish Jha"
     assert canonical_vehicle_placer("Ashokbhai") == "Ashok"
     assert canonical_vehicle_placer("Ashok Bhai") == "Ashok"
+    assert canonical_vehicle_placer("Nit") == "Nitish Jha"
+    assert canonical_vehicle_placer("Gopal") == "Gopal"
+    assert canonical_vehicle_placer("Shyam") == "Shyam"
+    assert canonical_vehicle_placer("Vijay") == "Vijay"
 
 
 def test_record_delete_permissions_are_owner_scoped_for_manish():
