@@ -57,5 +57,4 @@ def is_unresolved_saint_gobain(row):
 def is_unapproved_company(row):
     name = str(row.get('company_name') or '').strip()
     return (bool(name) and name not in COMPANIES and not _data(row).get('_custom_company_name')
-            and not is_unresolved_saint_gobain(row)
             and row.get('report_scope') != 'Expense')

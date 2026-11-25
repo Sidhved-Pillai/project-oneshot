@@ -2,7 +2,7 @@
 import datetime as dt
 import streamlit as st
 from .operational_dates import OPERATIONS_START
-from .company_catalog import ADD_NEW, NEEDS_REVIEW, NEEDS_COMPANY_REVIEW, company_choices, is_unresolved_saint_gobain, is_unapproved_company
+from .company_catalog import ADD_NEW, NEEDS_COMPANY_REVIEW, company_choices, is_unapproved_company
 
 
 def _options(rows, field):
@@ -63,7 +63,6 @@ def render_report_filters(user, report_options, vehicles, today=None, rows=(), s
             specs=[('branch','Branch',_options(rows,'branch'))]
             if kind=='DTR':
                 companies=['All',*(name for name in company_choices(rows, saved_companies) if name and name != ADD_NEW)]
-                if any(is_unresolved_saint_gobain(row) for row in rows):companies.append(NEEDS_REVIEW)
                 if any(is_unapproved_company(row) for row in rows):companies.append(NEEDS_COMPANY_REVIEW)
                 specs += [('company','Company Name',companies),
                     ('ownership','Ownership',['All','Own','Outside'])]
@@ -99,9 +98,7 @@ def filter_report_rows(rows, filters):
     for choice,field in fields.items():
         value=details.get(choice,'All')
         if value != 'All':
-            if choice == 'company' and value == NEEDS_REVIEW:
-                result = [r for r in result if is_unresolved_saint_gobain(r)]
-            elif choice == 'company' and value == NEEDS_COMPANY_REVIEW:
+            if choice == 'company' and value == NEEDS_COMPANY_REVIEW:
                 result = [r for r in result if is_unapproved_company(r)]
             else:
                 result = [r for r in result if str(r.get(field) or '').strip().casefold() == value.casefold()]

@@ -37,15 +37,15 @@ def test_saved_record_closes_dialog_and_removes_green_notice_after_five_seconds(
     node = shutil.which('node')
     if not node:
         pytest.skip('Node is needed for browser event simulation')
-    script = saved_record_script().removeprefix('<script>').removesuffix('</script>')
+    script = saved_record_script('save-1').removeprefix('<script>').removesuffix('</script>')
     harness = '''
 const assert = require('node:assert/strict');
-let closed=0, delay, expiry;
+let closed=0, delay, expiry, scheduled=0;
 const close={click(){closed++}};
 const dialog={querySelector:()=>close};
 const body={appendChild(element){this.banner=element}};
 const doc={body, createElement:()=>({style:{},setAttribute(){},remove(){this.removed=true}})};
-global.window={parent:{document:doc,setTimeout(fn,ms){expiry=fn;delay=ms}},
+global.window={parent:{document:doc,setTimeout(fn,ms){expiry=fn;delay=ms;scheduled++}},
   frameElement:{closest:()=>dialog}};
 '''
     checks = '''
@@ -53,7 +53,15 @@ assert.equal(closed,1);
 assert.equal(body.banner.textContent,'Edits have been made');
 assert.match(body.banner.style.cssText,/background:#dcfce7/);
 assert.equal(delay,5000);
+const firstBanner=body.banner;
+__SCRIPT__
+assert.equal(scheduled,1);
+assert.equal(body.banner,firstBanner);
 expiry();
 assert.equal(body.banner.removed,true);
+__SCRIPT__
+assert.equal(scheduled,1);
+assert.equal(body.banner.removed,true);
 '''
-    subprocess.run([node, '-e', harness + script + checks], check=True, capture_output=True, text=True)
+    subprocess.run([node, '-e', harness + script + checks.replace('__SCRIPT__', script)],
+                   check=True, capture_output=True, text=True)

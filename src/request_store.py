@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Integer, LargeBinary, MetaData, Numeric,
-    String, Table, Text, create_engine, delete, false, func, insert, inspect, literal, select, text, union_all, update,
+    String, Table, Text, bindparam, create_engine, delete, false, func, insert, inspect, literal, select, text, union_all, update,
 )
 
 from .config import DATA
@@ -1125,6 +1125,61 @@ class RequestStore(SettlementStore):
                     'company_business_normalization', 'system')
                 repaired.append(row['request_number'])
         return {'updated': repaired, 'needs_review': unresolved}
+
+    def repair_saint_gobain_groups(self):
+        """Assign old generic Saint Gobain trips once; leave DTR and evidence untouched."""
+        from .saint_gobain_grouping import group_legacy_trips
+        from .company_catalog import is_unresolved_saint_gobain
+
+        with self.engine.begin() as conn:
+            rows = [dict(row) for row in conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
+                requests.c.is_archived.is_(False), requests.c.status != 'Cancelled',
+                requests.c.report_scope != 'Expense',
+            ).with_for_update()).mappings()]
+            assignments = group_legacy_trips(rows)
+            if not assignments:
+                return {'updated': 0, 'gyproc': 0, 'weber': 0}
+            targets = [row for row in rows if row['request_number'] in assignments]
+            if len(targets) != len(assignments):
+                raise ValueError('Saint Gobain grouping changed during selection')
+            stamp = dt.datetime.now()
+            before = []
+            after = []
+            changes = []
+            logs = []
+            counts = {'Saint Gobain - Gyproc': 0, 'Saint Gobain - Weber': 0}
+            for row in targets:
+                number = row['request_number']
+                brand, reason = assignments[number]
+                counts[brand] += 1
+                common = {'request_number': number, 'batch_id': row.get('batch_id'),
+                          'report_scope': row.get('report_scope') or 'DTR', 'edited_by': 'system'}
+                before.append({**common, 'snapshot': self._revision_snapshot(row),
+                               'change_source': 'before_sg_group_repair'})
+                changed = {**row, 'company_name': brand, 'updated_at': stamp}
+                after.append({**common, 'snapshot': self._revision_snapshot(changed),
+                              'change_source': 'sg_group_repair'})
+                changes.append({'target_number': number, 'new_company': brand, 'new_updated_at': stamp})
+                logs.append({'user_name': 'System', 'action': 'Updated record',
+                             'request_number': number,
+                             'details': json.dumps({'source': 'sg_group_repair', 'reason': reason,
+                                                    'before': row.get('company_name'), 'after': brand})})
+            conn.execute(insert(record_revisions), before)
+            result = conn.execute(update(requests).where(
+                requests.c.request_number == bindparam('target_number')).values(
+                company_name=bindparam('new_company'), updated_at=bindparam('new_updated_at')),
+                changes)
+            if result.rowcount != len(targets):
+                raise ValueError('Saint Gobain grouping did not update every selected trip')
+            conn.execute(insert(record_revisions), after)
+            conn.execute(insert(activity_logs), logs)
+            remaining = conn.execute(select(requests.c.request_number, requests.c.company_name,
+                requests.c.dtr_data, requests.c.report_scope).where(
+                requests.c.request_number.in_(assignments))).mappings().all()
+            if len(remaining) != len(targets) or any(is_unresolved_saint_gobain(row) for row in remaining):
+                raise ValueError('Saint Gobain grouping verification failed')
+            return {'updated': len(targets), 'gyproc': counts['Saint Gobain - Gyproc'],
+                    'weber': counts['Saint Gobain - Weber']}
 
     def repair_legacy_years(self):
         """User-authorized year-only repair; revisions retain original values."""

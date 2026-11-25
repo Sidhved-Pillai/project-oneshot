@@ -49,10 +49,10 @@ from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROF
 from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
-from src.company_catalog import COMPANIES, ADD_NEW, NEEDS_REVIEW, NEEDS_COMPANY_REVIEW, company_choices, is_saint_gobain_name, is_unresolved_saint_gobain, is_unapproved_company
+from src.company_catalog import COMPANIES, ADD_NEW, NEEDS_COMPANY_REVIEW, company_choices, is_saint_gobain_name, is_unapproved_company
 from src.current_pnl_report_v6 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.payment_access_v2 import PENDING_PAYMENT_USERS
-from src.records_store_v37 import RequestStore
+from src.records_store_v38 import RequestStore
 from src.sid_dashboard import switch_to_reports
 from src.pnl_dashboard_v3 import render_pnl_dashboard as render_dashboard
 from src.dashboard_duplicate_review_v3 import review_duplicates
@@ -84,7 +84,7 @@ from src.batched_records_v10 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
 from src.vijay_finance import project_vijay_records, vijay_finance_summary
 from src.record_form_v6 import record_form
-from src.dialog_browser_v2 import explicit_close_script, saved_record_script
+from src.dialog_browser_v3 import explicit_close_script, saved_record_script
 
 load_dotenv(ROOT / ".env")
 APP_LOGO = ROOT / 'assets' / 'logo-icon.png'
@@ -95,7 +95,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 hide_manage_app()
-STORE_INTERFACE_VERSION = 37
+STORE_INTERFACE_VERSION = 38
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = [name for name in DIRECT_EXPENSE_COLUMNS if name != "Route expense"]
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*STANDARD_DIRECT_EXPENSE_COLUMNS, "Debit"]
@@ -147,7 +147,7 @@ def secret(name):
 def get_store(url, interface_version):
     result = RequestStore(url)
     result.legacy_year_repair = result.repair_legacy_years()
-    result.company_brand_repair = result.repair_company_brands()
+    result.saint_gobain_group_repair = result.repair_saint_gobain_groups()
     return result
 
 
@@ -1622,7 +1622,7 @@ def view_record(row):
         return
     saved_key = f"record_edit_saved_{row['request_number']}"
     if st.session_state.get(saved_key):
-        components.html(saved_record_script(), height=0, scrolling=False)
+        components.html(saved_record_script(st.session_state[saved_key]), height=0, scrolling=False)
         return
     legacy_own_expense = (
         row.get("report_scope") == "Expense"
@@ -1837,8 +1837,8 @@ def view_record(row):
         st.session_state.pop(replace_evidence_key, None)
         st.session_state.pop("evidence_request_number", None)
         st.session_state.pop("evidence_record", None)
-        st.session_state[saved_key] = True
-        components.html(saved_record_script(), height=0, scrolling=False)
+        st.session_state[saved_key] = str(time.time_ns())
+        components.html(saved_record_script(st.session_state[saved_key]), height=0, scrolling=False)
 
 st.markdown("""
 <style>
@@ -2309,10 +2309,6 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
         rows = [row for row in rows if can_view_record(current_user, row)]
         st.caption(f"Your account can access records created by {current_user} only.")
     scoped_rows = list(rows)
-    unresolved_saint_gobain = [row for row in scoped_rows if is_unresolved_saint_gobain(row)]
-    if unresolved_saint_gobain:
-        st.warning(f'{len(unresolved_saint_gobain)} Saint Gobain trip(s) need Gyproc or Weber review. '
-                   f'Select “{NEEDS_REVIEW}” in Company Name, then open each record and check its evidence.')
     unapproved_companies = [row for row in scoped_rows if is_unapproved_company(row)]
     if unapproved_companies:
         st.info(f'{len(unapproved_companies)} trip(s) have older company names to review. '
@@ -2343,8 +2339,6 @@ with records_tab, st.container(key=f'{current_user.casefold()}_records' if curre
         def company_matches(row):
             if company_filter == 'All':
                 return True
-            if company_filter == NEEDS_REVIEW:
-                return is_unresolved_saint_gobain(row)
             if company_filter == NEEDS_COMPANY_REVIEW:
                 return is_unapproved_company(row)
             return clean_text(row.get('company_name')).casefold() == company_filter.casefold()

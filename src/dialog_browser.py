@@ -1,4 +1,5 @@
 """Keep the native browser close control while blocking accidental dismissal."""
+import json
 
 
 def explicit_close_script():
@@ -34,11 +35,18 @@ def explicit_close_script():
 </script>'''
 
 
-def saved_record_script():
+def saved_record_script(save_id):
     """Close the saved editor and show a five-second confirmation outside it."""
     return '''<script>
 (() => {
   const host = window.parent, doc = host.document;
+  const saveId = __SAVE_ID__;
+  if (host.__oneshotEditNoticeSaveId === saveId) {
+    const dialog = window.frameElement?.closest('[role="dialog"]') || doc.querySelector('[data-testid="stDialog"] [role="dialog"]');
+    dialog?.querySelector('button[aria-label="Close"]')?.click();
+    return;
+  }
+  host.__oneshotEditNoticeSaveId = saveId;
   host.__oneshotEditNotice?.remove();
   const banner = doc.createElement('div');
   banner.textContent = 'Edits have been made';
@@ -54,4 +62,4 @@ def saved_record_script():
   const close = dialog?.querySelector('button[aria-label="Close"]');
   close?.click();
 })();
-</script>'''
+</script>'''.replace('__SAVE_ID__', json.dumps(str(save_id)))
