@@ -11,7 +11,6 @@ COMPANIES = (
     'Saint Gobain - Gyproc',
     'Saint Gobain - Weber',
     'Shree Sadgurukrupa Transport -Sonalco',
-    'Ubiquity Transtech Pvt. Ltd.',
     'Vimal Logistic',
     'V.K.Patel & Co. (Ply Age)',
     'Empty Vehicle',
@@ -21,6 +20,10 @@ ADD_NEW = 'Add New + (for new companies)'
 NEEDS_REVIEW = 'Saint Gobain - Needs Review'
 NEEDS_COMPANY_REVIEW = 'Company Name - Needs Review'
 COMPANY_REVIEW_USERS = frozenset({'Sid', 'Vinod', 'Nikhil', 'Nikhat', 'Ajit', 'Shyam'})
+
+
+def _is_non_company(value):
+    return 'ubiquitytranstech' in ''.join(c for c in str(value or '').casefold() if c.isalnum())
 
 
 def is_saint_gobain_name(value):
@@ -43,7 +46,8 @@ def company_choices(rows, saved_names=()):
     custom = ({str(row.get('company_name') or '').strip() for row in rows
                if _data(row).get('_custom_company_name')}
               | {str(name or '').strip() for name in saved_names})
-    return ['', *COMPANIES, *sorted(custom - set(COMPANIES) - {''}, key=str.casefold), ADD_NEW]
+    return ['', *COMPANIES, *sorted((name for name in custom - set(COMPANIES) - {''}
+                                    if not _is_non_company(name)), key=str.casefold), ADD_NEW]
 
 
 def is_unresolved_saint_gobain(row):

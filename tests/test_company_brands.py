@@ -36,6 +36,9 @@ def test_company_choices_ignore_legacy_typos_and_keep_explicit_additions():
     ]
     choices = company_choices(rows)
     assert all(name in choices for name in COMPANIES)
+    assert 'Ubiquity Transtech Pvt. Ltd.' not in company_choices(
+        [{'company_name': 'Ubiquity Transtech Pvt. Ltd.', 'dtr_data': {'_custom_company_name': True}}],
+        ['Ubiquity Transtech Pvt. Ltd.'])
     assert 'New Customer' in choices and 'Wrong Spelling' not in choices
     assert is_unresolved_saint_gobain(rows[0])
     assert is_saint_gobain_name('Saint-Gobain India Private Limited')
