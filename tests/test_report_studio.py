@@ -10,7 +10,7 @@ def report_source(db_path):
     tree=ast.parse(Path('app.py').read_text())
     modules={'src.expense_linking','src.invoice_display','src.number_format','src.expense_periods',
         'src.trip_dtr_report_v3','src.rtgs_report_v3','src.text_normalization_v2','src.transporter_profiles',
-        'src.vehicle_normalization','src.vehicle_placer','src.current_pnl_report_v6','src.report_filters_v5','src.report_status','src.report_filters','src.report_grid','src.report_design','src.report_status',
+        'src.vehicle_normalization','src.vehicle_placer','src.current_pnl_report_v6','src.report_filters_v6','src.report_status','src.report_filters','src.report_grid','src.report_design','src.report_status',
         'src.billtee_payments','src.upi_payments','src.balance_reconciliation','src.balance_payments',
         'src.report_scroll','src.dtr_dates','src.ashok_dates','src.vijay_finance'}
     helpers={'scope_report_rows','clean_text','number','as_date','unpack','ownership_matches','request_label',

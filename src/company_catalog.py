@@ -20,6 +20,7 @@ COMPANIES = (
 ADD_NEW = 'Add New + (for new companies)'
 NEEDS_REVIEW = 'Saint Gobain - Needs Review'
 NEEDS_COMPANY_REVIEW = 'Company Name - Needs Review'
+COMPANY_REVIEW_USERS = frozenset({'Sid', 'Vinod', 'Nikhil', 'Nikhat', 'Ajit', 'Shyam'})
 
 
 def is_saint_gobain_name(value):

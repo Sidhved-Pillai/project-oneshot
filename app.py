@@ -49,7 +49,7 @@ from src.transporter_profiles import VIJAY_FREIGHT_RATES, VIJAY_TRANSPORTER_PROF
 from src.vijay_locations import canonical_vijay_location
 from src.vehicle_normalization import canonical_vehicle_number
 from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS, canonical_vehicle_placer
-from src.company_catalog import COMPANIES, ADD_NEW, NEEDS_COMPANY_REVIEW, company_choices, is_saint_gobain_name, is_unresolved_saint_gobain, is_unapproved_company
+from src.company_catalog_v2 import COMPANIES, ADD_NEW, NEEDS_COMPANY_REVIEW, COMPANY_REVIEW_USERS, company_choices, is_saint_gobain_name, is_unresolved_saint_gobain, is_unapproved_company
 from src.current_pnl_report_v6 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.payment_access_v2 import PENDING_PAYMENT_USERS
 from src.records_store_v38 import RequestStore
@@ -61,7 +61,7 @@ from src.diesel_inputs import update_diesel
 from src.expense_date import seed_expense_date, remember_expense_date
 from src.expense_review import apply_evidence_date, mark_expense_date_manual
 from src.pending_payments_v18 import render_pending_payments
-from src.report_filters_v5 import render_report_filters
+from src.report_filters_v6 import render_report_filters
 from src.report_status import persist_status_edits
 from src.rtgs_preview import preview_rtgs_report
 from src.report_filters import filter_report_rows
@@ -80,7 +80,7 @@ from src.dtr_dates import parse_dtr_date, dtr_editor_key
 from src.ashok_dates import parse_month_date
 from src.member_sessions import signing_key, issue_member_session, restore_member_session
 from src.branch_names import canonical_branch as normalized_branch_name
-from src.batched_records_v10 import render_filters, filter_identifiers
+from src.batched_records_v11 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
 from src.vijay_finance import project_vijay_records, vijay_finance_summary
 from src.record_form_v6 import record_form
@@ -2312,7 +2312,7 @@ def render_records():
             st.caption(f"Your account can access records created by {current_user} only.")
         scoped_rows = list(rows)
         unapproved_companies = [row for row in scoped_rows if is_unapproved_company(row)]
-        if unapproved_companies:
+        if current_user in COMPANY_REVIEW_USERS and unapproved_companies:
             st.info(f'{len(unapproved_companies)} trip(s) have older company names to review. '
                     f'Select “{NEEDS_COMPANY_REVIEW}” in Company Name to find them.')
         record_type = TRIP_RECORDS
@@ -2341,7 +2341,7 @@ def render_records():
             def company_matches(row):
                 if company_filter == 'All':
                     return True
-                if company_filter == NEEDS_COMPANY_REVIEW:
+                if current_user in COMPANY_REVIEW_USERS and company_filter == NEEDS_COMPANY_REVIEW:
                     return is_unapproved_company(row)
                 return clean_text(row.get('company_name')).casefold() == company_filter.casefold()
             rows = [row for row in date_filtered_rows if

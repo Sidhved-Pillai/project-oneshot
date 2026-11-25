@@ -92,3 +92,20 @@ render_filters([
     assert app.session_state[f'applied_records_filters_{member}']['branch'] == 'Pune'
     assert app.session_state[f'applied_records_filters_{member}']['company'] == 'Bisleri International Private Limited'
     assert app.session_state[f'applied_records_filters_{member}']['placer'] == 'Nitish Jha'
+
+
+@pytest.mark.parametrize('member,can_review', [
+    ('Sid', True), ('Vinod', True), ('Nikhil', True), ('Nikhat', True),
+    ('Ajit', True), ('Shyam', True), ('Vijay', False), ('Nitish', False),
+    ('Gopal', False), ('Manish', False), ('Ashok', False),
+])
+def test_older_company_review_filter_is_limited_to_reviewers(member, can_review):
+    app = AppTest.from_string(f'''
+import datetime as dt
+from src.batched_records import render_filters
+render_filters([{{'company_name': 'Old spelling', 'dtr_data': {{}}}}],
+               {member!r}, dt.date(2026, 11, 25))
+''').run()
+    assert not app.exception
+    companies = next(widget for widget in app.selectbox if widget.label == 'Company Name')
+    assert ('Company Name - Needs Review' in companies.options) is can_review

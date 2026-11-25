@@ -1,6 +1,7 @@
 import datetime as dt
 import ast
 from pathlib import Path
+import pytest
 from streamlit.testing.v1 import AppTest
 
 
@@ -22,6 +23,23 @@ def run(app):
         if group._value is None:
             group.set_value([app.session_state[group.key]])
     return app.run()
+
+
+@pytest.mark.parametrize('member,can_review', [
+    ('Sid', True), ('Vinod', True), ('Nikhil', True), ('Nikhat', True),
+    ('Ajit', True), ('Shyam', True), ('Vijay', False), ('Nitish', False),
+    ('Gopal', False), ('Manish', False), ('Ashok', False),
+])
+def test_report_company_review_option_is_limited_to_reviewers(member, can_review):
+    app = AppTest.from_string(f'''
+import datetime as dt
+from src.report_filters import render_report_filters
+render_report_filters({member!r}, ['DTR'], [], dt.date(2026, 11, 25),
+    rows=[{{'company_name': 'Old spelling', 'dtr_data': {{}}}}])
+''').run()
+    assert not app.exception
+    companies = next(widget for widget in app.selectbox if widget.label == 'Company Name')
+    assert ('Company Name - Needs Review' in companies.options) is can_review
 
 
 def test_dates_type_and_pnl_filters_apply_together():

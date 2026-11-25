@@ -2,7 +2,7 @@
 import datetime as dt
 import streamlit as st
 from .operational_dates import OPERATIONS_START
-from .company_catalog import ADD_NEW, NEEDS_COMPANY_REVIEW, company_choices, is_unapproved_company
+from .company_catalog import ADD_NEW, NEEDS_COMPANY_REVIEW, COMPANY_REVIEW_USERS, company_choices, is_unapproved_company
 
 
 def _options(rows, field):
@@ -63,7 +63,7 @@ def render_report_filters(user, report_options, vehicles, today=None, rows=(), s
             specs=[('branch','Branch',_options(rows,'branch'))]
             if kind=='DTR':
                 companies=['All',*(name for name in company_choices(rows, saved_companies) if name and name != ADD_NEW)]
-                if any(is_unapproved_company(row) for row in rows):companies.append(NEEDS_COMPANY_REVIEW)
+                if user in COMPANY_REVIEW_USERS and any(is_unapproved_company(row) for row in rows):companies.append(NEEDS_COMPANY_REVIEW)
                 specs += [('company','Company Name',companies),
                     ('ownership','Ownership',['All','Own','Outside'])]
             else:
