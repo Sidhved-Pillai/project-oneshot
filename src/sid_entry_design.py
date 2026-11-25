@@ -1,5 +1,6 @@
 """Presentation-only styling for Sid's compact New Entry preview."""
 import base64
+from html import escape
 import streamlit as st
 
 
@@ -17,9 +18,11 @@ def section_heading(title, icon):
     return f'<div class="sid-section-title"><span>{svg}</span><strong>{title}</strong></div>'
 
 
-def render_sid_header(logo):
+def render_sid_header(logo, user):
     image = base64.b64encode(logo.read_bytes()).decode('ascii')
-    st.markdown(f'''<div class="sid-topbar"><div class="sid-brand"><img src="data:image/png;base64,{image}" alt="OneShot"/><div><strong>Project <b>OneShot</b></strong><small>One record. Every operations report.</small></div></div></div>''', unsafe_allow_html=True)
+    name = escape(str(user).strip())
+    initial = escape(str(user).strip()[:1].upper())
+    st.markdown(f'''<div class="sid-topbar"><div class="sid-brand"><img src="data:image/png;base64,{image}" alt="OneShot"/><div><strong>Project <b>OneShot</b></strong><small>One record. Every operations report.</small></div></div><div class="sid-user" aria-label="Signed in as {name}"><span class="sid-user-avatar" aria-hidden="true">{initial}</span><span class="sid-user-name">{name}</span></div></div>''', unsafe_allow_html=True)
 
 
 def render_sid_styles():
@@ -35,9 +38,12 @@ def render_sid_styles():
     .sid-brand{position:absolute;left:max(3.7%,calc((100vw - 1550px)/2));top:11px;display:flex;align-items:center;gap:12px;color:#081238}
     .sid-brand img{width:49px;height:49px;border-radius:13px;box-shadow:0 3px 8px #005bff12}
     .sid-brand strong{font-size:23px;letter-spacing:-1px;line-height:1.2}.sid-brand b{color:#0065ff}.sid-brand small{display:block;font-size:11px;font-weight:600;margin-top:3px}
+    .sid-user{position:absolute;right:calc(3.7% + 150px);top:17px;height:40px;display:flex;align-items:center;gap:8px;color:#081238;white-space:nowrap}
+    .sid-user-avatar{display:grid;place-items:center;width:36px;height:36px;flex:0 0 36px;border-radius:50%;background:linear-gradient(135deg,#e5f0ff,#d6e8ff);color:#0065ff;font:800 19px 'Manrope',sans-serif}
+    .sid-user-name{font:700 16px 'Manrope',sans-serif}.sid-user:after{content:'';width:1px;height:25px;margin-left:5px;background:#c9d5e8}
     .st-key-sid_logout{position:fixed!important;z-index:1000;top:17px;right:3.7%;width:125px!important}
     .st-key-sid_logout button{height:40px!important;min-height:40px!important;font-size:13px!important;background:#fff!important;border:1px solid #e2eaff!important;box-shadow:0 3px 7px #0066ff14}
-    .stTabs [data-baseweb="tab-list"]{position:fixed!important;z-index:999;top:15px;left:max(360px,calc((100vw - 1550px)/2 + 340px));right:calc(3.7% + 145px);width:auto!important;max-width:none!important;height:46px!important;justify-content:space-between;gap:4px!important;padding:0!important;margin:0!important;background:none!important;border:0!important;border-radius:0!important;box-shadow:none!important;backdrop-filter:none!important;overflow:visible!important}
+    .stTabs [data-baseweb="tab-list"]{position:fixed!important;z-index:999;top:15px;left:max(360px,calc((100vw - 1550px)/2 + 340px));right:calc(3.7% + 290px);width:auto!important;max-width:none!important;height:46px!important;justify-content:space-between;gap:4px!important;padding:0!important;margin:0!important;background:none!important;border:0!important;border-radius:0!important;box-shadow:none!important;backdrop-filter:none!important;overflow:visible!important}
     .stTabs [data-baseweb="tab-list"]:before{display:none!important}
     @media(min-width:751px){
       .stTabs [data-baseweb="tab-list"]{justify-content:flex-start!important;gap:12px!important}
@@ -90,18 +96,19 @@ def render_sid_styles():
     .st-key-sid_evidence_panel [data-testid="stToggle"] label p{font-size:15px!important;font-weight:700!important;white-space:nowrap}
     .sid-upload-or{display:grid;place-items:center;width:33px;height:33px;border-radius:50%;border:1px solid #e1e8fb;background:white;font-size:12px;font-weight:700;box-shadow:0 3px 6px #003da31a}
     .st-key-sid_entry_preview [data-testid="stCaptionContainer"] p{font-size:11px!important;margin:0!important}
-    @media(max-width:1200px){.stTabs [data-baseweb="tab-list"]{left:300px!important;right:165px!important}.sid-upload-title{margin-left:0;gap:12px}}
+    @media(max-width:1200px){.stTabs [data-baseweb="tab-list"]{left:300px!important;right:330px!important}.sid-upload-title{margin-left:0;gap:12px}}
     @media(max-width:750px){.stTabs [data-baseweb="tab-list"]{top:68px!important;left:12px!important;right:12px!important;overflow-x:auto!important}.st-key-sid_basic_panel,.st-key-sid_vehicle_panel,.st-key-sid_beneficiary_panel,.st-key-sid_payment_panel{min-height:0!important}}
-    @media(max-width:1200px){.sid-brand strong{font-size:19px}.sid-brand small{font-size:9px}.sid-brand img{width:40px;height:40px}.stTabs>[data-baseweb="tab-list"]{left:300px!important;right:165px!important}[data-testid="stTabs"] [data-testid="stTab"]{font-size:10px!important;padding:7px!important}[data-testid="stTabs"] [data-testid="stTab"]:before{display:none}.sid-upload-title strong{font-size:16px}.sid-upload-title>span{min-width:50px}.st-key-sid_evidence_panel [data-testid="stToggle"] label p{font-size:12px!important}}
+    @media(max-width:1200px){.sid-brand strong{font-size:19px}.sid-brand small{font-size:9px}.sid-brand img{width:40px;height:40px}.stTabs>[data-baseweb="tab-list"]{left:300px!important;right:330px!important}[data-testid="stTabs"] [data-testid="stTab"]{font-size:10px!important;padding:7px!important}[data-testid="stTabs"] [data-testid="stTab"]:before{display:none}.sid-upload-title strong{font-size:16px}.sid-upload-title>span{min-width:50px}.st-key-sid_evidence_panel [data-testid="stToggle"] label p{font-size:12px!important}}
     @media(max-width:750px){.block-container{padding:125px 12px 25px!important}.sid-topbar{height:112px}.stTabs>[data-baseweb="tab-list"]{top:68px!important;left:12px!important;right:12px!important;overflow-x:auto!important}.sid-brand{left:16px}.st-key-sid_logout{right:15px!important}.sid-page-title{margin-left:0}.sid-page-title h1{font-size:28px!important}.sid-upload-title small{font-size:10px}}
     @media(max-width:750px){
-      .block-container{padding:calc(126px + env(safe-area-inset-top)) 12px 24px!important}
-      .sid-topbar{height:calc(112px + env(safe-area-inset-top));border-radius:0 0 18px 18px}
+      .block-container{padding:calc(166px + env(safe-area-inset-top)) 12px 24px!important}
+      .sid-topbar{height:calc(152px + env(safe-area-inset-top));border-radius:0 0 18px 18px}
       .sid-brand{top:calc(12px + env(safe-area-inset-top));left:12px;gap:8px}
       .sid-brand img{width:36px;height:36px}.sid-brand strong{font-size:17px;letter-spacing:-.6px}.sid-brand small{font-size:8px}
+      .sid-user{top:calc(57px + env(safe-area-inset-top));left:12px;right:auto;height:30px;gap:6px}.sid-user-avatar{width:28px;height:28px;flex-basis:28px;font-size:15px}.sid-user-name{font-size:13px}.sid-user:after{display:none}
       .st-key-sid_logout{top:calc(12px + env(safe-area-inset-top))!important;right:12px!important;width:100px!important}
       .st-key-sid_logout button{height:36px!important;min-height:36px!important;padding:4px 10px!important;font-size:12px!important}
-      .stTabs [data-baseweb="tab-list"]{top:calc(62px + env(safe-area-inset-top))!important;left:12px!important;right:12px!important;height:43px!important;justify-content:flex-start!important;gap:7px!important;overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+      .stTabs [data-baseweb="tab-list"]{top:calc(102px + env(safe-area-inset-top))!important;left:12px!important;right:12px!important;height:43px!important;justify-content:flex-start!important;gap:7px!important;overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
       .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar{display:none}
       [data-testid="stTabs"] [data-testid="stTab"]{flex:0 0 auto!important;width:max-content!important;min-width:max-content!important;height:36px!important;font-size:12px!important;padding:7px 12px!important;overflow:visible!important;white-space:nowrap!important}
       .sid-page-title{margin:0 0 12px}.sid-page-title h1{font-size:27px!important}.sid-page-title p{font-size:13px!important;line-height:1.45}

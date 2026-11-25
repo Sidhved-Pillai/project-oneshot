@@ -1896,7 +1896,7 @@ div[data-testid="stMetric"]{background:linear-gradient(145deg,#f8fbff,#eef6ff);b
 """.replace('APP_LOGO_DATA', 'data:image/png;base64,' + base64.b64encode(APP_LOGO.read_bytes()).decode('ascii')), unsafe_allow_html=True)
 if current_user in {"Sid", "Vijay", "Ajit", "Manish", "Gopal", "Nitish", "Ashok", "Shyam", "Nikhat", "Vinod", "Nikhil"}:
     render_sid_styles()
-    render_sid_header(APP_LOGO)
+    render_sid_header(APP_LOGO, current_user)
     if current_user == 'Sid':
         st.markdown('''<style>
         [data-testid="stTabs"] [data-testid="stTab"]:nth-child(1):before{content:'home'}
