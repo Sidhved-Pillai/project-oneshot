@@ -52,7 +52,7 @@ from src.vehicle_placer import CANONICAL_VEHICLE_PLACERS, LOGIN_VEHICLE_PLACERS,
 from src.company_catalog_v2 import COMPANIES, ADD_NEW, NEEDS_COMPANY_REVIEW, COMPANY_REVIEW_USERS, company_choices, is_saint_gobain_name, is_unresolved_saint_gobain, is_unapproved_company
 from src.current_pnl_report_v6 import DIRECT_EXPENSE_COLUMNS, branch_pnl_summary, branch_vehicle_pnl_summary, vehicle_number_pnl_summary, export_pnl
 from src.payment_access_v2 import PENDING_PAYMENT_USERS
-from src.records_store_v38 import RequestStore
+from src.records_store_v39 import RequestStore
 from src.sid_dashboard import switch_to_reports
 from src.pnl_dashboard_v3 import render_pnl_dashboard as render_dashboard
 from src.dashboard_duplicate_review_v3 import review_duplicates
@@ -95,7 +95,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 hide_manage_app()
-STORE_INTERFACE_VERSION = 38
+STORE_INTERFACE_VERSION = 39
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = [name for name in DIRECT_EXPENSE_COLUMNS if name != "Route expense"]
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*STANDARD_DIRECT_EXPENSE_COLUMNS, "Debit"]
