@@ -365,8 +365,11 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
                     'Paid':amount(trip.get('total_advance')), dict(balance='Balance', upi='UPI', billtee='Billtee')[kind]:item['amount'], 'Status':item['status'], 'Details':trip.get('notes','') if trip.get('_confirmed_balance') else (f"Credit applied: {format_inr(trip['_balance_credit_applied'])}" if trip.get('_balance_credit_applied') else '')})
             request_numbers = tuple(by_number)
             st.session_state.setdefault(toggle_key, bool(request_numbers) and all(number in selected_numbers for number in request_numbers))
-            st.checkbox('Select all', key=toggle_key,
+            select_col, select_label_col = st.columns([.055, .945], gap='small')
+            select_col.checkbox('Select all', key=toggle_key, label_visibility='collapsed',
+                help='Select or deselect all trips in this group',
                 on_change=set_group_selection, args=(selected_key, toggle_key, generation_key, request_numbers))
+            select_label_col.caption('Select all')
             frame = pd.DataFrame(rows)
             editor_key = f'pending_selection_{key}_{st.session_state.get(generation_key, 0)}'
             edited = st.data_editor(frame, hide_index=True, width='stretch',
