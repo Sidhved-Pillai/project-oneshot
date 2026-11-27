@@ -240,13 +240,22 @@ def render_payment_styles():
 def render_pending_payments(user, trips, balance_requests, upi_requests, store):
     if user not in PENDING_PAYMENT_USERS:
         return
-    if st.session_state.get('pending_kind_card') in ('upi', 'billtee') and hasattr(store, 'reimbursement_clearings'):
+    kind = st.session_state.get('pending_kind_card', 'balance')
+    balance_snapshot = None
+    if hasattr(store, 'settlement_snapshot') and hasattr(store, 'reimbursement_clearings'):
+        from .ledger_overview import outstanding_totals, render_ledger_overview
+        balance_snapshot = store.settlement_snapshot(user)
+        totals = outstanding_totals(trips, balance_snapshot[0],
+            store.reimbursement_clearings(user, 'upi'),
+            store.reimbursement_clearings(user, 'billtee'))
+        render_ledger_overview(kind, totals)
+    if kind in ('upi', 'billtee') and hasattr(store, 'reimbursement_clearings'):
         from .reimbursement_ledger_ui import render_reimbursement_cards
-        render_reimbursement_cards(user, trips, st.session_state['pending_kind_card'], store)
+        render_reimbursement_cards(user, trips, kind, store)
         return
-    if st.session_state.get('pending_kind_card', 'balance') == 'balance' and hasattr(store, 'settlement_snapshot'):
+    if kind == 'balance' and hasattr(store, 'settlement_snapshot'):
         from .balance_ledger_ui import render_balance_cards
-        render_balance_cards(user, trips, upi_requests, store)
+        render_balance_cards(user, trips, upi_requests, store, snapshot=balance_snapshot)
         return
     render_payment_styles()
     from .balance_reconciliation import balance_view

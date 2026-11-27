@@ -148,9 +148,10 @@ render_pending_payments('Sid',trips,balances,upi,store)
     assert payload['name']=='Sai Transporter'
     assert payload['rows'][0]['outstanding']==200000
     assert payload['history']==[]
-    # Switching modes still uses the original UPI / Billtee rendering.
-    next(b for b in app.button if b.key=='ledger_kind_upi').click().run()
+    # Switching modes keeps the shared selector and amount cards visible.
+    next(b for b in app.button if b.key=='ledger_overview_upi').click().run()
     assert not app.exception
+    assert any(b.key == 'ledger_overview_billtee' for b in app.button)
 
 
 def test_tracked_print_bill_uses_actual_settlement_not_download_flag(tmp_path):

@@ -154,32 +154,19 @@ def update_in_ledger(name,rows,queues,records,user,store,instance):
         st.rerun()
 
 
-def render_balance_cards(user,trips,upi_requests,store):
-    from .pending_payments import render_payment_styles,summary_cards,pending_summary,payment_groups,transporter_key,view_balance_bills
+def render_balance_cards(user,trips,upi_requests,store,snapshot=None):
+    from .pending_payments import render_payment_styles,payment_groups,transporter_key,view_balance_bills
     render_payment_styles()
     st.markdown('''<style>
-    .pp-summary-card{min-height:135px!important;padding:18px!important}.pp-summary-grid{margin-bottom:18px!important}
-    .pp-summary-label{min-height:30px!important}.pp-summary-copy strong{font-size:27px!important}
+    .pp-intro{display:none!important}
      .st-key-ledger_filters [data-testid="stForm"]{border:0!important;padding:0!important}
     .st-key-ledger_filters [data-baseweb="select"]>div,.st-key-ledger_filters [data-baseweb="input"]{background:#fff!important;border:1px solid #dce5f5!important;border-radius:12px!important;min-height:43px!important}
-    @media(min-width:1001px){
-      .st-key-ledger_modes{width:36%!important}
-      .st-key-ledger_filters{margin-top:-59px!important}
-      .st-key-ledger_filters [data-testid="stForm"]>[data-testid="stVerticalBlock"]>[data-testid="stLayoutWrapper"]:first-child{margin-left:40%!important;width:60%!important}
-    }
     @media(max-width:700px){
-      .st-key-ledger_modes [data-testid="stHorizontalBlock"]{flex-wrap:nowrap!important;gap:8px!important}
-      .st-key-ledger_modes [data-testid="stColumn"]{min-width:0!important;width:auto!important;flex:1 1 0!important}
-      .st-key-ledger_modes [data-testid="stColumn"]:first-child{flex:1.8 1 0!important}
-      .st-key-ledger_modes button{padding:6px!important;font-size:12px!important}
-      .st-key-ledger_modes button p{font-size:12px!important}
       [class*="st-key-ledger_card_"]>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:9px!important}
       [class*="st-key-ledger_card_"]>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"]{width:100%!important;min-width:0!important}
       [class*="st-key-ledger_card_"]>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(3){grid-column:1/-1!important}
       [class*="st-key-ledger_card_"]>[data-testid="stLayoutWrapper"]>[data-testid="stHorizontalBlock"]>[data-testid="stColumn"]:nth-child(4){grid-column:1/-1!important}
     }
-    .st-key-ledger_modes button{border-radius:24px!important;min-height:43px!important;border:1px solid #dce6f5!important;background:white!important;box-shadow:none!important}
-    .st-key-ledger_modes button[kind="primary"]{background:linear-gradient(120deg,#e4faed,#d2f3e3)!important;color:#0b6930!important;border-color:#80d7a5!important}
     [class*="st-key-ledger_card_"]{border:1px solid #dbe5f8!important;border-radius:17px!important;padding:12px 14px!important;margin-bottom:5px!important;background:linear-gradient(125deg,#fff,#f8faff)!important;box-shadow:0 3px 9px #174cc90a!important}
     [class*="st-key-ledger_card_"] [data-testid="stMarkdownContainer"]{margin-bottom:0!important}
     [class*="st-key-ledger_update_"] button{background:linear-gradient(110deg,#178b25,#006c19)!important;color:white!important;border:0!important;border-radius:11px!important;min-height:42px!important;box-shadow:0 3px 5px #006b1720!important;white-space:nowrap!important}
@@ -187,24 +174,15 @@ def render_balance_cards(user,trips,upi_requests,store):
     .st-key-ledger_apply button{background:linear-gradient(110deg,#2289ff,#0055ff)!important;color:white!important;border:0!important;min-height:43px!important;border-radius:11px!important}
     .st-key-ledger_filters label p,.st-key-ledger_filters input,.st-key-ledger_filters [data-baseweb="select"]{font-size:16px!important}
     [class*="st-key-ledger_card_"] p{font-size:16px!important;line-height:1.45!important}
-    @media(max-width:700px){.pp-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}.pp-summary-card{padding:12px!important;min-height:140px!important}.pp-summary-card .pp-summary-icon{display:none!important}.pp-summary-copy strong{font-size:21px!important}.pp-summary-label{font-size:11px!important}}
     </style>''',unsafe_allow_html=True)
     if st.session_state.get('pending_payment_notice'):st.success(st.session_state.pop('pending_payment_notice'))
-    rows,queues,records=store.settlement_snapshot(user)
-    overall=pending_summary(trips,{},upi_requests)
-    overall['balance']={'count':sum(r['_sendable']>0 for r in rows),'amount':sum((r['_sendable'] for r in rows),Decimal(0))}
-    summary_cards(overall)
-    with st.container(key='ledger_modes'):
-        cols=st.columns([1.6,.85,.9],gap='small')
-        for c,label,kind,icon in zip(cols[:3],['Balance Payment','UPI','Billtee'],['balance','upi','billtee'],['local_shipping','directions_car','receipt_long']):
-            c.button(label,icon=f':material/{icon}:',type='primary' if kind=='balance' else 'secondary',use_container_width=True,key='ledger_kind_'+kind,on_click=st.session_state.update,args=({'pending_kind_card':kind},))
+    rows,queues,records=snapshot if snapshot is not None else store.settlement_snapshot(user)
     groups=payment_groups([{**r,'balance_amount':float(r['_payable'])} for r in rows],'balance',{}, {})
     with st.container(key='ledger_filters'),st.form('ledger_filter_form',border=False):
-        search_col,branch_col,sort_col=st.columns([2.1,1.6,2.2])
-        search=search_col.selectbox('Search transporter', sorted({g[0]['name'] for g in groups},key=str.casefold),index=None,accept_new_options=True,placeholder='Search transporter…',label_visibility='collapsed',key='ledger_search')
+        search_col,branch_col,sort_col,a,b,apply_col=st.columns([2.1,1.3,1.6,1.25,1.25,.9],vertical_alignment='bottom')
+        search=search_col.text_input('Search transporter',placeholder='Search transporter…',label_visibility='collapsed',key='ledger_search')
         branch=branch_col.selectbox('Branch',['All Branches','Andheri','Pune','Vadodara','Wada'],label_visibility='collapsed',key='ledger_branch')
         sort=sort_col.selectbox('Sort by',['Total Amount (High to Low)','Name'],label_visibility='collapsed',key='ledger_sort')
-        a,b,apply_col=st.columns([2.4,2.4,1.1],vertical_alignment='bottom')
         start=a.date_input('Trips From',value=OPERATIONS_START,min_value=OPERATIONS_START,format='DD/MM/YYYY',key='ledger_from')
         end=b.date_input('Trips To',value=today(),min_value=OPERATIONS_START,format='DD/MM/YYYY',key='ledger_to')
         with apply_col,st.container(key='ledger_apply'):
