@@ -45,3 +45,27 @@ def test_reimbursement_clearance_rechecks_all_rows_before_writing(tmp_path):
     with pytest.raises(ValueError, match='changed'):
         store.clear_reimbursements('Sid', 'upi', {first: store.get(first)['updated_at']})
     assert store.reimbursement_clearings('Sid', 'upi') == {}
+
+
+@pytest.mark.parametrize('kind', ['upi', 'billtee'])
+def test_reimbursement_tabs_render_cards_without_errors(kind):
+    from streamlit.testing.v1 import AppTest
+    app = AppTest.from_string('''
+import datetime as dt
+import streamlit as st
+from src.pending_payments import render_pending_payments
+class Store:
+    def pending_upi_profiles(self, user): return {}
+    def list_upi_payments(self): return {}
+    def list_billtee_payments(self): return {}
+    def reimbursement_clearings(self, user, kind): return {}
+trips = [{'request_number':'REQ-1', 'created_by':'Manish', 'report_scope':'Both',
+          'trip_date':dt.date(2026,11,20), 'updated_at':'version',
+          'vehicle_number':'MH01TEST', 'branch':'Wada', 'upi':500,
+          'dtr_data':{'Billtee':300, 'Veh Placed by':'Manish'}}]
+render_pending_payments('Sid', trips, {}, {}, Store())
+''').run()
+    app.session_state['pending_kind_card'] = kind
+    app.run()
+    assert not app.exception
+    assert any(button.label == 'Update in Ledger' for button in app.button)
