@@ -118,6 +118,6 @@ def heading(revenue, total_label='Total Revenue (All Branches)'):
     st.markdown(f'<div class="sr-heading"><span class="sr-icon">{FOLDER}</span><div><h2>Records</h2><p>View, filter and manage all trip records.</p></div><div class="sr-total">{COINS}<div>{escape(total_label)}<strong>{format_inr(revenue)}</strong></div></div></div>', unsafe_allow_html=True)
 
 
-def leaderboard(items, day):
+def leaderboard(items, date_label):
     cards = ''.join(f'<div class="sr-card"><span class="sr-rank">{rank}</span><span class="sr-truck">{TRUCK}</span><div><b>{escape(branch)}</b>{count} Trips</div><em><b>{format_inr(revenue)}</b>Total Revenue</em></div>' for rank,(branch,count,revenue) in enumerate(items,1) if branch != 'Total')
-    st.markdown(f'<div class="sr-board"><h3>{CHART} &nbsp; Trip Leaderboard <small>{day:%B %Y}</small></h3><div class="sr-cards">{cards}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="sr-board"><h3>{CHART} &nbsp; Trip Leaderboard <small>{escape(date_label)}</small></h3><div class="sr-cards">{cards}</div></div>', unsafe_allow_html=True)

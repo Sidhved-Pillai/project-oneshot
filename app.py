@@ -34,7 +34,7 @@ from src.invoice_numbers_v4 import combined_invoice_number, normalized_invoice_n
 from src.invoice_display import dtr_invoice_text
 from src.number_format import format_inr, indian_number
 from src.expense_periods import PERIOD_EXPENSE_CATEGORIES, allocate_expenses_for_period, expense_periods, normalize_period, serialize_period
-from src.current_leaderboard import branch_trip_leaderboard, current_month_leaderboard
+from src.current_leaderboard import branch_trip_leaderboard
 from src import current_pnl_report_v6 as pnl_reporting
 from src.record_filters_v3 import DIRECT_EXPENSES, RECORD_TYPES, TRIP_RECORDS, direct_expense_headings, filter_direct_expenses, filter_record_type, filter_without_invoice_evidence, sort_records_by_date
 from src.records_export_v3 import export_records_excel
@@ -2283,6 +2283,28 @@ if current_user in {'Sid', 'Vinod', 'Nikhil'}:
                          pnl_reporting.branch_pnl_summary,
                          lambda groups: review_duplicates(current_user, groups, store, duplicate_records))
 
+def records_page(rows, scope, page_control, previous_control, next_control):
+    page_size = 50
+    page_count = (len(rows) + page_size - 1) // page_size
+    if page_count <= 1:
+        return 0, rows
+    key = "records_page_" + hashlib.sha256(repr((scope, page_count)).encode()).hexdigest()[:16]
+    page = page_control.selectbox(
+        "Record page", range(1, page_count + 1), key=key,
+        format_func=lambda value: f"Page {value} of {page_count}", label_visibility="collapsed",
+    )
+
+    def move_page(step):
+        st.session_state[key] = max(1, min(page_count, st.session_state[key] + step))
+
+    previous_control.button("‹", key=f"{key}_previous", disabled=page == 1,
+                            help="Previous page", on_click=move_page, args=(-1,))
+    next_control.button("›", key=f"{key}_next", disabled=page == page_count,
+                        help="Next page", on_click=move_page, args=(1,))
+    start = (page - 1) * page_size
+    return start, rows[start:start + page_size]
+
+
 @st.fragment
 def render_records():
     with st.container(key=f'{current_user.casefold()}_records' if current_user in {'Shyam', 'Sid', 'Nikhat', 'Vijay', 'Ajit', 'Nitish', 'Gopal', 'Manish', 'Ashok'} else 'standard_records'):
@@ -2361,59 +2383,7 @@ def render_records():
                     saved_dates = ', '.join(sorted({f"{as_date(row.get('trip_date')):%d/%m/%Y}" for row in rows}))
                     st.warning(f'Matching LR/invoice records are saved with date {saved_dates}, outside the selected date range. '
                                'They are shown below so you can review and correct the existing records.')
-            if record_type == TRIP_RECORDS and can_view_trip_leaderboard(current_user) and current_user not in EXPENSE_RECORD_SUMMARY_USERS:
-                leaderboard_source = [
-                    row for row in all_record_rows
-                    if filter_from <= as_date(row.get("trip_date")) <= filter_to
-                ]
-                if current_user in {'Vijay', 'Nitish', 'Gopal', 'Manish'}:
-                    records_board(branch_trip_leaderboard(leaderboard_source, BRANCHES), filter_to)
-                else:
-                    leaderboard_rows = "".join(
-                        f"<tr><td>{rank}</td><td>{branch}</td><td>{trip_count}</td><td>{format_inr(revenue)}</td></tr>"
-                        for rank, (branch, trip_count, revenue) in enumerate(
-                            branch_trip_leaderboard(leaderboard_source, BRANCHES), 1
-                        )
-                    )
-                    st.markdown("#### Trip leaderboard")
-                    st.markdown(
-                        f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_rows}</tbody></table>',
-                        unsafe_allow_html=True,
-                    )
-        elif record_branch_scope and can_view_trip_leaderboard(current_user) and current_user not in EXPENSE_RECORD_SUMMARY_USERS:
-            today = dt.date.today()
-            leaderboard_source = [
-                row for row in all_record_rows
-                if today.replace(day=1) <= as_date(row.get("trip_date")) <= today
-            ]
-            if current_user in {'Vijay', 'Nitish', 'Gopal', 'Manish'}:
-                records_board(branch_trip_leaderboard(leaderboard_source, BRANCHES), today)
-            else:
-                empty_leaderboard_rows = "".join(
-                    f"<tr><td>{rank}</td><td>{branch}</td><td>{trip_count}</td><td>{format_inr(revenue)}</td></tr>"
-                    for rank, (branch, trip_count, revenue) in enumerate(
-                        branch_trip_leaderboard(leaderboard_source, BRANCHES), 1
-                    )
-                )
-                st.markdown("#### Trip leaderboard")
-                st.markdown(
-                    f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{empty_leaderboard_rows}</tbody></table>',
-                    unsafe_allow_html=True,
-                )
-        if current_user in EXPENSE_RECORD_SUMMARY_USERS and can_view_trip_leaderboard(current_user):
-            monthly_board = current_month_leaderboard(all_record_rows, today, BRANCHES)
-            leaderboard_html = "".join(
-                f"<tr><td>{'' if branch == 'Total' else rank}</td><td>{branch}</td><td>{count}</td><td>{format_inr(revenue)}</td></tr>"
-                for rank, (branch, count, revenue) in enumerate(monthly_board, 1)
-            )
-            if designed_records:
-                records_board(monthly_board, today)
-            else:
-                st.markdown(f"#### Trip leaderboard · {today:%B %Y}")
-            st.markdown(
-                f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaderboard_html}</tbody></table>' if not designed_records else '',
-                unsafe_allow_html=True,
-            )
+        leaderboard_slot = st.empty()
         if designed_records:
             with records_heading_slot.container():
                 heading_rows = scoped_rows if record_branch_scope else all_record_rows
@@ -2424,11 +2394,12 @@ def render_records():
                                 f'Total Revenue ({record_branch_scope} Records)' if record_branch_scope else
                                 'Total Revenue (All Branches)')
         if designed_records:
-            live_title, live_evidence_filter, live_sort = st.columns(
-                [3.5, 3.4, .7], vertical_alignment="center")
+            live_title, live_evidence_filter, live_sort, page_control, page_prev, page_next = st.columns(
+                [3.5, 3.4, .7, 1.25, .35, .35], vertical_alignment="center")
             shyam_range_slot = live_title.empty()
         else:
-            live_title, live_evidence_filter, live_sort = st.columns([5, 3, 1], vertical_alignment="center")
+            live_title, live_evidence_filter, live_sort, page_control, page_prev, page_next = st.columns(
+                [5, 3, 1, 1.4, .4, .4], vertical_alignment="center")
         if not designed_records:
             live_title.markdown("#### Live records")
         without_invoice_evidence = live_evidence_filter.toggle(
@@ -2439,6 +2410,28 @@ def render_records():
             "Record order", ["↓", "↑"], default="↓", key="records_sort_arrow",
             label_visibility="collapsed", help="↓ Newest to oldest · ↑ Oldest to newest",
         )
+        if record_type == TRIP_RECORDS and can_view_trip_leaderboard(current_user):
+            leaderboard_rows = branch_trip_leaderboard(
+                row for row in rows if filter_from <= as_date(row.get("trip_date")) <= filter_to
+            )
+            date_label = (f"{filter_to:%B %Y}" if filter_from == filter_to.replace(day=1) and filter_to == today
+                          else f"{filter_from:%d %b %Y} – {filter_to:%d %b %Y}")
+            with leaderboard_slot.container():
+                if not leaderboard_rows:
+                    st.markdown(f"#### Trip Leaderboard · {date_label}")
+                    st.caption("No trips match the selected filters.")
+                elif designed_records:
+                    records_board(leaderboard_rows, date_label)
+                else:
+                    st.markdown(f"#### Trip Leaderboard · {date_label}")
+                    leaders = "".join(
+                        f"<tr><td>{rank}</td><td>{escape(branch)}</td><td>{count}</td><td>{format_inr(revenue)}</td></tr>"
+                        for rank, (branch, count, revenue) in enumerate(leaderboard_rows, 1)
+                    )
+                    st.markdown(
+                        f'<table class="billtee-board"><thead><tr><th>Rank</th><th>Branch</th><th>Trip count</th><th>Total revenue</th></tr></thead><tbody>{leaders}</tbody></table>',
+                        unsafe_allow_html=True,
+                    )
         trip_record_count = sum(row.get("report_scope") != "Expense" for row in rows)
         expense_record_count = sum(row.get("report_scope") == "Expense" for row in rows)
         if not designed_records:
@@ -2468,10 +2461,14 @@ def render_records():
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     key=f"download_{current_user.casefold()}_filtered_records",
                 )
+            page_scope = (current_user, applied_filters, without_invoice_evidence, sort_arrow)
+            page_start, visible_rows = records_page(rows, page_scope, page_control, page_prev, page_next)
+            if not designed_records:
+                st.caption(f"Showing records {page_start + 1}–{page_start + len(visible_rows)} of {len(rows)}.")
             table_key = f'{current_user.casefold()}_records_table' if designed_records else 'standard_records_table'
             if designed_records:
                 title = 'Trip Records' if record_type == TRIP_RECORDS else 'Direct Expenses' if record_type == DIRECT_EXPENSES else 'Records'
-                shyam_range_slot.markdown(f'<div class="sr-table-title"><span class="sr-table-icon">{records_truck}</span>{title}<small>{len(rows)} records</small></div>', unsafe_allow_html=True)
+                shyam_range_slot.markdown(f'<div class="sr-table-title"><span class="sr-table-icon">{records_truck}</span>{title}<small>{page_start + 1}–{page_start + len(visible_rows)} of {len(rows)} records</small></div>', unsafe_allow_html=True)
             with st.container(height=360 if designed_records else 420, border=True, key=table_key):
                 has_delete_column = current_user in FULL_DELETE_USERS or current_user in SELF_DELETE_USERS
                 action_names = ['edit']
@@ -2498,7 +2495,7 @@ def render_records():
                         column.markdown(f"**{title}**")
                 if record_type == DIRECT_EXPENSES and current_user in EXPENSE_RECORD_SUMMARY_USERS:
                     header[value_column].caption(f"Total Figure = {format_inr(sum(number(row.get('amount')) for row in rows))}")
-                for row_index, record in enumerate(rows, 1):
+                for row_index, record in enumerate(visible_rows, page_start + 1):
                     raw = unpack(record.get("dtr_data"))
                     with st.container(key=f"{current_user.casefold()}_record_row_{record['request_number']}") if shyam_layout else nullcontext():
                         columns = st.columns(record_widths, vertical_alignment="center")

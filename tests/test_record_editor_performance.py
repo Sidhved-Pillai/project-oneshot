@@ -29,10 +29,12 @@ def view_record(record):
     assert any('Opened TEST-1' in item.value for item in app.markdown)
 
 
-def test_records_table_includes_every_filtered_row_in_one_scroll_container():
+def test_records_table_pages_through_all_filtered_rows():
     tree = ast.parse(Path('app.py').read_text())
     renderer = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
                     and node.name == 'render_records')
+    pagination = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                      and node.name == 'records_page')
     table = next(node for node in ast.walk(renderer) if isinstance(node, ast.With)
                  and any(isinstance(item.context_expr, ast.Call)
                          and any(keyword.arg == 'key' and isinstance(keyword.value, ast.Name)
@@ -41,6 +43,7 @@ def test_records_table_includes_every_filtered_row_in_one_scroll_container():
                          for item in node.items))
     app = AppTest.from_string('''
 import datetime as dt
+import hashlib
 from contextlib import nullcontext
 from html import escape
 import streamlit as st
@@ -70,9 +73,17 @@ def record_edit_control(record):
 
 def confirm_record_delete(record):
     st.write(f"Confirm {record['request_number']}")
+''' + ast.unparse(pagination) + '''
+page_start, visible_rows = records_page(rows, 'November', *st.columns(3))
 ''' + ast.unparse(table)).run(timeout=20)
     assert not app.exception
-    assert len([button for button in app.button if button.label == 'Edit']) == 504
+    assert len([button for button in app.button if button.label == 'Edit']) == 50
+    assert app.selectbox[0].options[-1] == 'Page 11 of 11'
+    assert app.button[0].disabled
+    app.button[1].click().run()
+    assert not app.exception
     assert app.button(key='edit-TEST-51')
+    app.selectbox[0].select(11).run()
+    assert not app.exception
     assert app.button(key='delete_record_TEST-504')
-    assert all(button.label in {'Edit', 'Delete'} for button in app.button)
+    assert app.button[1].disabled
