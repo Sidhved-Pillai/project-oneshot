@@ -2488,7 +2488,8 @@ def render_records():
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     key=f"download_{current_user.casefold()}_filtered_records",
                 )
-            visible_rows = rows
+            display_limit = st.session_state.setdefault('records_display_limit', 50)
+            visible_rows = rows[:display_limit]
             if designed_records:
                 title = 'Trip Records' if record_type == TRIP_RECORDS else 'Direct Expenses' if record_type == DIRECT_EXPENSES else 'Records'
                 shyam_range_slot.markdown(f'<div class="sr-table-title"><span class="sr-table-icon">{records_truck}</span>{title}<small>{len(rows)} records</small></div>', unsafe_allow_html=True)
@@ -2571,6 +2572,10 @@ def render_records():
                         )
                     if can_delete_visible_record and actions['delete'].button("Delete", icon=":material/delete:", key=f"delete_record_{record['request_number']}", help="Delete record", use_container_width=True):
                         confirm_record_delete(record)
+            if len(visible_rows) < len(rows):
+                st.button('Load more records ↓', key='records_load_more',
+                          on_click=st.session_state.update,
+                          args=({'records_display_limit': display_limit + 50},))
             if current_user == 'Shyam':
                 st.button('Mark Selected Records as Invoice Received', icon=':material/description:', type='primary', key='save_invoice_receipt_batch',
                           on_click=save_invoice_receipt_batch)
