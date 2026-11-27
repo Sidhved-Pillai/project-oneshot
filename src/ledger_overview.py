@@ -23,8 +23,8 @@ def outstanding_totals(trips, balance_rows, upi_clearings, billtee_clearings):
 def render_ledger_overview(kind, totals):
     st.markdown('''<style>
     .ledger-overview-heading{display:flex;align-items:center;gap:18px;margin:15px 0 24px}.ledger-overview-icon{display:grid;place-items:center;width:66px;height:66px;border-radius:18px;background:#e4edff;color:#0761ef;font-size:34px}.ledger-overview-heading h2{margin:0;font-size:32px;line-height:1.15;color:#101936}.ledger-overview-heading p{margin:5px 0 0;color:#445b84;font-size:15px}
-    .st-key-ledger_nav_pills{margin-bottom:20px}.st-key-ledger_nav_pills [data-testid="stHorizontalBlock"]{justify-content:flex-start!important;gap:5px!important;flex-wrap:wrap!important}.st-key-ledger_nav_pills [data-testid="stColumn"]{flex:0 0 auto!important;width:auto!important;min-width:0!important;border:0!important}
-    .st-key-ledger_nav_pills button{width:auto!important;min-height:45px!important;padding:9px 21px!important;border:1px solid transparent!important;border-radius:999px!important;background:transparent!important;color:#091236!important;box-shadow:none!important;font-size:14px!important;font-weight:600!important;letter-spacing:-.01em!important;white-space:nowrap!important;transition:color .22s ease,background .22s ease,border-color .22s ease,box-shadow .22s ease,transform .22s ease!important}
+    .st-key-ledger_nav_pills{margin-bottom:20px}.st-key-ledger_nav_pills [data-testid="stHorizontalBlock"]{gap:20px!important}.st-key-ledger_nav_pills [data-testid="stColumn"]{flex:1 1 0!important;min-width:0!important;border:0!important}
+    .st-key-ledger_nav_pills button{width:100%!important;min-height:54px!important;padding:9px 21px!important;border:1px solid #d7e3ff!important;border-radius:999px!important;background:#fff!important;color:#091236!important;box-shadow:0 4px 9px #0068ff18!important;font-size:16px!important;font-weight:700!important;letter-spacing:-.01em!important;white-space:nowrap!important;transition:color .22s ease,background .22s ease,border-color .22s ease,box-shadow .22s ease,transform .22s ease!important}
     .st-key-ledger_nav_pills button[kind="primary"]{background:linear-gradient(120deg,#258aff,#0054ff)!important;color:#fff!important;border-color:transparent!important;box-shadow:0 4px 9px #0068ff2a!important}
     @media(hover:hover){.st-key-ledger_nav_pills button:not([kind="primary"]):hover{color:#091236!important;background:#edf8fd!important;border-color:rgba(190,224,240,.82)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 4px 12px rgba(77,145,175,.1)!important;transform:translateY(-1px)}.st-key-ledger_nav_pills button[kind="primary"]:hover{background:linear-gradient(120deg,#258aff,#0054ff)!important;color:#fff!important;box-shadow:0 4px 9px #0068ff2a!important;transform:none!important}}
     .st-key-ledger_nav_pills button:focus-visible{outline:2px solid #2677ff!important;outline-offset:2px!important}
@@ -33,11 +33,11 @@ def render_ledger_overview(kind, totals):
     @media(max-width:800px){.ledger-overview-cards{grid-template-columns:1fr;gap:10px}.ledger-overview-card{min-height:110px}.ledger-overview-copy strong{font-size:23px}.st-key-ledger_nav_pills button{font-size:12px!important;padding:7px 11px!important}.ledger-overview-heading h2{font-size:26px}}
     </style><div class="ledger-overview-heading"><div class="ledger-overview-icon">▣</div><div><h2>Ledger</h2><p>Review, update and send Balance Payable, UPI and Billtee payments.</p></div></div>''', unsafe_allow_html=True)
     with st.container(key='ledger_nav_pills'):
-        cols = st.columns(3, gap='small')
+        cols = st.columns(3, gap='large')
         for column, option, label, icon in zip(cols, ('balance', 'upi', 'billtee'),
             ('Balance Payable', 'UPI', 'Billtee'), ('local_shipping', 'directions_car', 'receipt_long')):
             column.button(label, icon=f':material/{icon}:', type='primary' if kind == option else 'secondary',
-                use_container_width=False, key=f'ledger_overview_{option}',
+                use_container_width=True, key=f'ledger_overview_{option}',
                 on_click=st.session_state.update, args=({'pending_kind_card': option},))
     cards = [
         ('balance', '▤', 'Balance Payable To Clear', 'Total balance payment pending'),
