@@ -2295,26 +2295,6 @@ def render_records():
             page_intro("", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
         all_record_rows = list(normalization_rows)
         rows = list(all_record_rows)
-        if current_user == 'Sid':
-            october_start, october_end = dt.date(2026, 10, 1), dt.date(2026, 10, 31)
-            october_trips = [row for row in all_record_rows
-                             if row.get('report_scope') != 'Expense'
-                             and october_start <= as_date(row.get('trip_date')) <= october_end]
-            vijay_created = [row for row in october_trips if clean_text(row.get('created_by')) == 'Vijay']
-            vijay_placed = [row for row in october_trips
-                            if canonical_vehicle_placer(unpack(row.get('dtr_data')).get('Veh Placed by')) == 'Vijay']
-            with st.expander('October 2026 Vijay trip cleanup'):
-                st.write(f"Created by Vijay: {len(vijay_created)} trips. Vehicle placed by Vijay: {len(vijay_placed)} trips.")
-                if len(vijay_placed) == 325 and st.button('Archive Vijay’s 325 October trip records', key='archive_vijay_october'):
-                    try:
-                        removed = store.archive_placer_trips('Vijay', october_start, october_end, 325, current_user)
-                    except ValueError as exc:
-                        st.error(str(exc))
-                    else:
-                        st.session_state['vijay_october_cleanup_notice'] = f'Archived {removed} Vijay trip records from October 2026.'
-                        st.rerun()
-            if notice := st.session_state.pop('vijay_october_cleanup_notice', None):
-                st.success(notice)
         if record_branch_scope:
             rows = [
                 row for row in rows
