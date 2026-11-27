@@ -243,6 +243,20 @@ def test_popup_actions_are_scoped_and_use_actual_payment_confirmation(tmp_path):
     assert current(store,n)['_settlement_status']=='Cleared'
 
 
+def test_ledger_clear_selected_records_remaining_amount(tmp_path):
+    from src.balance_ledger_ui import ledger_action
+    store,n=setup(tmp_path)
+    store.save_matched_payment('Sid',500,dt.date(2026,11,10),{n:500},'first-payment')
+    rows,queues,records=store.settlement_snapshot('Sid')
+    rows=[r for r in rows if r['request_number']==n]
+    with pytest.raises(ValueError):
+        ledger_action(store,'Sid',{'action':'clear_selected','numbers':['unknown']},rows,records,queues,'invalid-clear')
+    ledger_action(store,'Sid',{'action':'clear_selected','numbers':[n]},rows,records,queues,'clear-selected')
+    assert current(store,n)['_paid']==2000
+    assert current(store,n)['_outstanding']==0
+    assert current(store,n)['_settlement_status']=='Cleared'
+
+
 def test_sid_ledger_cumulative_paid_and_partial_rtgs_request(tmp_path):
     from src.balance_ledger_ui import ledger_action, row_payload
     store,n=setup(tmp_path)

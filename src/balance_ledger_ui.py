@@ -57,6 +57,14 @@ def ledger_action(store,user,action,rows,records,queues,token):
     """Validate all browser selections against this transporter's server snapshot."""
     by_number={r['request_number']:r for r in rows}
     kind=action.get('action')
+    if kind=='clear_selected':
+        numbers=action.get('numbers')
+        if not isinstance(numbers,list) or not numbers or len(set(numbers))!=len(numbers) or not set(numbers)<=set(by_number):
+            raise ValueError('Select valid trips from this transporter.')
+        allocations={n:money(by_number[n]['_outstanding']) for n in numbers}
+        allocations={n:v for n,v in allocations.items() if v>0}
+        if not allocations: raise ValueError('The selected trips are already cleared.')
+        return store.save_matched_payment(user,sum(allocations.values()),today(),allocations,token,'Ledger trips cleared')
     if user in COMPACT_LEDGER_USERS and kind=='save_targets':
         submitted=action.get('targets') or {}
         if not isinstance(submitted,dict) or not submitted or not set(submitted)<=set(by_number):
@@ -140,7 +148,7 @@ def update_in_ledger(name,rows,queues,records,user,store,instance):
         st.session_state['ledger_response_'+instance]={'nonce':nonce,'error':str(exc)}
         st.rerun(scope='fragment')
     else:
-        st.session_state['pending_payment_notice']={'save':'Payment updates saved. Trip balances and statuses are updated.','save_targets':'Confirmed payments saved. Trip balances are updated.','send':'Sent eligible trips for RTGS. Actual payment confirmation is still required.','send_amounts':'RTGS request sent. Remaining is unchanged until payment is confirmed.','reverse':'Payment corrected with an audited reversal.','confirm':'Actual bank payment confirmed.'}[result['action']]
+        st.session_state['pending_payment_notice']={'clear_selected':'Selected trips cleared. Balances and statuses are updated.','save':'Payment updates saved. Trip balances and statuses are updated.','save_targets':'Confirmed payments saved. Trip balances are updated.','send':'Sent eligible trips for RTGS. Actual payment confirmation is still required.','send_amounts':'RTGS request sent. Remaining is unchanged until payment is confirmed.','reverse':'Payment corrected with an audited reversal.','confirm':'Actual bank payment confirmed.'}[result['action']]
         st.rerun()
 
 
