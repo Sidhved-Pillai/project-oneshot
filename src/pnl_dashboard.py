@@ -212,21 +212,26 @@ def render_pnl_dashboard(user, rows, groups, pnl_builder, review):
     st.markdown(STYLE + '<style>' + glyphs + '</style>', unsafe_allow_html=True)
     today = dt.datetime.now(ZoneInfo('Asia/Kolkata')).date()
     with st.container(key='pnl_dashboard'):
-        title, date = st.columns([4,1], vertical_alignment='center')
+        title, dates = st.columns([3,2], vertical_alignment='center')
         title.markdown(f'<div class="pnl-title"><span>{icon("coins")}</span><div><h1>P&L Dashboard</h1><p>Your daily operational summary from all entries.</p></div></div>', unsafe_allow_html=True)
-        day = date.date_input('Dashboard date', value=max(today,OPERATIONS_START), min_value=OPERATIONS_START, format='DD/MM/YYYY', label_visibility='collapsed', key='pnl_dashboard_day')
-        daily = period_model(rows,day,day,pnl_builder)
-        month = period_model(rows,day.replace(day=1),day,pnl_builder)
+        date_from_col, date_to_col = dates.columns(2)
+        start = date_from_col.date_input('Date From', value=max(today,OPERATIONS_START), min_value=OPERATIONS_START, format='DD/MM/YYYY', key='pnl_dashboard_from')
+        end = date_to_col.date_input('Date To', value=max(today,OPERATIONS_START), min_value=OPERATIONS_START, format='DD/MM/YYYY', key='pnl_dashboard_to')
+        if start > end:
+            st.warning('Date From must be on or before Date To.')
+            return
+        daily = period_model(rows,start,end,pnl_builder)
+        month = period_model(rows,end.replace(day=1),end,pnl_builder)
         if daily['profit'] < 0:
             st.markdown('<style>.st-key-plcard_profit button strong{color:#c12646!important}</style>', unsafe_allow_html=True)
-        suffix = 'Today' if day == today else day.strftime('%d %b %Y')
+        suffix = 'Today' if start == end == today else start.strftime('%d %b %Y') if start == end else f'{start:%d %b %Y} – {end:%d %b %Y}'
         for col,kind,label,name in zip(st.columns(3),('revenue','expense','profit'),('Revenue','Expenses','Profit / Loss'),('truck','layers','trend')):
             with col.container(key='plcard_'+kind):
                 card_label = f'{label} ({suffix})'
                 if kind == 'profit':
                     card_label += f' · {daily["margin"]:.1f}%'
                 if st.button(f'{card_label}\n\n**{format_inr(daily[kind])}**',key='pl_open_'+kind,use_container_width=True):
-                    show_details(daily,kind,day.strftime('%d %b %Y'))
+                    show_details(daily,kind,suffix)
         with st.container(key='pl_metrics'):
             items = [('margin','Profit Margin',f'{daily["margin"]:.1f}%','coins'),('entries','Total Entries',str(daily['entry_count']),'truck'),
                      ('direct','Direct Expenses',str(daily['direct_count']),'layers'),('month','P&L (Month to Date)',format_inr(month['profit']),'chart')]
@@ -235,7 +240,7 @@ def render_pnl_dashboard(user, rows, groups, pnl_builder, review):
                     tile_label = label + (' ('+suffix+')' if kind != 'month' else '')
                     if st.button(f'{tile_label}\n\n**{value}**',key='pl_open_'+kind,use_container_width=True):
                         show_details(month if kind=='month' else daily,kind,
-                                     f'{day.replace(day=1):%d %b %Y} – {day:%d %b %Y}' if kind=='month' else day.strftime('%d %b %Y'))
+                                     f'{end.replace(day=1):%d %b %Y} – {end:%d %b %Y}' if kind=='month' else suffix)
         if user == 'Sid':
             copies = [r for group in groups for r in group['duplicates']]
             oldest = min((date_value(r.get('trip_date')) for r in copies if date_value(r.get('trip_date'))),default=None)
@@ -246,4 +251,4 @@ def render_pnl_dashboard(user, rows, groups, pnl_builder, review):
                 facts.markdown(f'<span class="pl-chip">{len(groups)} Groups</span><span class="pl-chip">{len(copies)} Entries</span><span class="pl-chip">Oldest: {oldest.strftime("%d %b %Y") if oldest else "—"}</span>',unsafe_allow_html=True)
                 if action.button('Review Duplicates →',key='dashboard_review_duplicates',use_container_width=True):
                     review(groups)
-        st.caption('P&L uses entry dates, saved trip costs and the same direct expense allocations as Generate Reports. Month to date ends on the selected day. ' + ('Duplicate review covers all active records.' if user == 'Sid' else ''))
+        st.caption('P&L uses entry dates, saved trip costs and the same direct expense allocations as Generate Reports. Month to date ends on Date To. ' + ('Duplicate review covers all active records.' if user == 'Sid' else ''))

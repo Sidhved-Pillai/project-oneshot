@@ -54,11 +54,21 @@ def app(user="Vinod"):
 def test_all_widgets_and_popups_render_without_database():
     ui=AppTest.from_function(app).run()
     assert not ui.exception
-    assert len(ui.date_input)==1
+    assert {widget.label for widget in ui.date_input} == {'Date From', 'Date To'}
     for key in ['pl_open_revenue','pl_open_expense','pl_open_profit','pl_open_margin','pl_open_entries','pl_open_direct','pl_open_month']:
         ui.button(key=key).click().run()
         assert not ui.exception
         assert any('class="pl-dialog-title' in m.value for m in ui.markdown)
+
+
+def test_dashboard_range_and_invalid_dates():
+    ui = AppTest.from_function(app).run()
+    ui.date_input(key='pnl_dashboard_from').set_value(DAY).run()
+    ui.date_input(key='pnl_dashboard_to').set_value(DAY + dt.timedelta(days=1)).run()
+    assert not ui.exception
+    assert any('13 Nov 2026 – 14 Nov 2026' in b.label for b in ui.button)
+    ui.date_input(key='pnl_dashboard_to').set_value(DAY - dt.timedelta(days=1)).run()
+    assert any('Date From must be on or before Date To.' in w.value for w in ui.warning)
 
 
 def test_unknown_ownership_matches_report_instead_of_inventing_revenue():
