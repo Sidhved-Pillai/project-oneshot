@@ -2295,6 +2295,24 @@ def render_records():
             page_intro("", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
         all_record_rows = list(normalization_rows)
         rows = list(all_record_rows)
+        if current_user == 'Sid':
+            remaining_vijay_october = [row for row in all_record_rows
+                                       if row.get('report_scope') != 'Expense'
+                                       and row.get('created_by') == 'Vijay'
+                                       and dt.date(2026, 10, 1) <= as_date(row.get('trip_date')) <= dt.date(2026, 10, 31)]
+            with st.expander('Remaining October trips created by Vijay'):
+                for row in remaining_vijay_october:
+                    dtr = unpack(row.get('dtr_data'))
+                    st.write({key: value for key, value in {
+                        'request_number': row.get('request_number'),
+                        'trip_date': str(row.get('trip_date')),
+                        'branch': row.get('branch'),
+                        'invoice_number': dtr.get('Invoice No'),
+                        'vehicle_number': dtr.get('Vehicle No'),
+                        'vehicle_placed_by': dtr.get('Veh Placed by'),
+                        'from': dtr.get('From'),
+                        'to': dtr.get('To'),
+                    }.items()})
         if record_branch_scope:
             rows = [
                 row for row in rows
