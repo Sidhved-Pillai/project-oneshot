@@ -2305,9 +2305,9 @@ def render_records():
                             if canonical_vehicle_placer(unpack(row.get('dtr_data')).get('Veh Placed by')) == 'Vijay']
             with st.expander('October 2026 Vijay trip cleanup'):
                 st.write(f"Created by Vijay: {len(vijay_created)} trips. Vehicle placed by Vijay: {len(vijay_placed)} trips.")
-                if len(vijay_created) == 325 and st.button('Archive Vijay’s 325 October trip records', key='archive_vijay_october'):
+                if len(vijay_placed) == 325 and st.button('Archive Vijay’s 325 October trip records', key='archive_vijay_october'):
                     try:
-                        removed = store.archive_creator_trips('Vijay', october_start, october_end, 325, current_user)
+                        removed = store.archive_placer_trips('Vijay', october_start, october_end, 325, current_user)
                     except ValueError as exc:
                         st.error(str(exc))
                     else:

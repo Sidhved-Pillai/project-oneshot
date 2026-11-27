@@ -508,17 +508,19 @@ class RequestStore(SettlementStore):
             conn.execute(delete(record_revisions).where(record_revisions.c.request_number == request_number))
             return conn.execute(delete(requests).where(requests.c.request_number == request_number)).rowcount
 
-    def archive_creator_trips(self, creator, start_date, end_date, expected_count, edited_by):
-        """Archive an exact creator/month trip set with recoverable revisions."""
+    def archive_placer_trips(self, placer, start_date, end_date, expected_count, edited_by):
+        """Archive an exact vehicle-placer/month trip set with recoverable revisions."""
+        from .vehicle_placer import canonical_vehicle_placer
         with self.engine.begin() as conn:
-            rows = [dict(row) for row in conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
-                requests.c.created_by == creator,
+            candidates = [dict(row) for row in conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
                 requests.c.trip_date >= start_date,
                 requests.c.trip_date <= end_date,
                 requests.c.report_scope != 'Expense',
                 requests.c.status != 'Cancelled',
                 requests.c.is_archived.is_(False),
             ).order_by(requests.c.id).with_for_update()).mappings()]
+            rows = [row for row in candidates if canonical_vehicle_placer(
+                json.loads(row.get('dtr_data') or '{}').get('Veh Placed by')) == placer]
             if len(rows) != expected_count:
                 raise ValueError(f'Expected {expected_count} matching trips; found {len(rows)}. No records were changed.')
             now = dt.datetime.now()
