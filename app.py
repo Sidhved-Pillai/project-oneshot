@@ -1584,19 +1584,22 @@ def soft_delete_record(record, details=""):
     return True
 
 
-@st.dialog("Delete record?")
+@st.dialog("Delete record?", on_dismiss="rerun")
 def confirm_record_delete(record):
     st.warning(f"Delete {request_label(record)}? The record will be hidden, but retained for recovery.")
     cancel_column, delete_column = st.columns(2)
     if cancel_column.button("Cancel", use_container_width=True, key=f"cancel_delete_{record['request_number']}"):
-        st.rerun()
+        components.html(saved_record_script('delete-cancel'), height=0, scrolling=False)
+        return
     if delete_column.button(
         "Confirm delete", type="primary", use_container_width=True,
         key=f"confirm_delete_{record['request_number']}",
     ):
         soft_delete_record(record)
-        st.toast(f"Deleted {request_label(record)}.", icon="🗑️")
-        st.rerun()
+        st.toast(f"Deleted {request_label(record)}.", icon="🗑️", duration=5)
+        st.success(f"Deleted {request_label(record)}.")
+        components.html(saved_record_script('delete-success'), height=0, scrolling=False)
+        return
 
 
 def complete_rtgs_download(request_numbers, start, end):
@@ -1846,6 +1849,8 @@ def view_record(row):
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap');
+.stToast{background:#dcfce7!important;color:#14532d!important;border:1px solid #73d69b!important;filter:none!important;box-shadow:0 10px 30px #14532d26!important}
+.stToast [data-testid="stMarkdownContainer"] p{color:#14532d!important;font-weight:700!important}
 :root{color-scheme:light;--ink:#1d1d1f;--muted:#6e6e73;--teal:#0071e3;--teal2:#2997ff;--navy:#061b33;--line:#dfe5ec;--paper:#fff;--voice:#20a464}
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @keyframes breathe{0%,100%{box-shadow:0 0 0 0 rgba(18,165,148,.24)}50%{box-shadow:0 0 0 7px rgba(18,165,148,0)}}
