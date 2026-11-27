@@ -397,15 +397,6 @@ def import_fallback_key(item):
     )
 
 
-def valid_page_number(value, page_count):
-    """Return a safe pagination value when filters leave stale widget state."""
-    try:
-        page = int(value)
-    except (TypeError, ValueError, OverflowError):
-        return 1
-    return page if 1 <= page <= max(1, int(page_count)) else 1
-
-
 def reset_invalid_widget_choice(key, options, default):
     """Prevent dynamic selectboxes from receiving a value removed by filters."""
     if key in st.session_state and st.session_state.get(key) not in options:
@@ -2304,6 +2295,26 @@ def render_records():
             page_intro("", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
         all_record_rows = list(normalization_rows)
         rows = list(all_record_rows)
+        if current_user == 'Sid':
+            october_start, october_end = dt.date(2026, 10, 1), dt.date(2026, 10, 31)
+            october_trips = [row for row in all_record_rows
+                             if row.get('report_scope') != 'Expense'
+                             and october_start <= as_date(row.get('trip_date')) <= october_end]
+            vijay_created = [row for row in october_trips if clean_text(row.get('created_by')) == 'Vijay']
+            vijay_placed = [row for row in october_trips
+                            if canonical_vehicle_placer(unpack(row.get('dtr_data')).get('Veh Placed by')) == 'Vijay']
+            with st.expander('October 2026 Vijay trip cleanup'):
+                st.write(f"Created by Vijay: {len(vijay_created)} trips. Vehicle placed by Vijay: {len(vijay_placed)} trips.")
+                if len(vijay_created) == 325 and st.button('Archive Vijay’s 325 October trip records', key='archive_vijay_october'):
+                    try:
+                        removed = store.archive_creator_trips('Vijay', october_start, october_end, 325, current_user)
+                    except ValueError as exc:
+                        st.error(str(exc))
+                    else:
+                        st.session_state['vijay_october_cleanup_notice'] = f'Archived {removed} Vijay trip records from October 2026.'
+                        st.rerun()
+            if notice := st.session_state.pop('vijay_october_cleanup_notice', None):
+                st.success(notice)
         if record_branch_scope:
             rows = [
                 row for row in rows
@@ -2433,8 +2444,8 @@ def render_records():
                                 f'Total Revenue ({record_branch_scope} Records)' if record_branch_scope else
                                 'Total Revenue (All Branches)')
         if designed_records:
-            live_title, live_evidence_filter, live_sort, shyam_page_control, shyam_page_prev, shyam_page_next = st.columns(
-                [3.5, 3.4, .7, 1.25, .35, .35], vertical_alignment="center")
+            live_title, live_evidence_filter, live_sort = st.columns(
+                [3.5, 3.4, .7], vertical_alignment="center")
             shyam_range_slot = live_title.empty()
         else:
             live_title, live_evidence_filter, live_sort = st.columns([5, 3, 1], vertical_alignment="center")
@@ -2477,38 +2488,10 @@ def render_records():
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     key=f"download_{current_user.casefold()}_filtered_records",
                 )
-            records_per_page = 50
-            page_count = max(1, (len(rows) + records_per_page - 1) // records_per_page)
-            record_page = 1
-            if page_count > 1:
-                page_key = "records_result_page"
-                st.session_state[page_key] = valid_page_number(
-                    st.session_state.get(page_key, 1), page_count,
-                )
-                def move_record_page(step):
-                    st.session_state[page_key] = valid_page_number(st.session_state.get(page_key, 1) + step, page_count)
-                if designed_records:
-                    page_control, page_prev, page_next = shyam_page_control, shyam_page_prev, shyam_page_next
-                    page_prev.button('‹', key=f'{current_user.casefold()}_records_prev', disabled=st.session_state[page_key] <= 1,
-                                     on_click=move_record_page, args=(-1,))
-                    page_next.button('›', key=f'{current_user.casefold()}_records_next', disabled=st.session_state[page_key] >= page_count,
-                                     on_click=move_record_page, args=(1,))
-                else:
-                    page_control = st
-                record_page = page_control.selectbox(
-                    "Record page", list(range(1, page_count + 1)),
-                    format_func=lambda page: f"Page {page} of {page_count}", key=page_key,
-                    label_visibility='collapsed' if designed_records else 'visible',
-                )
-                first = (record_page - 1) * records_per_page + 1
-                last = min(record_page * records_per_page, len(rows))
-                if not designed_records:
-                    st.caption(f"Showing records {first}–{last} of {len(rows)}.")
-            page_start = (record_page - 1) * records_per_page
-            visible_rows = rows[page_start:page_start + records_per_page]
+            visible_rows = rows
             if designed_records:
                 title = 'Trip Records' if record_type == TRIP_RECORDS else 'Direct Expenses' if record_type == DIRECT_EXPENSES else 'Records'
-                shyam_range_slot.markdown(f'<div class="sr-table-title"><span class="sr-table-icon">{records_truck}</span>{title}<small>Showing records {page_start + 1}–{page_start + len(visible_rows)} of {len(rows)}</small></div>', unsafe_allow_html=True)
+                shyam_range_slot.markdown(f'<div class="sr-table-title"><span class="sr-table-icon">{records_truck}</span>{title}<small>{len(rows)} records</small></div>', unsafe_allow_html=True)
             with st.container(height=360 if designed_records else 420, border=True, key=f'{current_user.casefold()}_records_table' if designed_records else 'standard_records_table'):
                 has_delete_column = current_user in FULL_DELETE_USERS or current_user in SELF_DELETE_USERS
                 action_names = ['edit']
@@ -2535,7 +2518,7 @@ def render_records():
                         column.markdown(f"**{title}**")
                 if record_type == DIRECT_EXPENSES and current_user in EXPENSE_RECORD_SUMMARY_USERS:
                     header[value_column].caption(f"Total Figure = {format_inr(sum(number(row.get('amount')) for row in rows))}")
-                for row_index, record in enumerate(visible_rows, page_start + 1):
+                for row_index, record in enumerate(visible_rows, 1):
                     raw = unpack(record.get("dtr_data"))
                     with st.container(key=f"{current_user.casefold()}_record_row_{record['request_number']}") if shyam_layout else nullcontext():
                         columns = st.columns(record_widths, vertical_alignment="center")

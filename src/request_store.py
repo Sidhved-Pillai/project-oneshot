@@ -508,6 +508,31 @@ class RequestStore(SettlementStore):
             conn.execute(delete(record_revisions).where(record_revisions.c.request_number == request_number))
             return conn.execute(delete(requests).where(requests.c.request_number == request_number)).rowcount
 
+    def archive_creator_trips(self, creator, start_date, end_date, expected_count, edited_by):
+        """Archive an exact creator/month trip set with recoverable revisions."""
+        with self.engine.begin() as conn:
+            rows = [dict(row) for row in conn.execute(select(*REQUEST_METADATA_COLUMNS).where(
+                requests.c.created_by == creator,
+                requests.c.trip_date >= start_date,
+                requests.c.trip_date <= end_date,
+                requests.c.report_scope != 'Expense',
+                requests.c.status != 'Cancelled',
+                requests.c.is_archived.is_(False),
+            ).order_by(requests.c.id).with_for_update()).mappings()]
+            if len(rows) != expected_count:
+                raise ValueError(f'Expected {expected_count} matching trips; found {len(rows)}. No records were changed.')
+            now = dt.datetime.now()
+            for row in rows:
+                number = row['request_number']
+                data = json.loads(row.get('dtr_data') or '{}')
+                data['_deleted_previous_status'] = row.get('status') or 'Submitted'
+                values = {'status': 'Cancelled', 'is_archived': True,
+                          'dtr_data': json.dumps(data, default=str), 'updated_at': now}
+                self._insert_revision(conn, number, row, 'before_creator_month_archive', edited_by)
+                conn.execute(update(requests).where(requests.c.request_number == number).values(**values))
+                self._insert_revision(conn, number, {**row, **values}, 'creator_month_archive', edited_by)
+        return len(rows)
+
     def send_balance_payment(self, request_number, user, _conn=None, expected_amount=None):
         """Queue one balance payment per trip, atomically, without copying the trip."""
         from contextlib import nullcontext

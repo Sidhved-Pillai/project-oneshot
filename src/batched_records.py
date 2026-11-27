@@ -42,7 +42,6 @@ def render_filters(rows, user, today, saved_companies=()):
         st.session_state[saved_key] = dict(defaults)
         for field, value in defaults.items():
             st.session_state[f'records_filter_draft_{user}_{field}'] = value
-        st.session_state['records_result_page'] = 1
     with st.form(f'records_filters_batch_{user}', border=False):
         if designed_records:
             st.markdown('<div class="sr-filter-title">&#9661; &nbsp; Filters</div>', unsafe_allow_html=True)
@@ -119,7 +118,6 @@ def render_filters(rows, user, today, saved_companies=()):
                            ownership=ownership,amount=amount,heading=heading,without_evidence=False,order='↓',
                            lr_number=lr_number.strip(), invoice_number=invoice_number.strip())
             st.session_state[saved_key] = applied
-            st.session_state['records_result_page'] = 1
     return applied
 
 
