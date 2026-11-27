@@ -127,6 +127,15 @@ billtee_payments = Table(
     Column('created_at', DateTime, nullable=False, server_default=func.now()),
 )
 
+reimbursement_clearings = Table(
+    'reimbursement_clearings', metadata,
+    Column('kind', String(20), primary_key=True),
+    Column('request_number', String(40), primary_key=True),
+    Column('amount', Numeric(14, 2), nullable=False),
+    Column('cleared_by', String(120), nullable=False),
+    Column('cleared_at', DateTime, nullable=False),
+)
+
 intake_batches = Table(
     "intake_batches", metadata,
     Column("batch_id", String(40), primary_key=True),
@@ -607,6 +616,62 @@ class RequestStore(SettlementStore):
         with self.engine.connect() as conn:
             return {row['user_name']: json.loads(row['beneficiary_data'] or '{}')
                     for row in conn.execute(select(upi_reimbursement_profiles)).mappings()}
+
+    def reimbursement_clearings(self, user, kind):
+        if user not in PENDING_PAYMENT_USERS or kind not in ('upi', 'billtee'):
+            raise ValueError('You do not have access to this ledger.')
+        with self.engine.connect() as conn:
+            return {row['request_number']: row['amount'] for row in conn.execute(
+                select(reimbursement_clearings).where(reimbursement_clearings.c.kind == kind)
+            ).mappings()}
+
+    def clear_reimbursements(self, user, kind, selected):
+        """Clear selected reimbursement trips atomically after rechecking the live rows."""
+        if user not in PENDING_PAYMENT_USERS or kind not in ('upi', 'billtee'):
+            raise ValueError('You do not have access to this ledger.')
+        if not isinstance(selected, dict) or not selected or len(selected) > 1000:
+            raise ValueError('Select valid trips to clear.')
+        with self.engine.begin() as conn:
+            current = {row['request_number']: dict(row) for row in conn.execute(
+                select(*REQUEST_METADATA_COLUMNS).where(requests.c.request_number.in_(sorted(selected))).with_for_update()
+            ).mappings()}
+            if set(current) != set(selected):
+                raise ValueError('A selected trip is unavailable. Refresh and review.')
+            from .payment_settlement import money
+            existing = {row['request_number']: money(row['amount']) for row in conn.execute(
+                select(reimbursement_clearings).where(
+                    reimbursement_clearings.c.kind == kind,
+                    reimbursement_clearings.c.request_number.in_(sorted(selected)),
+                ).with_for_update()
+            ).mappings()}
+            owners = set()
+            updates = []
+            for number, expected_version in sorted(selected.items()):
+                row = current[number]
+                if (row['is_archived'] or row['status'] == 'Cancelled' or row['report_scope'] == 'Expense'
+                        or str(row['updated_at']) != str(expected_version)):
+                    raise ValueError('A selected trip changed. Refresh and review.')
+                owners.add(reimbursement_owner(row))
+                original = money(json.loads(row.get('dtr_data') or '{}').get('Billtee') if kind == 'billtee' else row['upi'])
+                if original <= 0 or existing.get(number, money(0)) >= original:
+                    raise ValueError('A selected trip is already cleared or has no amount to clear.')
+                updates.append((number, original, original - existing.get(number, money(0))))
+            if len(owners) != 1:
+                raise ValueError('Select trips from one payer at a time.')
+            for number, original, increment in updates:
+                if number in existing:
+                    conn.execute(update(reimbursement_clearings).where(
+                        reimbursement_clearings.c.kind == kind,
+                        reimbursement_clearings.c.request_number == number,
+                    ).values(amount=original, cleared_by=user, cleared_at=dt.datetime.now()))
+                else:
+                    conn.execute(insert(reimbursement_clearings).values(
+                        kind=kind, request_number=number, amount=original,
+                        cleared_by=user, cleared_at=dt.datetime.now()))
+                conn.execute(insert(activity_logs).values(
+                    user_name=user, action=f'Cleared {kind.upper()} reimbursement', request_number=number,
+                    details=f'Cleared {increment} of {original}'))
+        return len(updates)
 
     def send_pending_payments(self, selected, kind, user):
         if user not in PENDING_PAYMENT_USERS or kind not in ('balance', 'upi', 'billtee'):

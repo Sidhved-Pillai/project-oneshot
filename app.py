@@ -95,7 +95,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 hide_manage_app()
-STORE_INTERFACE_VERSION = 39
+STORE_INTERFACE_VERSION = 40
 PAYMENT_FIELDS = {"UPI": "upi", "Diesel": "diesel_advance", "Cash": "cash_advance", "RTGS": "rtgs_advance"}
 STANDARD_DIRECT_EXPENSE_COLUMNS = [name for name in DIRECT_EXPENSE_COLUMNS if name != "Route expense"]
 NIKHAT_DIRECT_EXPENSE_COLUMNS = [*STANDARD_DIRECT_EXPENSE_COLUMNS, "Debit"]
