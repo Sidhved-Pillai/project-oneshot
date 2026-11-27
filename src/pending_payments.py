@@ -48,6 +48,23 @@ def amount(value):
         return 0.0
 
 
+def set_group_selection(selected_key, toggle_key, generation_key, request_numbers):
+    st.session_state[selected_key] = set(request_numbers) if st.session_state[toggle_key] else set()
+    st.session_state[generation_key] = st.session_state.get(generation_key, 0) + 1
+
+
+def sync_group_selection(selected_key, toggle_key, editor_key, request_numbers):
+    selected = set(st.session_state.get(selected_key, set()))
+    for index, changes in st.session_state.get(editor_key, {}).get('edited_rows', {}).items():
+        request_number = request_numbers[int(index)]
+        if changes.get('Select'):
+            selected.add(request_number)
+        elif changes.get('Select') is False:
+            selected.discard(request_number)
+    st.session_state[selected_key] = selected
+    st.session_state[toggle_key] = bool(request_numbers) and all(number in selected for number in request_numbers)
+
+
 def payment_groups(trips, kind, requests, profiles):
     groups = defaultdict(list)
     for trip in trips:
@@ -333,21 +350,31 @@ def render_pending_payments(user, trips, balance_requests, upi_requests, store):
                 st.warning(f'{missing_count} trips have incomplete bank details. Complete those trip records before sending them.')
             rows = []
             by_number = {}
+            selected_key = f'pending_selected_{key}'
+            toggle_key = f'pending_select_all_{key}'
+            generation_key = f'pending_selection_generation_{key}'
+            selected_numbers = set(st.session_state.get(selected_key, set()))
             for item in group:
                 trip = item['trip']; number = trip['request_number']; by_number[number] = trip
-                rows.append({'Select':False, 'Record':number, 'Date':trip.get('trip_date'),
+                rows.append({'Select':number in selected_numbers, 'Record':number, 'Date':trip.get('trip_date'),
                     'Branch':canonical_branch(trip.get('branch')), 'Route':f"{trip.get('from_location') or ''} → {trip.get('to_location') or ''}",
                     'Vehicle No.':trip.get('vehicle_number'), 'LR No.':data(trip.get('dtr_data')).get('LR No.',''),
                     'Beneficiary':item['profile'].get('BNF_NAME',''), 'Account':item['profile'].get('BENE_ACC_NO',''),
                     'IFSC':item['profile'].get('BENE_IFSC',''), 'Bank details':'Complete' if bank_ready(item) else 'Missing',
                     'Invoice No.':trip.get('invoice_number'), 'Freight':amount(trip.get('transporter_freight')),
                     'Paid':amount(trip.get('total_advance')), dict(balance='Balance', upi='UPI', billtee='Billtee')[kind]:item['amount'], 'Status':item['status'], 'Details':trip.get('notes','') if trip.get('_confirmed_balance') else (f"Credit applied: {format_inr(trip['_balance_credit_applied'])}" if trip.get('_balance_credit_applied') else '')})
-            with st.form(f'pending_group_{key}'):
-                frame = pd.DataFrame(rows)
-                edited = st.data_editor(frame, hide_index=True, width='stretch',
-                    disabled=[col for col in frame if col != 'Select'], key=f'pending_selection_{key}')
-                with st.container(key=f'pending_submit_{key}'):
-                    send = st.form_submit_button('Send selected for RTGS', type='primary', disabled=not configured)
+            request_numbers = tuple(by_number)
+            st.session_state.setdefault(toggle_key, bool(request_numbers) and all(number in selected_numbers for number in request_numbers))
+            st.checkbox('Select all', key=toggle_key,
+                on_change=set_group_selection, args=(selected_key, toggle_key, generation_key, request_numbers))
+            frame = pd.DataFrame(rows)
+            editor_key = f'pending_selection_{key}_{st.session_state.get(generation_key, 0)}'
+            edited = st.data_editor(frame, hide_index=True, width='stretch',
+                disabled=[col for col in frame if col != 'Select'], key=editor_key,
+                on_change=sync_group_selection, args=(selected_key, toggle_key, editor_key, request_numbers))
+            with st.container(key=f'pending_submit_{key}'):
+                send = st.button('Send selected for RTGS', type='primary', disabled=not configured,
+                    key=f'pending_send_{key}')
             if send:
                 selected = {row['Record']:({'updated_at':by_number[row['Record']].get('updated_at'), 'amount':row['Balance']} if kind == 'balance' else by_number[row['Record']].get('updated_at'))
                             for row in edited.to_dict('records') if row['Select'] and row['Status'] == 'Pending' and row['Bank details'] == 'Complete'}

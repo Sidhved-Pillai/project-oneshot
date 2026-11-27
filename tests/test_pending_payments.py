@@ -3,7 +3,7 @@ import json
 
 import pytest
 from sqlalchemy import insert
-from src.pending_payments import payment_groups, pending_summary
+from src.pending_payments import payment_groups, pending_summary, set_group_selection, sync_group_selection
 from src.records_store_v20 import RequestStore
 from src.request_store import upi_reimbursement_profiles
 
@@ -13,6 +13,22 @@ def trip(store, **extra):
         'vehicle_number':'TEST1234', 'transporter_name':'Sai Transporter', 'branch':'Pune',
         'ownership_type':'Outside', 'balance_amount':2000, 'upi':500, 'beneficiary_name':'Test Transporter',
         'rtgs_data':{'BNF_NAME':'Test Transporter','BENE_ACC_NO':'001234','BENE_IFSC':'TEST0000001'}, **extra})
+
+
+def test_group_select_all_tracks_individual_changes(monkeypatch):
+    from src import pending_payments
+    state = {'all': True, 'generation': 0}
+    monkeypatch.setattr(pending_payments.st, 'session_state', state)
+    numbers = ('first', 'second')
+    set_group_selection('selected', 'all', 'generation', numbers)
+    assert state['selected'] == set(numbers)
+    assert state['generation'] == 1
+    state['editor'] = {'edited_rows': {1: {'Select': False}}}
+    sync_group_selection('selected', 'all', 'editor', numbers)
+    assert state['selected'] == {'first'}
+    assert state['all'] is False
+    set_group_selection('selected', 'all', 'generation', numbers)
+    assert state['selected'] == set()
 
 
 def test_summary_counts_unsent_trips_not_groups_and_includes_missing_bank_details():
