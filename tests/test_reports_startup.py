@@ -1,12 +1,14 @@
 """Reports must render without an entry-draft browser handshake for Sid."""
 from unittest.mock import patch
 
+import pytest
 from streamlit.testing.v1 import AppTest
 
 
-def test_sid_reports_render_without_browser_draft_component(tmp_path, monkeypatch):
+@pytest.mark.parametrize('entrypoint', ['app.py', 'recovery_app.py'])
+def test_sid_reports_render_without_browser_draft_component(tmp_path, monkeypatch, entrypoint):
     monkeypatch.setenv('DATABASE_URL', 'sqlite:///' + str(tmp_path / 'startup.db'))
-    app = AppTest.from_file('app.py', default_timeout=30)
+    app = AppTest.from_file(entrypoint, default_timeout=30)
     app.session_state['authenticated'] = True
     app.session_state['authenticated_user'] = 'Sid'
     app.session_state['is_special_member'] = True
