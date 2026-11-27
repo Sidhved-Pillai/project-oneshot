@@ -123,11 +123,11 @@ def ledger_action(store,user,action,rows,records,queues,token):
 def update_in_ledger(name,rows,queues,records,user,store,instance):
     # The component owns only draft UI state; every committed amount is rechecked by the store.
     st.markdown('''<style>
-    [data-testid="stDialog"]:has(.ledger-popup-marker) [role="dialog"]{width:98vw!important;max-width:98vw!important;max-height:96vh;overflow-y:auto;background:linear-gradient(125deg,#fff,#f8fbff)!important;border-radius:22px!important;padding:12px!important}
+    [data-testid="stDialog"]:has(.ledger-popup-marker) [role="dialog"]{width:98vw!important;max-width:98vw!important;height:94dvh!important;max-height:94dvh!important;overflow:hidden!important;background:linear-gradient(125deg,#fff,#f8fbff)!important;border-radius:22px!important;padding:12px!important}
     [data-testid="stDialog"]:has(.ledger-popup-marker) [role="dialog"]>div:first-child{display:none!important}
     [data-testid="stDialog"]:has(.ledger-popup-marker) [role="dialog"] button[aria-label="Close"]{visibility:hidden!important}
     [data-testid="stDialog"]:has(.ledger-popup-marker) [role="dialog"]>div:last-child{padding:8px 10px!important}
-    [data-testid="stDialog"]:has(.ledger-popup-marker) iframe{width:100%!important;border:0!important}
+    [data-testid="stDialog"]:has(.ledger-popup-marker) iframe{width:100%!important;height:calc(94dvh - 48px)!important;border:0!important}
     [data-testid="stDialog"]:has(.ledger-popup-marker) [data-testid="stVerticalBlock"]{gap:0!important}
     </style><span class="ledger-popup-marker"></span>''',unsafe_allow_html=True)
     history,batches=history_payload(rows,queues,records)
