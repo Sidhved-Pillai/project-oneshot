@@ -1,5 +1,4 @@
 """Keep the native browser close control while blocking accidental dismissal."""
-import json
 
 
 def explicit_close_script():
@@ -36,30 +35,16 @@ def explicit_close_script():
 
 
 def saved_record_script(save_id):
-    """Close the saved editor and show a five-second confirmation outside it."""
+    """Close a saved editor; Streamlit owns the five-second confirmation."""
     return '''<script>
 (() => {
   const host = window.parent, doc = host.document;
-  const saveId = __SAVE_ID__;
-  if (host.__oneshotEditNoticeSaveId === saveId) {
+  function closeSavedDialog(attempt = 0) {
     const dialog = window.frameElement?.closest('[role="dialog"]') || doc.querySelector('[data-testid="stDialog"] [role="dialog"]');
-    dialog?.querySelector('button[aria-label="Close"]')?.click();
-    return;
+    const close = dialog?.querySelector('button[aria-label="Close"]');
+    if (close) { close.click(); return; }
+    if (attempt < 10) host.setTimeout(() => closeSavedDialog(attempt + 1), 50);
   }
-  host.__oneshotEditNoticeSaveId = saveId;
-  host.__oneshotEditNotice?.remove();
-  const banner = doc.createElement('div');
-  banner.textContent = 'Edits have been made';
-  banner.setAttribute('role', 'status');
-  banner.style.cssText = 'position:fixed;z-index:2147483647;top:22px;right:22px;max-width:min(380px,calc(100vw - 44px));padding:15px 20px;border:1px solid #73d69b;border-radius:12px;background:#dcfce7;color:#14532d;font:700 16px/1.4 system-ui,sans-serif;box-shadow:0 10px 30px #14532d26';
-  doc.body.appendChild(banner);
-  host.__oneshotEditNotice = banner;
-  host.setTimeout(() => {
-    banner.remove();
-    if (host.__oneshotEditNotice === banner) host.__oneshotEditNotice = null;
-  }, 5000);
-  const dialog = window.frameElement?.closest('[role="dialog"]') || doc.querySelector('[data-testid="stDialog"] [role="dialog"]');
-  const close = dialog?.querySelector('button[aria-label="Close"]');
-  close?.click();
+  closeSavedDialog();
 })();
-</script>'''.replace('__SAVE_ID__', json.dumps(str(save_id)))
+</script>'''

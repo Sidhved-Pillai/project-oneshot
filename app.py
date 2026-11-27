@@ -84,7 +84,7 @@ from src.batched_records_v11 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
 from src.vijay_finance import project_vijay_records, vijay_finance_summary
 from src.record_form_v6 import record_form
-from src.dialog_browser_v3 import explicit_close_script, saved_record_script
+from src.dialog_browser_v4 import explicit_close_script, saved_record_script
 
 load_dotenv(ROOT / ".env")
 APP_LOGO = ROOT / 'assets' / 'logo-icon.png'
@@ -1622,6 +1622,7 @@ def view_record(row):
         return
     saved_key = f"record_edit_saved_{row['request_number']}"
     if st.session_state.get(saved_key):
+        st.success('Edits have been made')
         components.html(saved_record_script(st.session_state[saved_key]), height=0, scrolling=False)
         return
     legacy_own_expense = (
@@ -1838,6 +1839,8 @@ def view_record(row):
         st.session_state.pop("evidence_request_number", None)
         st.session_state.pop("evidence_record", None)
         st.session_state[saved_key] = str(time.time_ns())
+        st.toast('Edits have been made', icon='✅', duration=5)
+        st.success('Edits have been made')
         components.html(saved_record_script(st.session_state[saved_key]), height=0, scrolling=False)
 
 st.markdown("""
