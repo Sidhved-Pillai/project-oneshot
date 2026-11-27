@@ -40,7 +40,6 @@ def render_filters(rows, user, today, saved_companies=()):
         return key
     def reset_filters():
         st.session_state[saved_key] = dict(defaults)
-        st.session_state['records_display_limit'] = 50
         for field, value in defaults.items():
             st.session_state[f'records_filter_draft_{user}_{field}'] = value
     with st.form(f'records_filters_batch_{user}', border=False):
@@ -119,7 +118,6 @@ def render_filters(rows, user, today, saved_companies=()):
                            ownership=ownership,amount=amount,heading=heading,without_evidence=False,order='↓',
                            lr_number=lr_number.strip(), invoice_number=invoice_number.strip())
             st.session_state[saved_key] = applied
-            st.session_state['records_display_limit'] = 50
     return applied
 
 

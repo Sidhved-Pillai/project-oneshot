@@ -75,7 +75,6 @@ from src.upi_payments import can_send_upi, upi_rtgs_rows
 from src.balance_reconciliation import reconciliation_row
 from src.balance_payments import BALANCE_PAYMENT_USERS, BALANCE_PREFIX, balance_rtgs_rows, can_send_balance
 from src.report_scroll import latest_rows_scroll_script
-from src.records_scroll import records_scroll_script
 from src.dtr_review import render_dtr_review
 from src.dtr_dates import parse_dtr_date, dtr_editor_key
 from src.ashok_dates import parse_month_date
@@ -2470,13 +2469,6 @@ def render_records():
                     key=f"download_{current_user.casefold()}_filtered_records",
                 )
             table_key = f'{current_user.casefold()}_records_table' if designed_records else 'standard_records_table'
-            scroll_scope = hashlib.sha256(repr((
-                current_user, applied_filters, without_invoice_evidence, sort_arrow,
-            )).encode()).hexdigest()
-            if st.session_state.get('records_scroll_scope') != scroll_scope:
-                st.session_state.update(records_scroll_scope=scroll_scope, records_display_limit=50)
-            display_limit = st.session_state['records_display_limit']
-            visible_rows = rows[:display_limit]
             if designed_records:
                 title = 'Trip Records' if record_type == TRIP_RECORDS else 'Direct Expenses' if record_type == DIRECT_EXPENSES else 'Records'
                 shyam_range_slot.markdown(f'<div class="sr-table-title"><span class="sr-table-icon">{records_truck}</span>{title}<small>{len(rows)} records</small></div>', unsafe_allow_html=True)
@@ -2506,7 +2498,7 @@ def render_records():
                         column.markdown(f"**{title}**")
                 if record_type == DIRECT_EXPENSES and current_user in EXPENSE_RECORD_SUMMARY_USERS:
                     header[value_column].caption(f"Total Figure = {format_inr(sum(number(row.get('amount')) for row in rows))}")
-                for row_index, record in enumerate(visible_rows, 1):
+                for row_index, record in enumerate(rows, 1):
                     raw = unpack(record.get("dtr_data"))
                     with st.container(key=f"{current_user.casefold()}_record_row_{record['request_number']}") if shyam_layout else nullcontext():
                         columns = st.columns(record_widths, vertical_alignment="center")
@@ -2559,17 +2551,6 @@ def render_records():
                         )
                     if can_delete_visible_record and actions['delete'].button("Delete", icon=":material/delete:", key=f"delete_record_{record['request_number']}", help="Delete record", use_container_width=True):
                         confirm_record_delete(record)
-                st.markdown(
-                    f'<div data-records-end="{scroll_scope}-{display_limit}" style="height:1px" aria-hidden="true"></div>',
-                    unsafe_allow_html=True,
-                )
-            has_more = len(visible_rows) < len(rows)
-            if has_more:
-                st.markdown('<style>.st-key-records_scroll_next{display:none!important}</style>', unsafe_allow_html=True)
-                st.button('Next records', key='records_scroll_next',
-                          on_click=st.session_state.update,
-                          args=({'records_display_limit': display_limit + 50},))
-            components.html(records_scroll_script(table_key, scroll_scope, display_limit, has_more), height=0)
             if current_user == 'Shyam':
                 st.button('Mark Selected Records as Invoice Received', icon=':material/description:', type='primary', key='save_invoice_receipt_batch',
                           on_click=save_invoice_receipt_batch)
