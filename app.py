@@ -2295,6 +2295,42 @@ def render_records():
             page_intro("", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
         all_record_rows = list(normalization_rows)
         rows = list(all_record_rows)
+        if current_user == 'Sid':
+            target_trip_dates = {
+                'REQ-202610-003078': dt.date(2026, 10, 22),
+                'REQ-202610-002606': dt.date(2026, 10, 12),
+            }
+            target_trips = [row for row in all_record_rows
+                            if row.get('request_number') in target_trip_dates]
+            targets_match = (len(target_trips) == 2 and all(
+                row.get('report_scope') != 'Expense'
+                and clean_text(row.get('created_by')) == 'Vijay'
+                and as_date(row.get('trip_date')) == target_trip_dates[row['request_number']]
+                and canonical_branch(row.get('branch')) == 'Andheri'
+                for row in target_trips))
+            if targets_match:
+                with st.expander('October 2026 trip cleanup'):
+                    st.write('Archive REQ-202610-003078 and REQ-202610-002606')
+                    if st.button('Archive these two trips', key='archive_two_vijay_october'):
+                        changes = []
+                        for row in target_trips:
+                            data = unpack(row.get('dtr_data'))
+                            data['_deleted_previous_status'] = clean_text(row.get('status')) or 'Submitted'
+                            changes.append((row['request_number'], {
+                                'status': 'Cancelled', 'is_archived': True, 'dtr_data': data,
+                            }))
+                        try:
+                            updated = store.update_many(
+                                changes, 'records_soft_delete', current_user,
+                                expected_versions={row['request_number']: row['updated_at'] for row in target_trips},
+                            )
+                        except ValueError as exc:
+                            st.error(str(exc))
+                        else:
+                            st.session_state['october_two_cleanup_notice'] = f'Archived {updated} trip records.'
+                            st.rerun()
+            if notice := st.session_state.pop('october_two_cleanup_notice', None):
+                st.success(notice)
         if record_branch_scope:
             rows = [
                 row for row in rows
