@@ -35,7 +35,8 @@ def test_sid_navigation_replaces_entry_tabs_and_other_users_keep_theirs():
         def tabs(names, **kwargs):
             labels.extend(names)
             return names
-        scope={'current_user':user,'st':SimpleNamespace(tabs=tabs),'PENDING_PAYMENT_USERS':{'Sid','Nikhat','Ajit','Shyam'}}
+        scope={'current_user':user,'st':SimpleNamespace(tabs=tabs),'PENDING_PAYMENT_USERS':{'Sid','Nikhat','Ajit','Shyam'},
+               'remembered_tab': lambda names: names[0]}
         exec(compile(ast.Module(body=[navigation],type_ignores=[]),'nav','exec'),scope)
         assert labels == expected
         if user=='Sid':

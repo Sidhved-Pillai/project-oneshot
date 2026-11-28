@@ -82,7 +82,9 @@ from src.member_sessions import signing_key, issue_member_session, restore_membe
 from src.branch_names import canonical_branch as normalized_branch_name
 from src.batched_records_v11 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
-from src.vijay_finance import project_vijay_records, vijay_finance_summary
+from src.vijay_finance import project_vijay_records, vijay_finance_summary, reconcile_vijay_identifiers
+from src.records_filter_url import encode_filters
+from src.tab_persistence import tab_persistence_script
 from src.record_form_v6 import record_form
 from src.dialog_browser_v4 import explicit_close_script, saved_record_script, close_edited_record_script
 
@@ -1701,6 +1703,11 @@ def view_record(row):
         st.error("Enter a valid date in 2026 or later. Previous months are allowed.")
     if save_clicked and editable and not (repair_reason_missing or invalid_ashok_date):
         item = edited_item
+        if is_vijay_record:
+            item['LR No.'], item['Invoice No.'] = reconcile_vijay_identifiers(
+                raw.get('LR No.'), row.get('invoice_number') or raw.get('Invoice No.'),
+                item.get('LR No.'), item.get('Invoice No.'),
+            )
         ownership_type = clean_text(item["Own / Outside"])
         transporter_freight = float(applicable_transporter_freight(ownership_type, item["Transporter Freight"]))
         billtee = number(item.get("Billtee"))
@@ -1756,7 +1763,6 @@ def view_record(row):
             })
         else:
             if is_vijay_record:
-                item['LR No.'] = item['Invoice No.']
                 finance = vijay_finance_summary(
                     item["Revenue"], item["UPI"], item["Diesel"], item["Cash"], item["RTGS"],
                     toll_expense, billtee,
@@ -1958,22 +1964,33 @@ if hidden_tabs:
         for index in hidden_tabs
     )
     st.markdown(f"<style>{hidden_tab_css}</style>", unsafe_allow_html=True)
+def remembered_tab(labels):
+    requested = st.query_params.get('oneshot_tab')
+    return requested if requested in labels else labels[0]
+
+
 if current_user == 'Sid':
+    tab_names = ['Dashboard', 'Records', 'Ledger', 'Generate Reports', 'Logs']
     dashboard_tab, records_tab, pending_tab, reports_tab, logs_tab = st.tabs(
-        ['Dashboard', 'Records', 'Ledger', 'Generate Reports', 'Logs'], default='Dashboard')
+        tab_names, default=remembered_tab(tab_names))
     new_tab = expense_tab = None
 elif current_user in {'Vinod', 'Nikhil'}:
+    tab_names = ['Dashboard', 'New Entry', 'Direct Expenses', 'Records', 'Pending Payments', 'Generate Reports', 'Logs']
     dashboard_tab, new_tab, expense_tab, records_tab, pending_tab, reports_tab, logs_tab = st.tabs(
-        ['Dashboard', 'New Entry', 'Direct Expenses', 'Records', 'Pending Payments', 'Generate Reports', 'Logs'], default='Dashboard')
+        tab_names, default=remembered_tab(tab_names))
 elif current_user == 'Nikhat':
+    tab_names = ['Direct Expenses','Records','Ledger','Generate Reports','Logs']
     expense_tab, records_tab, pending_tab, reports_tab, logs_tab = st.tabs(
-        ['Direct Expenses','Records','Ledger','Generate Reports','Logs'])
+        tab_names, default=remembered_tab(tab_names))
     new_tab = None
 elif current_user in PENDING_PAYMENT_USERS:
+    tab_names = ["New Entry", "Direct Expenses", "Records", "Ledger" if current_user == 'Ajit' else "Pending Payments", "Generate Reports", "Logs"]
     new_tab, expense_tab, records_tab, pending_tab, reports_tab, logs_tab = st.tabs(
-        ["New Entry", "Direct Expenses", "Records", "Ledger" if current_user == 'Ajit' else "Pending Payments", "Generate Reports", "Logs"])
+        tab_names, default=remembered_tab(tab_names))
 else:
-    new_tab, expense_tab, records_tab, reports_tab, logs_tab = st.tabs(["New Entry", "Direct Expenses", "Records", "Generate Reports", "Logs"])
+    tab_names = ["New Entry", "Direct Expenses", "Records", "Generate Reports", "Logs"]
+    new_tab, expense_tab, records_tab, reports_tab, logs_tab = st.tabs(tab_names, default=remembered_tab(tab_names))
+components.html(tab_persistence_script(), height=0, scrolling=False)
 
 def finish_trip_save(payload, generation):
     empty_vehicle = payload.get('company_name') == 'Empty Vehicle'
@@ -2407,13 +2424,25 @@ def render_records():
                 [5, 3, 1, 1.4, .4, .4], vertical_alignment="center")
         if not designed_records:
             live_title.markdown("#### Live records")
+        def persist_record_view_option(field, widget_key):
+            saved_key = f'applied_records_filters_{current_user}'
+            applied = dict(st.session_state.get(saved_key, {}))
+            applied[field] = st.session_state[widget_key]
+            st.session_state[saved_key] = applied
+            st.query_params[f'oneshot_records_{current_user.casefold()}'] = encode_filters(applied)
+
+        persisted_view = st.session_state.get(f'applied_records_filters_{current_user}', {})
+        st.session_state.setdefault('records_without_invoice_evidence', persisted_view.get('without_evidence', False))
+        st.session_state.setdefault('records_sort_arrow', persisted_view.get('order', '↓'))
         without_invoice_evidence = live_evidence_filter.toggle(
             "Show Records without Invoice Evidence", key="records_without_invoice_evidence",
+            on_change=persist_record_view_option, args=('without_evidence', 'records_without_invoice_evidence'),
         )
         rows = filter_without_invoice_evidence(rows, without_invoice_evidence)
         sort_arrow = live_sort.segmented_control(
             "Record order", ["↓", "↑"], default="↓", key="records_sort_arrow",
             label_visibility="collapsed", help="↓ Newest to oldest · ↑ Oldest to newest",
+            on_change=persist_record_view_option, args=('order', 'records_sort_arrow'),
         )
         if record_type == TRIP_RECORDS and can_view_trip_leaderboard(current_user):
             leaderboard_rows = branch_trip_leaderboard(

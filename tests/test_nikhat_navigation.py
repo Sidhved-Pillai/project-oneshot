@@ -12,10 +12,11 @@ def test_nikhat_tabs_exclude_new_entry_and_include_pending_payments():
                       and any(isinstance(child, ast.Call) and isinstance(child.func, ast.Attribute)
                           and child.func.attr == 'tabs' for child in ast.walk(node)))
     labels = []
-    def tabs(names):
+    def tabs(names, **kwargs):
         labels.extend(names)
         return list(names)
-    namespace = {'current_user':'Nikhat', 'st':SimpleNamespace(tabs=tabs), 'PENDING_PAYMENT_USERS':{'Nikhat'}}
+    namespace = {'current_user':'Nikhat', 'st':SimpleNamespace(tabs=tabs), 'PENDING_PAYMENT_USERS':{'Nikhat'},
+                 'remembered_tab': lambda names: names[0]}
     exec(compile(ast.Module(body=[navigation], type_ignores=[]), 'navigation', 'exec'), namespace)
     assert labels == ['Direct Expenses','Records','Ledger','Generate Reports','Logs']
     assert namespace['new_tab'] is None

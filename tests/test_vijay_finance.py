@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from src.vijay_finance import project_vijay_records, vijay_finance_summary
+from src.vijay_finance import project_vijay_records, vijay_finance_summary, reconcile_vijay_identifiers
 from src.pnl_report import branch_pnl_summary, vehicle_pnl_summary
 
 
@@ -47,6 +47,16 @@ def test_projection_does_not_change_other_users_or_direct_expenses():
     assert result[1] == expense
 
 
+def test_vijay_identifier_edit_syncs_only_the_single_changed_field():
+    old = 'MUMCIN270077989'
+    new = old + '9'
+    assert reconcile_vijay_identifiers(old, old, new, old) == (new, new)
+    assert reconcile_vijay_identifiers(old, old, old, new) == (new, new)
+    assert reconcile_vijay_identifiers(old, old, new, 'DIFFERENT') == (new, 'DIFFERENT')
+    row = project_vijay_records([vijay_trip(invoice_number=old, dtr_data={'LR No.': new})])[0]
+    assert row['dtr_data']['LR No.'] == new
+
+
 def test_vijay_cash_rtgs_billtee_and_toll_reach_branch_report():
     trip = project_vijay_records([vijay_trip()])[0]
     andheri = branch_pnl_summary([trip], [])[0]
@@ -69,7 +79,7 @@ def test_vijay_other_payments_reach_own_vehicle_report():
 
 def test_shyam_new_entry_and_vijay_ui_contracts_are_present():
     source = (ROOT / "app.py").read_text()
-    assert 'st.tabs(["New Entry", "Direct Expenses", "Records", "Generate Reports", "Logs"])' in source
+    assert 'st.tabs(tab_names, default=remembered_tab(tab_names))' in source
     assert '"Review DTR" if current_user == "Shyam"' not in source
     assert 'st.session_state[f"{prefix}_ownership_type"] = "Own"' in source
     for label in ("UPI", "Diesel", "Cash", "RTGS", "Toll Expense", "Billtee"):

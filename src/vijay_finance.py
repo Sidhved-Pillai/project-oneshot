@@ -31,6 +31,18 @@ def _data(value):
     return {}
 
 
+def reconcile_vijay_identifiers(original_lr, original_invoice, edited_lr, edited_invoice):
+    """Keep paired imported identifiers in sync when only one is corrected."""
+    old_lr, old_invoice = str(original_lr or '').strip(), str(original_invoice or '').strip()
+    lr, invoice = str(edited_lr or '').strip(), str(edited_invoice or '').strip()
+    if old_lr == old_invoice:
+        if lr != old_lr and invoice == old_invoice:
+            invoice = lr
+        elif invoice != old_invoice and lr == old_lr:
+            lr = invoice
+    return lr, invoice
+
+
 def project_vijay_records(records):
     """Present every Vijay trip with the current own-vehicle finance rules.
 
@@ -50,7 +62,7 @@ def project_vijay_records(records):
             dtr.get("Toll Expense"), dtr.get("Billtee"),
         )
         dtr.update({
-            "LR No.": row.get("invoice_number") or dtr.get("Invoice No.", ""),
+            "LR No.": dtr.get("LR No.") or row.get("invoice_number") or dtr.get("Invoice No.", ""),
             "Own/Outside Veh.": "Own",
             "Transporter Freight": 0.0,
             "Total Adv.": finance["total_advance"],

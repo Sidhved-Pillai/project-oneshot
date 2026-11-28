@@ -14,6 +14,7 @@ from .expense_amounts import expense_amounts
 from .record_lookup import identifier_matches
 from .branch_names import canonical_branch
 from .company_catalog import ADD_NEW, NEEDS_COMPANY_REVIEW, COMPANY_REVIEW_USERS, company_choices, is_unapproved_company
+from .records_filter_url import decode_filters, encode_filters
 
 
 def render_filters(rows, user, today, saved_companies=()):
@@ -33,6 +34,11 @@ def render_filters(rows, user, today, saved_companies=()):
                     branch='All', company='All', vehicle='All', placer='All', ownership='Both', amount='All', heading='All',
                     without_evidence=False, order='↓', lr_number='', invoice_number='')
     saved_key = f'applied_records_filters_{user}'
+    url_key = f'oneshot_records_{user.casefold()}'
+    if saved_key not in st.session_state:
+        restored = decode_filters(st.query_params.get(url_key))
+        if restored:
+            st.session_state[saved_key] = restored
     applied = {**defaults, **st.session_state.get(saved_key, {})}
     def widget_key(field):
         key = f'records_filter_draft_{user}_{field}'
@@ -40,6 +46,9 @@ def render_filters(rows, user, today, saved_companies=()):
         return key
     def reset_filters():
         st.session_state[saved_key] = dict(defaults)
+        st.query_params.pop(url_key, None)
+        st.session_state['records_without_invoice_evidence'] = False
+        st.session_state['records_sort_arrow'] = '↓'
         for field, value in defaults.items():
             st.session_state[f'records_filter_draft_{user}_{field}'] = value
     with st.form(f'records_filters_batch_{user}', border=False):
@@ -115,9 +124,11 @@ def render_filters(rows, user, today, saved_companies=()):
             st.error('Records from must be on or before Records to. Previous filters remain applied.')
         else:
             applied = dict(start=start,end=end,record_type=kind,branch=branch,company=company,vehicle=vehicle,placer=placer,
-                           ownership=ownership,amount=amount,heading=heading,without_evidence=False,order='↓',
+                           ownership=ownership,amount=amount,heading=heading,
+                           without_evidence=applied.get('without_evidence', False), order=applied.get('order', '↓'),
                            lr_number=lr_number.strip(), invoice_number=invoice_number.strip())
             st.session_state[saved_key] = applied
+            st.query_params[url_key] = encode_filters(applied)
     return applied
 
 
