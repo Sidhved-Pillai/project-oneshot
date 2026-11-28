@@ -1011,6 +1011,7 @@ def expense_payload(v, files):
         "diesel_advance": payments["Diesel"], "total_advance": sum(payments.values()) + card, "notes": plain_remark(v["remarks"]),
         "status": "Verified", "dtr_data": {
             "Invoice No.": clean_text(v.get("invoice_number")),
+            "Driver Name": clean_text(v.get("driver_name")),
             "categories": categories, "payments": {**payments, "Card": card},
             "periods": {
                 category: serialize_period(v.get(f"{category}_period"))
@@ -1833,6 +1834,7 @@ def view_record(row):
         st.session_state.pop("evidence_request_number", None)
         st.session_state.pop("evidence_record", None)
         st.session_state[saved_key] = str(time.time_ns())
+        st.session_state['_records_refresh_after_edit'] = True
         st.toast('Edits have been made', icon='✅', duration=5)
         st.success('Edits have been made')
         components.html(saved_record_script(st.session_state[saved_key]), height=0, scrolling=False)
@@ -2110,21 +2112,23 @@ def render_direct_expenses():
         if clean_text(st.session_state.get(f"{expense_prefix}_vehicle")):
             st.session_state[f"{expense_prefix}_vehicle"] = canonical_vehicle_number(st.session_state[f"{expense_prefix}_vehicle"])
         if current_user == "Nikhat":
-            c1, c2, c3, c4 = st.columns(4)
-            expense_beneficiary, expense_vehicle = expense_identity_inputs(expense_prefix, c3, c4, normalization_rows)
+            c1, c2, c3, c4, c5 = st.columns(5)
+            expense_beneficiary, expense_vehicle, expense_driver = expense_identity_inputs(expense_prefix, c3, c5, normalization_rows, c4)
             v = {
                 "date": c1.date_input("Date *", format="DD/MM/YYYY", key=f"{expense_prefix}_date", min_value=OPERATIONS_START, on_change=mark_expense_date_manual, args=(expense_prefix,)),
                 "invoice_number": c2.text_input("Invoice No:", key=f"{expense_prefix}_invoice_number", placeholder="e.g., INV-1234"),
                 "beneficiary_name": expense_beneficiary,
+                "driver_name": expense_driver,
                 "vehicle_number": expense_vehicle,
             }
         else:
-            c1, c2, c3 = st.columns(3)
-            expense_beneficiary, expense_vehicle = expense_identity_inputs(expense_prefix, c2, c3, normalization_rows)
+            c1, c2, c3, c4 = st.columns(4)
+            expense_beneficiary, expense_vehicle, expense_driver = expense_identity_inputs(expense_prefix, c2, c4, normalization_rows, c3)
             v = {
                 "date": c1.date_input("Date *", format="DD/MM/YYYY", key=f"{expense_prefix}_date", min_value=OPERATIONS_START, on_change=mark_expense_date_manual, args=(expense_prefix,)),
                 "invoice_number": "",
                 "beneficiary_name": expense_beneficiary,
+                "driver_name": expense_driver,
                 "vehicle_number": expense_vehicle,
             }
         branch_choices = allowed_entry_branches
@@ -2315,7 +2319,11 @@ def render_records():
             records_heading_slot = st.empty()
         else:
             page_intro("", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
-        all_record_rows = list(normalization_rows)
+        if st.session_state.pop('_records_refresh_after_edit', False):
+            fresh_rows, _, _, _ = store.dashboard_snapshot(include_payments=False, include_logs=False)
+            all_record_rows = project_vijay_records(fresh_rows)
+        else:
+            all_record_rows = list(normalization_rows)
         rows = list(all_record_rows)
         if record_branch_scope:
             rows = [

@@ -36,7 +36,7 @@ def apply_expense_beneficiary(prefix, profiles):
     st.session_state[f'{prefix}_ifsc'] = profile.get('ifsc', '')
 
 
-def expense_identity_inputs(prefix, beneficiary_column, vehicle_column, rows):
+def expense_identity_inputs(prefix, beneficiary_column, vehicle_column, rows, driver_column=None):
     profiles, names, vehicles = expense_suggestions(rows)
     name = str(st.session_state.get(f'{prefix}_beneficiary') or '').strip()
     vehicle = str(st.session_state.get(f'{prefix}_vehicle') or '').strip()
@@ -47,4 +47,13 @@ def expense_identity_inputs(prefix, beneficiary_column, vehicle_column, rows):
         on_change=apply_expense_beneficiary, args=(prefix, profiles))
     selected_vehicle = vehicle_column.selectbox('Vehicle name / number', vehicles,
         key=f'{prefix}_vehicle', accept_new_options=True, placeholder='Type or select a vehicle')
-    return beneficiary, selected_vehicle
+    if driver_column is None:
+        return beneficiary, selected_vehicle
+    drivers = sorted({str(raw.get('Driver Name') or '').strip()
+                      for row in rows
+                      if (raw := json.loads(row.get('dtr_data') or '{}') if isinstance(row.get('dtr_data'), str)
+                          else row.get('dtr_data') or {}).get('Driver Name')}, key=str.casefold)
+    current_driver = str(st.session_state.get(f'{prefix}_driver_name') or '').strip()
+    driver = driver_column.selectbox("Driver's Name", ['', *sorted(set(drivers + ([current_driver] if current_driver else [])), key=str.casefold)],
+        key=f'{prefix}_driver_name', accept_new_options=True, placeholder='Type or select a driver')
+    return beneficiary, selected_vehicle, driver

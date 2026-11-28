@@ -44,7 +44,7 @@ let closed=0, delay, retry, scheduled=0, ready=false;
 const close={click(){closed++}};
 const dialog={querySelector:()=>ready ? close : null};
 const doc={querySelector:()=>dialog};
-global.window={parent:{document:doc,setTimeout(fn,ms){retry=fn;delay=ms;scheduled++}},
+global.window={parent:{document:doc,location:{reload(){}},setTimeout(fn,ms){retry=fn;delay=ms;scheduled++}},
   frameElement:{closest:()=>dialog}};
 '''
     checks = '''
@@ -54,7 +54,7 @@ assert.equal(delay,50);
 ready=true;
 retry();
 assert.equal(closed,1);
-assert.equal(scheduled,1);
+assert.equal(scheduled,2);
 '''
     subprocess.run([node, '-e', harness + script + checks],
                    check=True, capture_output=True, text=True)

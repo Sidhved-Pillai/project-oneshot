@@ -42,7 +42,7 @@ def saved_record_script(save_id):
   function closeSavedDialog(attempt = 0) {
     const dialog = window.frameElement?.closest('[role="dialog"]') || doc.querySelector('[data-testid="stDialog"] [role="dialog"]');
     const close = dialog?.querySelector('button[aria-label="Close"]');
-    if (close) { close.click(); return; }
+    if (close) { close.click(); host.setTimeout(() => host.location.reload(), 100); return; }
     if (attempt < 10) host.setTimeout(() => closeSavedDialog(attempt + 1), 50);
   }
   closeSavedDialog();
