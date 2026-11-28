@@ -12,15 +12,17 @@ def test_edited_record_closes_and_refreshes_records_without_reloading_page():
     script = close_edited_record_script().removeprefix('<script>').removesuffix('</script>')
     harness = '''
 const assert = require('node:assert/strict');
-let closed=0, refreshed=0, delay;
+let closed=0, refreshed=0, delay, guardAborted=0;
 const close={click(){closed++}}, refresh={click(){refreshed++}};
 const dialog={querySelector:()=>close};
 const doc={querySelector:selector=>selector.includes('records_edit_refresh_trigger') ? refresh : dialog};
-global.window={parent:{document:doc,setTimeout(fn,ms){delay=ms;fn()}},frameElement:{closest:()=>dialog}};
+global.window={parent:{document:doc,__oneshotEditorDismissGuard:{abort(){guardAborted++}},
+  setTimeout(fn,ms){delay=ms;fn()}},frameElement:{closest:()=>dialog}};
 '''
     checks = '''
 assert.equal(closed,1);
 assert.equal(refreshed,1);
+assert.equal(guardAborted,1);
 assert.equal(delay,50);
 '''
     subprocess.run([node, '-e', harness + script + checks], check=True)

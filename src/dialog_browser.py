@@ -60,8 +60,11 @@ def close_edited_record_script():
     const close = dialog?.querySelector('button[aria-label="Close"]');
     const refresh = doc.querySelector('.st-key-records_edit_refresh_trigger button');
     if (close && refresh) {
+      host.__oneshotEditorDismissGuard?.abort();
       close.click();
-      host.setTimeout(() => refresh.click(), 50);
+      host.setTimeout(() => {
+        (doc.querySelector('.st-key-records_edit_refresh_trigger button') || refresh).click();
+      }, 50);
       return;
     }
     if (attempt < 20) host.setTimeout(() => closeAndRefresh(attempt + 1), 50);
