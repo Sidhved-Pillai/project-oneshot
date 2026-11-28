@@ -197,15 +197,19 @@ def show_details(model, kind, day_label):
                ('Branches',len({r['Branch'] for r in display['expense_rows']})),('% of Revenue',f'{amount/model["revenue"]*100:.1f}%' if model['revenue'] else '—')])
         entry_table(display, 'expense', 'pl_'+kind)
     else:
+        summary_stats = st.empty()
+        view_control, branch_control = st.columns([3, 1], vertical_alignment='center')
         branches = sorted({row['Branch'] for row in model['report'] if row.get('Branch') != 'Total'})
-        selected_branch = st.selectbox(
+        selected_branch = branch_control.selectbox(
             'Branch', ['All Branches', *branches], key='pl_summary_branch_' + kind,
+            label_visibility='collapsed',
         )
         model = branch_model(model, selected_branch)
         expense_entries = len({r['Record'] for r in model['expense_rows']})
-        stats([('Total Revenue',format_inr(model['revenue'])),('Total Expenses',format_inr(model['expense'])),
-               ('Profit / Loss',format_inr(model['profit'])),('Profit Margin',f'{model["margin"]:.1f}%')])
-        tab = st.radio('Detail view', ['P&L Summary',f'Revenue Entries ({len(model["revenue_rows"])})', f'Expense Entries ({expense_entries})'], horizontal=True, label_visibility='collapsed', key='pl_detail_view_'+kind)
+        with summary_stats.container():
+            stats([('Total Revenue',format_inr(model['revenue'])),('Total Expenses',format_inr(model['expense'])),
+                   ('Profit / Loss',format_inr(model['profit'])),('Profit Margin',f'{model["margin"]:.1f}%')])
+        tab = view_control.radio('Detail view', ['P&L Summary',f'Revenue Entries ({len(model["revenue_rows"])})', f'Expense Entries ({expense_entries})'], horizontal=True, label_visibility='collapsed', key='pl_detail_view_'+kind)
         if tab.startswith('Revenue'):
             entry_table(model,'revenue','pl_summary_revenue')
         elif tab.startswith('Expense'):
