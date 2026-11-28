@@ -48,3 +48,24 @@ def saved_record_script(save_id):
   closeSavedDialog();
 })();
 </script>'''
+
+
+def close_edited_record_script():
+    """Close the editor and refresh only the Records fragment."""
+    return '''<script>
+(() => {
+  const host = window.parent, doc = host.document;
+  function closeAndRefresh(attempt = 0) {
+    const dialog = window.frameElement?.closest('[role="dialog"]') || doc.querySelector('[data-testid="stDialog"] [role="dialog"]');
+    const close = dialog?.querySelector('button[aria-label="Close"]');
+    const refresh = doc.querySelector('.st-key-records_edit_refresh_trigger button');
+    if (close && refresh) {
+      close.click();
+      host.setTimeout(() => refresh.click(), 50);
+      return;
+    }
+    if (attempt < 20) host.setTimeout(() => closeAndRefresh(attempt + 1), 50);
+  }
+  closeAndRefresh();
+})();
+</script>'''

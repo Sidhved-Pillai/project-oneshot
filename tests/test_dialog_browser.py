@@ -2,7 +2,28 @@ import shutil
 import subprocess
 
 import pytest
-from src.dialog_browser import explicit_close_script, saved_record_script
+from src.dialog_browser import explicit_close_script, saved_record_script, close_edited_record_script
+
+
+def test_edited_record_closes_and_refreshes_records_without_reloading_page():
+    node = shutil.which('node')
+    if not node:
+        pytest.skip('Node is needed for browser event simulation')
+    script = close_edited_record_script().removeprefix('<script>').removesuffix('</script>')
+    harness = '''
+const assert = require('node:assert/strict');
+let closed=0, refreshed=0, delay;
+const close={click(){closed++}}, refresh={click(){refreshed++}};
+const dialog={querySelector:()=>close};
+const doc={querySelector:selector=>selector.includes('records_edit_refresh_trigger') ? refresh : dialog};
+global.window={parent:{document:doc,setTimeout(fn,ms){delay=ms;fn()}},frameElement:{closest:()=>dialog}};
+'''
+    checks = '''
+assert.equal(closed,1);
+assert.equal(refreshed,1);
+assert.equal(delay,50);
+'''
+    subprocess.run([node, '-e', harness + script + checks], check=True)
 
 
 def test_native_cross_passes_through_but_backdrop_and_escape_are_blocked():

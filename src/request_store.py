@@ -361,6 +361,7 @@ class RequestStore(SettlementStore):
             row = conn.execute(select(*REQUEST_METADATA_COLUMNS).where(requests.c.request_number == request_number)).mappings().first()
             if row:
                 self._insert_revision(conn, request_number, dict(row), change_source, edited_by or clean.get("created_by", ""))
+        return dict(row) if row else None
 
     def update_many(self, changes, change_source="manual", edited_by="", expected_versions=None):
         """Update several records and their audit revisions in one transaction."""

@@ -84,7 +84,7 @@ from src.batched_records_v11 import render_filters, filter_identifiers
 from src.operational_dates_v2 import OPERATIONS_START
 from src.vijay_finance import project_vijay_records, vijay_finance_summary
 from src.record_form_v6 import record_form
-from src.dialog_browser_v4 import explicit_close_script, saved_record_script
+from src.dialog_browser_v4 import explicit_close_script, saved_record_script, close_edited_record_script
 
 load_dotenv(ROOT / ".env")
 APP_LOGO = ROOT / 'assets' / 'logo-icon.png'
@@ -1514,6 +1514,7 @@ normalization_rows, balance_requests, upi_requests, dashboard_logs = store.dashb
     include_logs=current_user in SPECIAL_MEMBERS,
 )
 normalization_rows = project_vijay_records(normalization_rows)
+st.session_state.pop('_records_edited_rows', None)
 CUSTOM_COMPANIES = store.custom_company_names() if hasattr(store, 'custom_company_names') else []
 historical_business_memory = cached_business_memory(normalization_rows)
 business_memory = historical_business_memory
@@ -1820,16 +1821,18 @@ def view_record(row):
             })
         with st.spinner('Saving record changes…'):
             try:
-                store.update(row["request_number"], update_values, "records_tab", current_user,
-                             expected_version=row.get('updated_at'))
+                updated_row = store.update(row["request_number"], update_values, "records_tab", current_user,
+                                           expected_version=row.get('updated_at'))
             except ValueError as exc:
                 st.error(str(exc))
                 return
         st.session_state.pop(replace_evidence_key, None)
         st.session_state.pop("evidence_request_number", None)
         st.session_state.pop("evidence_record", None)
+        if updated_row:
+            st.session_state.setdefault('_records_edited_rows', {})[row['request_number']] = project_vijay_records([updated_row])[0]
         st.session_state['_records_edit_notice'] = 'Edits have been made'
-        st.rerun(scope='app')
+        components.html(close_edited_record_script(), height=0, scrolling=False)
 
 st.markdown("""
 <style>
@@ -2311,9 +2314,13 @@ def render_records():
             records_heading_slot = st.empty()
         else:
             page_intro("", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
+        st.markdown('<style>.st-key-records_edit_refresh_trigger{display:none!important}</style>', unsafe_allow_html=True)
+        with st.container(key='records_edit_refresh_trigger'):
+            st.button('Refresh edited records', key='records_edit_refresh_button')
         if notice := st.session_state.pop('_records_edit_notice', None):
             st.toast(notice, icon='✅', duration=5)
-        all_record_rows = list(normalization_rows)
+        edited_rows = st.session_state.get('_records_edited_rows', {})
+        all_record_rows = [edited_rows.get(row['request_number'], row) for row in normalization_rows]
         rows = list(all_record_rows)
         if record_branch_scope:
             rows = [
