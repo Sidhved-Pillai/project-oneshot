@@ -1615,11 +1615,6 @@ def view_record(row):
     if not can_view_record(current_user, row):
         st.error("You are not authorized to view this record.")
         return
-    saved_key = f"record_edit_saved_{row['request_number']}"
-    if st.session_state.get(saved_key):
-        st.success('Edits have been made')
-        components.html(saved_record_script(st.session_state[saved_key]), height=0, scrolling=False)
-        return
     legacy_own_expense = (
         row.get("report_scope") == "Expense"
         and clean_text(row.get("created_by")) == current_user
@@ -1833,11 +1828,8 @@ def view_record(row):
         st.session_state.pop(replace_evidence_key, None)
         st.session_state.pop("evidence_request_number", None)
         st.session_state.pop("evidence_record", None)
-        st.session_state[saved_key] = str(time.time_ns())
-        st.session_state['_records_refresh_after_edit'] = True
-        st.toast('Edits have been made', icon='✅', duration=5)
-        st.success('Edits have been made')
-        components.html(saved_record_script(st.session_state[saved_key]), height=0, scrolling=False)
+        st.session_state['_records_edit_notice'] = 'Edits have been made'
+        st.rerun(scope='app')
 
 st.markdown("""
 <style>
@@ -2319,11 +2311,9 @@ def render_records():
             records_heading_slot = st.empty()
         else:
             page_intro("", "Records", "Find, review, edit, and manage every saved operations record.", "▤")
-        if st.session_state.pop('_records_refresh_after_edit', False):
-            fresh_rows, _, _, _ = store.dashboard_snapshot(include_payments=False, include_logs=False)
-            all_record_rows = project_vijay_records(fresh_rows)
-        else:
-            all_record_rows = list(normalization_rows)
+        if notice := st.session_state.pop('_records_edit_notice', None):
+            st.toast(notice, icon='✅', duration=5)
+        all_record_rows = list(normalization_rows)
         rows = list(all_record_rows)
         if record_branch_scope:
             rows = [
