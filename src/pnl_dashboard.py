@@ -103,6 +103,26 @@ def stats(items):
         f'<div><span>{esc(label)}</span><strong>{esc(value)}</strong></div>' for label, value in items) + '</div>', unsafe_allow_html=True)
 
 
+def branch_model(model, branch):
+    if branch == 'All Branches':
+        return model
+    report = next((row for row in model['report'] if row.get('Branch') == branch), {})
+    revenue = float(report.get('Total Revenue') or 0)
+    expense = float(report.get('Expense') or 0)
+    profit = float(report.get('Profit') or 0)
+    revenue_rows = [row for row in model['revenue_rows'] if row['Branch'] == branch]
+    expense_rows = [row for row in model['expense_rows'] if row['Branch'] == branch]
+    entry_rows = [row for row in model['entry_rows'] if row['Branch'] == branch]
+    return {
+        **model, 'revenue': revenue, 'expense': expense, 'profit': profit,
+        'margin': profit / revenue * 100 if revenue else 0,
+        'revenue_rows': revenue_rows, 'expense_rows': expense_rows,
+        'entry_rows': entry_rows, 'entry_count': len(entry_rows),
+        'direct_count': len({row['Record'] for row in expense_rows if row['Source'] == 'Direct Expense'}),
+        'report': [report],
+    }
+
+
 def entry_table(model, kind, key):
     entries = model['entry_rows'] if kind == 'entries' else model['revenue_rows'] if kind == 'revenue' else model['expense_rows']
     search, branch = st.columns([3, 1])
@@ -177,6 +197,12 @@ def show_details(model, kind, day_label):
                ('Branches',len({r['Branch'] for r in display['expense_rows']})),('% of Revenue',f'{amount/model["revenue"]*100:.1f}%' if model['revenue'] else '—')])
         entry_table(display, 'expense', 'pl_'+kind)
     else:
+        branches = sorted({row['Branch'] for row in model['report'] if row.get('Branch') != 'Total'})
+        selected_branch = st.selectbox(
+            'Branch', ['All Branches', *branches], key='pl_summary_branch_' + kind,
+        )
+        model = branch_model(model, selected_branch)
+        expense_entries = len({r['Record'] for r in model['expense_rows']})
         stats([('Total Revenue',format_inr(model['revenue'])),('Total Expenses',format_inr(model['expense'])),
                ('Profit / Loss',format_inr(model['profit'])),('Profit Margin',f'{model["margin"]:.1f}%')])
         tab = st.radio('Detail view', ['P&L Summary',f'Revenue Entries ({len(model["revenue_rows"])})', f'Expense Entries ({expense_entries})'], horizontal=True, label_visibility='collapsed', key='pl_detail_view_'+kind)

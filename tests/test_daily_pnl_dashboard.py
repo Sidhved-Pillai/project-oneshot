@@ -1,7 +1,7 @@
 import datetime as dt
 import math
 from streamlit.testing.v1 import AppTest
-from src.pnl_dashboard import period_model
+from src.pnl_dashboard import branch_model, period_model
 from src.pnl_report import branch_pnl_summary
 
 DAY = dt.date(2026,11,13)
@@ -30,6 +30,18 @@ def test_daily_and_mtd_reconcile_to_report_and_drilldown():
     assert {r['Source'] for r in model['expense_rows']} == {'Trip','Direct Expense'}
     month=period_model(records(),DAY.replace(day=1),DAY,branch_pnl_summary)
     assert month['expense'] == 15830
+
+
+def test_summary_branch_selection_reconciles_cards_and_entries():
+    model = period_model(records(), DAY, DAY, branch_pnl_summary)
+    pune = branch_model(model, 'Pune')
+    assert pune['revenue'] == 10000
+    assert pune['expense'] == 2625
+    assert pune['profit'] == 7375
+    assert pune['margin'] == 73.75
+    assert len(pune['revenue_rows']) == 1
+    assert all(row['Branch'] == 'Pune' for row in pune['expense_rows'])
+    assert branch_model(model, 'All Branches') is model
 
 
 def test_archived_cancelled_and_other_dates_excluded():
